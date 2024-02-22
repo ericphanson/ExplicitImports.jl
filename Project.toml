@@ -1,0 +1,13 @@
+name = "ExplicitImports"
+uuid = "7d51a73a-1435-4ff3-83d9-f097790105c7"
+authors = ["Eric P. Hanson"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
