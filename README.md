@@ -38,10 +38,8 @@ using DataFrames: DataFrame
 using DataFrames: combine
 using DataFrames: groupby
 using DataFrames: select!
+using DataFrames: subset
 using DataFrames: subset!
-using JuliaSyntax: SyntaxNode
-using JuliaSyntax: kind
-using JuliaSyntax: parseall
 using Tables: ByRow
 ```
 
