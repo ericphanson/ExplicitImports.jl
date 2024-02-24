@@ -108,6 +108,8 @@ function is_qualified(leaf)
     return false
 end
 
+# figure out if `leaf` is part of an import or using statement
+# this seems to trigger for both `X` and `y` in `using X: y`, but that seems alright.
 function is_being_imported(leaf)
     isnothing(parent(leaf)) && return false
     p = nodevalue(parent(leaf)).node
