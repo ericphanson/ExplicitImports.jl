@@ -1,10 +1,11 @@
 module Exporter
 
-export exported_a, exported_b, exported_c, x
+export exported_a, exported_b, exported_c, x, exported_d
 
 exported_a() = "hi"
 exported_b() = "hi-b"
 exported_c() = "hi-c"
+exported_d() = "hi-d"
 
 un_exported() = "bye"
 

@@ -40,11 +40,13 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
 end
 
 """
-    analyze_all_names(file) -> DataFrame
+    analyze_all_names(file) -> Tuple{DataFrame, DataFrame}
 
-Returns a DataFrame with one row per name per scope, with information about whether or not
+Returns:
+* a DataFrame with one row per name per scope, with information about whether or not
 it is within global scope, what modules it is in, and whether or not it was assigned before
 ever being used in that scope.
+* a DataFrame with one row per name per module path, consisting of names that have been explicitly imported in that module.
 """
 function analyze_all_names(file; debug=false)
     tree = SyntaxNodeWrapper(file)
@@ -56,6 +58,7 @@ function analyze_all_names(file; debug=false)
     # we can call `parent` to climb up from a leaf.
     cursor = TreeCursor(tree)
     df = DataFrame()
+    explicit_imports = DataFrame()
     for leaf in Leaves(cursor)
         JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
         # Ok, we have a "name". We want to know if:
@@ -77,19 +80,25 @@ function analyze_all_names(file; debug=false)
         debug && qualified && println("$name's usage here is qualified; skipping")
         qualified && continue
 
-        is_imported = is_being_imported(leaf)
-        debug && is_imported && println("$name's usage here is part of an import; skipping")
-        is_imported && continue
-
+        import_type = analyze_import_type(leaf)
+        debug && println("Import type: ", import_type)
         debug && println("--")
         debug && println("val : kind")
         ret = analyze_name(leaf; debug)
         debug && println(ret)
-        push!(df, (; name, location, ret...))
+
+        if import_type == :import_RHS
+            push!(explicit_imports, (; name, location, import_type, ret.module_path))
+        elseif import_type == :not_import
+            push!(df, (; name, location, ret...))
+        end
     end
 
     grps = groupby(df, [:name, :scope_path, :global_scope, :module_path])
-    return combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
+    names = combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
+    select!(explicit_imports, [:name, :module_path])
+    unique!(explicit_imports)
+    return names, explicit_imports
 end
 
 function is_qualified(leaf)
@@ -110,10 +119,27 @@ end
 
 # figure out if `leaf` is part of an import or using statement
 # this seems to trigger for both `X` and `y` in `using X: y`, but that seems alright.
-function is_being_imported(leaf)
+function analyze_import_type(leaf)
     isnothing(parent(leaf)) && return false
     p = nodevalue(parent(leaf)).node
-    return JuliaSyntax.kind(p) == K"importpath"
+    is_import = JuliaSyntax.kind(p) == K"importpath"
+    if is_import && !isnothing(parent(parent(leaf)))
+        p2 = nodevalue(parent(parent(leaf))).node
+        if JuliaSyntax.kind(p2) == K":"
+            kids = JuliaSyntax.children(p2)
+            if !isempty(kids)
+                if first(kids) != p
+                    # We aren't the first child, therefore we are on the RHS
+                    return :import_RHS
+                else
+                    return :import_LHS
+                end
+            end
+        end
+    end
+    # Not part of `:` generally means it's a `using X` or `import Y` situation
+    is_import && return :blanket_import
+    return :not_import
 end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
@@ -183,13 +209,16 @@ Figures out which global names are used in `file`, and what modules they are use
 
 Traverses static `include` statements.
 
-Returns a `DataFrame` with two columns, one for the `name`, and one for the path of modules,
-where the first module in the path is the innermost.
+Returns a `DataFrame` with four columns:
+* `name`: the name in question
+* `module_path`: the path of modules to access the name, where the first module in the path is the innermost.
+* `needs_explicit_import::Bool`
+* `unnecessary_explicit_import::Bool`
 """
 function get_names_used(file)
-
     # Here we get 1 row per name per scope
-    df = analyze_all_names(file)
+    df, explicit_imports = analyze_all_names(file)
+    explicit_imports.explicitly_imported .= true
 
     # further processing...
     # we want one row per name per module path, not per scope,
@@ -200,7 +229,17 @@ function get_names_used(file)
                       return any(g) || any(!, a)
                   end => :may_want_to_explicitly_import)
 
-    subset!(ret, :may_want_to_explicitly_import)
-    select!(ret, :name, :module_path)
+    ret = outerjoin(ret, explicit_imports, on=[:name, :module_path])
+    ret.explicitly_imported = coalesce.(ret.explicitly_imported, false)
+    ret.may_want_to_explicitly_import = coalesce.(ret.may_want_to_explicitly_import, false)
+
+    select!(ret, :name, :module_path,
+            [:may_want_to_explicitly_import, :explicitly_imported] => ByRow() do want, is
+                needs_explicit_import = want && !is
+                unnecessary_explicit_import = !want && is
+                return (; needs_explicit_import, unnecessary_explicit_import)
+            end => AsTable)
+
+    subset!(ret, [:needs_explicit_import, :unnecessary_explicit_import] => ByRow(|))
     return ret
 end

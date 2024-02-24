@@ -10,28 +10,29 @@ include("find_implicit_imports.jl")
 export get_names_used
 include("get_names_used.jl")
 
-export explicit_imports
+export explicit_imports, stale_explicit_imports
 
 """
-    explicit_imports(mod, file=pathof(mod); skips=(Base, Core)) -> Vector{String}
+    explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true) -> Vector{String}
 
 Returns a list of explicit import statements one could make for the module `mod`.
 
-Notes:
-* Currently, this does not filter to only new explicit imports (these may be redundant with already existing explicit imports). That is, `mod` may already be explicitly importing these names.
-* if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
-* `mod` can be a submodule defined within `file`, but if two modules have the same name (e.g. `X.Y.X` and `X`), results may be inaccurate.
-* `skips` will skip names coming from the listed modules, or any submodules thereof.
+* `file=pathof(mod)`: this should be a path to the source code that contains the module `mod`.
+    * if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
+    * `mod` can be a submodule defined within `file`, but if two modules have the same name (e.g. `X.Y.X` and `X`), results may be inaccurate.
+* `skips=(Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped.
+* `warn=true`: whether or not to warn about stale explicit imports.
 """
-function explicit_imports(mod, file=pathof(mod); skips=(Base, Core))
+function explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
     all_implicit_imports = find_implicit_imports(mod; skips)
     df = get_names_used(file)
-
     df = restrict_to_module(df, mod)
-    relevant_keys = intersect(df.name, keys(all_implicit_imports))
+
+    needs = subset(df, :needs_explicit_import)
+    relevant_keys = intersect(needs.name, keys(all_implicit_imports))
     usings = String[]
     for k in relevant_keys
         v_mod = all_implicit_imports[k]
@@ -50,7 +51,30 @@ function explicit_imports(mod, file=pathof(mod); skips=(Base, Core))
         push!(usings, "using $v: $k")
     end
     sort!(usings)
+
+    if warn
+        unnecessary = unique(sort(subset(df, :unnecessary_explicit_import).name))
+        if !isempty(unnecessary)
+            @warn "Found stale explicit imports for these names: $unnecessary. To get this list programmatically, call `stale_explicit_imports`. To silence this warning, pass `warn=false` to `explicit_imports`."
+        end
+    end
+
     return usings
+end
+
+"""
+    stale_explicit_imports(mod, file=pathof(mod)) -> Vector{Symbol}
+
+Returns a list of names that are not used in `mod`, but are still explicitly imported.
+"""
+function stale_explicit_imports(mod, file=pathof(mod))
+    if isnothing(file)
+        throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
+    end
+    df = get_names_used(file)
+    df = restrict_to_module(df, mod)
+    unnecessary = unique(sort(subset(df, :unnecessary_explicit_import).name))
+    return unnecessary
 end
 
 function has_ancestor(query, target)

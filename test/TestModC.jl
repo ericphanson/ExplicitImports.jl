@@ -3,7 +3,7 @@ module TestModC
 # go wayy up to get the top-level `TestModA` which exports `f`
 using ....TestModA
 using ....Exporter
-using ....Exporter: exported_b
+using ....Exporter: exported_b, exported_d # d is unnecessary
 
 # unnecessary explicit imports
 # TODO: write functionality to detect this...

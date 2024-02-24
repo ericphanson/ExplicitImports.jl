@@ -17,7 +17,7 @@ end
 @testset "ExplicitImports.jl" begin
     @test explicit_imports(TestModA, "TestModA.jl") == ["using .Exporter: exported_a"]
 
-    df = analyze_all_names("TestModA.jl")
+    df, imports = analyze_all_names("TestModA.jl")
     locals = contains.(string.(df.name), Ref("local"))
     @test all(!, df.global_scope[locals])
 
@@ -57,26 +57,31 @@ end
     @test_broken :f ∉ subsub_df.name
     @test_broken :func ∉ subsub_df.name
 
-    df = analyze_all_names("TestModC.jl")
+    df, imports = analyze_all_names("TestModC.jl")
 
     # starts from innermost
     @test module_path(TestModA.SubModB.TestModA.TestModC) ==
           [:TestModC, :TestModA, :SubModB, :TestModA]
 
-    from_outer_file = explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModA.jl")
-    from_inner_file = explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModC.jl")
+    from_outer_file = @test_logs (:warn, r"stale") explicit_imports(TestModA.SubModB.TestModA.TestModC,
+                                                                    "TestModA.jl")
+    from_inner_file = @test_logs (:warn, r"stale") explicit_imports(TestModA.SubModB.TestModA.TestModC,
+                                                                    "TestModC.jl")
     @test from_inner_file == from_outer_file
     @test "using .TestModA: f" in from_inner_file
     # This one isn't needed bc all usages are fully qualified
     @test "using .Exporter: exported_a" ∉ from_inner_file
 
     # This one isn't needed; it is already explicitly imported
-    @test_broken "using .Exporter: exported_b" ∉ from_inner_file
+    @test "using .Exporter: exported_b" ∉ from_inner_file
 
     # This one shouldn't be there; we never use it, only explicitly import it.
     # So actually it should be on a list of unnecessary imports. BUT it can show up
     # because by importing it, we have the name in the file, so we used to detect it.
     @test "using .Exporter: exported_c" ∉ from_inner_file
 
-    @test_broken from_inner_file == ["using .TestModA: f"]
+    @test from_inner_file == ["using .TestModA: f"]
+
+    @test stale_explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModC.jl") ==
+          [:exported_c, :exported_d]
 end
