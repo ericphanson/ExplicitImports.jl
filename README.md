@@ -78,3 +78,11 @@ In this case, names in files which are included via `include` are not analyzed w
 This can result in inaccurate results, such as false positives in `explicit_imports` and false negatives (or false positives) in `stale_explicit_imports`.
 
 This is essentially an inherent limitation of the approach used in this package. An alternate implementation using an `AbstractInterpreter` (like JET does) may be able to handle this (at the cost of increased complexity).
+
+### Need to load the package/module
+
+This implementation relies on `Base.which` to introspect which module any given name comes from, and therefore we need to load the module, not just inspect its source code. We can't solely use the source code because implicit imports are implicit -- which is part of the criticism of them in the first place, that the source file alone does not tell you where the names come from.
+
+In particular, this means it is hard to convert implicit imports to explicit as a formatting pass, for example.
+
+Given a running [language server](https://github.com/julia-vscode/LanguageServer.jl), however, I think it should be possible to query that for the information needed.
