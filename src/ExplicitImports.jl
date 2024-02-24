@@ -10,7 +10,7 @@ include("find_implicit_imports.jl")
 export get_names_used
 include("get_names_used.jl")
 
-export explicit_imports, stale_explicit_imports
+export explicit_imports, stale_explicit_imports, print_explicit_exports
 
 """
     explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true) -> Vector{String}
@@ -24,6 +24,34 @@ Returns a list of explicit import statements one could make for the module `mod`
 * `warn=true`: whether or not to warn about stale explicit imports.
 """
 function explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
+    submodules = sort!(collect(find_submodules(mod)); by=reverse ∘ module_path,
+                       lt=is_prefix)
+    return [submodule => explicit_imports_single(submodule, file; skips, warn)
+            for submodule in submodules]
+end
+
+function is_prefix(x, y)
+    return length(x) <= length(y) && all(Base.splat(isequal), zip(x, y))
+end
+
+function print_explicit_exports(mod, file; kw...)
+    ee = explicit_imports(mod, file; warn=false, kw...)
+    for (mod, imports) in ee
+        println("Module $mod is relying on implicit imports for $(length(imports)) names. These could be explicitly imported as follows:")
+        println()
+        println("```julia")
+        foreach(println, imports)
+        println("```")
+        stale = stale_explicit_imports(mod, file)
+        if !isempty(stale)
+            println()
+            println("Additionally $mod has explicit imports for these unused names:")
+            foreach(println, stale)
+        end
+    end
+end
+
+function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn=true)
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
@@ -55,7 +83,7 @@ function explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
     if warn
         unnecessary = unique(sort(subset(df, :unnecessary_explicit_import).name))
         if !isempty(unnecessary)
-            @warn "Found stale explicit imports for these names: $unnecessary. To get this list programmatically, call `stale_explicit_imports`. To silence this warning, pass `warn=false` to `explicit_imports`."
+            @warn "Found stale explicit imports in $mod for these names: $unnecessary. To get this list programmatically, call `stale_explicit_imports`. To silence this warning, pass `warn=false`."
         end
     end
 
@@ -104,6 +132,10 @@ function module_path(mod)
     end
 end
 
+function string_module_path(mod)
+    return join(reverse(module_path(mod)), ".")
+end
+
 function restrict_to_module(df, mod)
     # Limit to only the module of interest. We make some attempt to avoid name collisions
     # (where two nested modules have the same name) by matching on the full path - to some extent.
@@ -116,6 +148,27 @@ function restrict_to_module(df, mod)
     mod_path = module_path(mod)
     return subset(df,
                   :module_path => ByRow(ms -> all(Base.splat(isequal), zip(ms, mod_path))))
+end
+
+# recurse through to find all submodules of `mod`
+function find_submodules(mod)
+    sub_modules = Set{Module}([mod])
+    for name in names(mod; all=true)
+        name == nameof(mod) && continue
+        is_submodule = try
+            value = getglobal(mod, name)
+            value isa Module && parentmodule(value) == mod
+        catch
+            false
+        end
+        if is_submodule
+            submod = getglobal(mod, name)
+            if submod ∉ sub_modules
+                union!(sub_modules, find_submodules(submod))
+            end
+        end
+    end
+    return sub_modules
 end
 
 end
