@@ -29,7 +29,6 @@ function find_implicit_imports(mod::Module; skips=(Base, Core))
     # Build a dictionary to lookup modules from names
     # we use `which` to figure out what the name resolves to in `mod`
     mod_lookup = Dict{Symbol,Module}()
-    ambiguous_names = Symbol[]
     for name in implicit_names
         resolved_module = try
             which(mod, name)
@@ -43,12 +42,10 @@ function find_implicit_imports(mod::Module; skips=(Base, Core))
             missing
         end
         # for unambiguous names, we can figure them out
-        if ismissing(resolved_module)
-            push!(ambiguous_names, name)
-            # note `resolved_module` can equal `mod` if both `mod` and some other module
-            # define the same name. If it resolves to `mod` though, we don't want to
-            # explicitly import anything!
-        elseif resolved_module !== mod
+        # note `resolved_module` can equal `mod` if both `mod` and some other module
+        # define the same name. If it resolves to `mod` though, we don't want to
+        # explicitly import anything!
+        if !ismissing(resolved_module) && resolved_module !== mod
             mod_lookup[name] = resolved_module
         end
     end

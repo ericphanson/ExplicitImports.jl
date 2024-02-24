@@ -1,70 +1,6 @@
-"""
-    get_names_used(file) -> DataFrame
+# In this file, we try to answer the question: what global bindings are being used in a particular module?
+# We will do this by parsing, then re-implementing scoping rules on top of the parse tree.
 
-Figures out which global names are used in `file`, and what modules they are used within.
-
-Traverses static `include` statements.
-
-Returns a `DataFrame` with two columns, one for the `name`, and one for the path of modules,
-where the first module in the path is the innermost.
-"""
-function get_names_used(file)
-    df = analyze_all_names(file)
-
-    # further processing...
-    # we want one row per name per module path, not per scope,
-    # so combine over scopes-within-a-module and decide if this name
-    # is being used to refer to a global binding within this module
-    ret = combine(groupby(df, [:name, :module_path]),
-                  [:global_scope, :assigned_before_used] => function (g, a)
-                      return any(g) || any(!, a)
-                  end => :may_want_to_explicitly_import)
-
-    subset!(ret, :may_want_to_explicitly_import)
-    select!(ret, :name, :module_path)
-    return ret
-end
-
-"""
-    analyze_all_names(file) -> DataFrame
-
-Returns a DataFrame with one row per name per scope, with information about whether or not
-it is within global scope, what modules it is in, and whether or not it was assigned before
-ever being used in that scope.
-"""
-function analyze_all_names(file)
-    # This is annoying, because at this level we can't work at the module level!
-    # Because `pathof` and `pkgdir` only work for packages, not just modules,
-    # so we can't find the src code in order to parse it.
-    # Here, we need to figure out for each name we find, if it refers to
-    # an implicit binding from an `using`'d module, OR, if it refers to something
-    # in the local scope we are currently in.
-    tree = SyntaxNodeWrapper(file)
-    # in local scope, a name refers to a global if it is read from before it is assigned to, OR if the global keyword is used
-    # a name refers to a local otherwise
-    # so we need to traverse the tree, keeping track of state like: which scope are we in, and for each name, in each scope, has it been used
-
-    cursor = TreeCursor(tree)
-    df = DataFrame()
-    for leaf in Leaves(cursor)
-        JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
-        # Ok, we have a "name". We want to know if:
-        # 1. it is being used in global scope
-        # or 2. it is being used in local scope, but refers to a global binding
-        # To figure out the latter, we check if it has been assigned before it has been used.
-        #
-        # We want to figure this out on a per-module basis, since each module has a different global namespace.
-
-        # println("----------")
-        ret = analyze_name(leaf)
-        name = nodevalue(leaf).node.val
-        # println(ret)
-        push!(df, (; name, ret...))
-    end
-
-    grps = groupby(df, [:name, :scope_path, :global_scope, :module_path])
-    return combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
-end
 # Here we define a wrapper so we can use AbstractTrees without piracy
 # https://github.com/JuliaEcosystem/PackageAnalyzer.jl/blob/293a0836843f8ce476d023e1ca79b7e7354e884f/src/count_loc.jl#L91-L99
 struct SyntaxNodeWrapper
@@ -78,6 +14,8 @@ function SyntaxNodeWrapper(file::AbstractString)
     return SyntaxNodeWrapper(parsed, file)
 end
 
+# Here we define children such that if we get to a static `include`, we just recurse
+# into the parse tree of that file.
 function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
     node = wrapper.node
     if JuliaSyntax.kind(node) == K"call"
@@ -99,6 +37,43 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
         end
     end
     return map(n -> SyntaxNodeWrapper(n, wrapper.file), JuliaSyntax.children(node))
+end
+
+"""
+    analyze_all_names(file) -> DataFrame
+
+Returns a DataFrame with one row per name per scope, with information about whether or not
+it is within global scope, what modules it is in, and whether or not it was assigned before
+ever being used in that scope.
+"""
+function analyze_all_names(file)
+    tree = SyntaxNodeWrapper(file)
+    # in local scope, a name refers to a global if it is read from before it is assigned to, OR if the global keyword is used
+    # a name refers to a local otherwise
+    # so we need to traverse the tree, keeping track of state like: which scope are we in, and for each name, in each scope, has it been used
+
+    # Here we use a `TreeCursor`; this lets us iterate over the tree, while ensuring
+    # we can call `parent` to climb up from a leaf.
+    cursor = TreeCursor(tree)
+    df = DataFrame()
+    for leaf in Leaves(cursor)
+        JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
+        # Ok, we have a "name". We want to know if:
+        # 1. it is being used in global scope
+        # or 2. it is being used in local scope, but refers to a global binding
+        # To figure out the latter, we check if it has been assigned before it has been used.
+        #
+        # We want to figure this out on a per-module basis, since each module has a different global namespace.
+
+        # println("----------")
+        ret = analyze_name(leaf)
+        name = nodevalue(leaf).node.val
+        # println(ret)
+        push!(df, (; name, ret...))
+    end
+
+    grps = groupby(df, [:name, :scope_path, :global_scope, :module_path])
+    return combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
 end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
@@ -140,6 +115,7 @@ function analyze_name(leaf)
             push!(scope_path, nodevalue(node).node)
         end
 
+        # figure out if our name (`nodevalue(leaf)`) is the LHS of an assignment
         if kind == K"="
             kids = children(nodevalue(node))
             if !isempty(kids)
@@ -147,9 +123,39 @@ function analyze_name(leaf)
                 is_assignment = c == nodevalue(leaf)
             end
         end
-
         node = parent(node)
+
+        # finished climbing to the root
         node === nothing && return (; global_scope, is_assignment, module_path, scope_path)
         idx += 1
     end
+end
+
+"""
+    get_names_used(file) -> DataFrame
+
+Figures out which global names are used in `file`, and what modules they are used within.
+
+Traverses static `include` statements.
+
+Returns a `DataFrame` with two columns, one for the `name`, and one for the path of modules,
+where the first module in the path is the innermost.
+"""
+function get_names_used(file)
+
+    # Here we get 1 row per name per scope
+    df = analyze_all_names(file)
+
+    # further processing...
+    # we want one row per name per module path, not per scope,
+    # so combine over scopes-within-a-module and decide if this name
+    # is being used to refer to a global binding within this module
+    ret = combine(groupby(df, [:name, :module_path]),
+                  [:global_scope, :assigned_before_used] => function (g, a)
+                      return any(g) || any(!, a)
+                  end => :may_want_to_explicitly_import)
+
+    subset!(ret, :may_want_to_explicitly_import)
+    select!(ret, :name, :module_path)
+    return ret
 end
