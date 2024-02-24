@@ -13,9 +13,9 @@ Figure out what implicit exports a Julia module is relying on, in order to make 
 
 1. [DONE hackily] Figure out what names are being used to refer to bindings in global scope
     * We do this by parsing the code (thanks to JuliaSyntax), then reimplementing scoping rules on top of the parse tree
-    * This is finicky, but assuming scoping doesn't change, should be robust enough
-    * Currently, I don't handle the `global` keyword, so those may look like local variables and confuse things
-    * We need access to the raw source code; `pathof` works well for packages, but for local modules one has to pass the path themselves. Also doesn't seem to work well for stdlibs in the sysimage.
+    * This is finicky, but assuming scoping doesn't change, should be robust enough (once the long tail of edge cases are dealt with...)
+        * Currently, I don't handle the `global` keyword, so those may look like local variables and confuse things
+    * This means we need access to the raw source code; `pathof` works well for packages, but for local modules one has to pass the path themselves. Also doesn't seem to work well for stdlibs in the sysimage.
 2. [DONE] Figure out what implicit exports are available in the module
 3. [TODO] Which implicit exports are already made explicit in the module
     * We could do this by parsing (annoying)
@@ -43,3 +43,5 @@ using JuliaSyntax: kind
 using JuliaSyntax: parseall
 using Tables: ByRow
 ```
+
+Currently, `explicit_imports` does not filter to only new explicit imports (so its results may be redundant with already existing explicit imports).

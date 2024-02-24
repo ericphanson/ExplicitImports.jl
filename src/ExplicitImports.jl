@@ -16,6 +16,8 @@ export explicit_imports
     explicit_imports(mod, file=pathof(mod); skips=(Base, Core)) -> Vector{String}
 
 Returns a list of explicit import statements one could make for the module `mod`.
+
+Currently, this does not filter to only new explicit imports (these may be redundant with already existing explicit imports).
 """
 function explicit_imports(mod, file=pathof(mod); skips=(Base, Core))
     if isnothing(file)
