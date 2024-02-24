@@ -18,7 +18,8 @@ export explicit_imports
 Returns a list of explicit import statements one could make for the module `mod`.
 
 Notes:
-* Currently, this does not filter to only new explicit imports (these may be redundant with already existing explicit imports).
+* Currently, this does not filter to only new explicit imports (these may be redundant with already existing explicit imports). That is, `mod` may already be explicitly importing these names.
+* Currently, this suggests explicit imports for names available through implicit exports even if every usage of the name is qualified (e.g. `DataFrames.DataFrame`).
 * if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
 * `mod` can be a submodule defined within `file`, but if two modules have the same name (e.g. `X.Y.X` and `X`), results may be inaccurate.
 * `skips` will skip names coming from the listed modules, or any submodules thereof.
