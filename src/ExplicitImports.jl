@@ -49,12 +49,16 @@ Runs [`explicit_imports`](@ref) and prints the results, along with those of [`st
 function print_explicit_imports(io::IO, mod, file=pathof(mod); kw...)
     ee = explicit_imports(mod, file; warn=false, kw...)
     for (mod, imports) in ee
-        println(io,
-                "Module $mod is relying on implicit imports for $(length(imports)) names. These could be explicitly imported as follows:")
-        println(io)
-        println(io, "```julia")
-        foreach(line -> println(io, line), imports)
-        println(io, "```")
+        if isempty(imports)
+            println(io, "Module $mod is not relying on any implicit imports.")
+        else
+            println(io,
+                    "Module $mod is relying on implicit imports for $(length(imports)) names. These could be explicitly imported as follows:")
+            println(io)
+            println(io, "```julia")
+            foreach(line -> println(io, line), imports)
+            println(io, "```")
+        end
         stale = stale_explicit_imports(mod, file)
         if !isempty(stale)
             println(io)

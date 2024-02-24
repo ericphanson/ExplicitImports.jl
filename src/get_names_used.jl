@@ -31,7 +31,13 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                     @debug "Recursing into `$new_file`" node wrapper.file
                     return [SyntaxNodeWrapper(new_file)]
                 else
-                    error("Dynamic `include` found; aborting")
+                    line, col = JuliaSyntax.source_location(wrapper.node)
+                    location = "$(wrapper.file):$line:$col"
+                    # We choose our `id` so maxlog will work the way we want
+                    # (don't log the same message multiple times, but do log each separate location)
+                    id = Symbol("dynamic_include_", location)
+                    @warn("Dynamic `include` found at $location; not recursing", _id = id,
+                          maxlog = 1)
                 end
             end
         end

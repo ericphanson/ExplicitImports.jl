@@ -15,6 +15,7 @@ include("TestModA.jl")
 end
 
 # TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
+# TODO- tests for dynamic imports (e.g. that the warning is thrown correctly, once per path)
 
 @testset "ExplicitImports.jl" begin
     @test explicit_imports_single(TestModA, "TestModA.jl") ==

@@ -52,3 +52,23 @@ using Tables: ByRow
 ````
 
 Note: the `WARNING` is more or less harmless; the way this package is written, it will happen any time there is a clash, even if that clash is not realized in your code. I cannot figure out how to suppress it.
+
+## Limitations
+
+### `global` scope quantifier ignored
+
+Currently, my parsing implementation does not take into account the `global` keyword, and thus results may be inaccurate when that is used.
+
+### Cannot recurse through dynamic `include` statements
+
+These are `include` in which the argument is not a string literal. For example:
+
+```julia
+julia> print_explicit_imports(MathOptInterface)
+┌ Warning: Dynamic `include` found at /Users/eph/.julia/packages/MathOptInterface/tpiUw/src/Test/Test.jl:631:9; not recursing
+└ @ ExplicitImports ~/ExplicitImports/src/get_names_used.jl:37
+...
+```
+
+In this case, names in files which are included via `include` are not analyzed while parsing.
+This can result in inaccurate results, such as false positives in `explicit_imports` and false negatives (or false positives) in `stale_explicit_imports`.
