@@ -21,19 +21,18 @@ Figure out what implicit exports a Julia module is relying on, in order to make 
 ```julia
 julia> using ExplicitImports
 
-julia> explicit_imports(ExplicitImports)
-13-element Vector{String}:
- "using AbstractTrees: Leaves"
- "using AbstractTrees: TreeCursor"
- "using AbstractTrees: children"
- "using AbstractTrees: nodevalue"
- "using DataFrames: DataFrame"
- "using DataFrames: combine"
- "using DataFrames: groupby"
- "using DataFrames: select!"
- "using DataFrames: subset!"
- "using JuliaSyntax: SyntaxNode"
- "using JuliaSyntax: kind"
- "using JuliaSyntax: parseall"
- "using Tables: ByRow"
+julia> foreach(println, explicit_imports(ExplicitImports))
+using AbstractTrees: Leaves
+using AbstractTrees: TreeCursor
+using AbstractTrees: children
+using AbstractTrees: nodevalue
+using DataFrames: DataFrame
+using DataFrames: combine
+using DataFrames: groupby
+using DataFrames: select!
+using DataFrames: subset!
+using JuliaSyntax: SyntaxNode
+using JuliaSyntax: kind
+using JuliaSyntax: parseall
+using Tables: ByRow
 ```
