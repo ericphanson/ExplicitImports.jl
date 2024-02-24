@@ -165,7 +165,9 @@ function analyze_all_names(file; debug=false)
     # we can call `parent` to climb up from a leaf.
     cursor = TreeCursor(tree)
     df = DataFrame()
-    explicit_imports = DataFrame()
+    explicit_imports = DataFrame([:name => Symbol[], :location => String[],
+                                  :import_type => Symbol[],
+                                  :module_path => Vector{Symbol}[]])
     for leaf in Leaves(cursor)
         JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
         # Ok, we have a "name". We want to know if:

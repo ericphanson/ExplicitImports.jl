@@ -4,14 +4,13 @@ using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
 using DataFrames
 
-include("find_implicit_imports.jl")
-
-include("get_names_used.jl")
-
-include("checks.jl")
-
 export explicit_imports, stale_explicit_imports, print_explicit_imports,
        explicit_imports_single, check_no_implicit_imports, check_no_stale_explicit_imports
+export StaleImportsException, ImplicitImportsException
+
+include("find_implicit_imports.jl")
+include("get_names_used.jl")
+include("checks.jl")
 
 """
     explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)

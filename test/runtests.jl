@@ -6,6 +6,7 @@ using DataFrames
 
 include("Exporter.jl")
 include("TestModA.jl")
+include("test_mods.jl")
 
 @testset "has_ancestor" begin
     @test has_ancestor(TestModA.SubModB, TestModA)
@@ -104,4 +105,40 @@ end
     @test contains(str, "using .Exporter: exported_a")
     @test contains(str,
                    "Additionally Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
+end
+
+function exception_string(f)
+    str = try
+        f()
+        false
+    catch e
+        sprint(showerror, e)
+    end
+    @test str isa String
+    return str
+end
+
+@testset "checks" begin
+    @test check_no_implicit_imports(TestModEmpty, "test_mods.jl") === nothing
+    @test check_no_stale_explicit_imports(TestModEmpty, "test_mods.jl") === nothing
+    @test check_no_stale_explicit_imports(TestMod1, "test_mods.jl") === nothing
+
+    @test_throws ImplicitImportsException check_no_implicit_imports(TestMod1,
+                                                                    "test_mods.jl")
+    @test_throws ImplicitImportsException check_no_implicit_imports(TestModA.SubModB.TestModA.TestModC,
+                                                                    "TestModC.jl")
+    @test_throws StaleImportsException check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
+                                                                       "TestModC.jl")
+
+    # Test the printing is hitting our formatted errors
+    str = exception_string() do
+        return check_no_implicit_imports(TestMod1, "test_mods.jl")
+    end
+    @test contains(str, "is relying on the following implicit imports")
+
+    str = exception_string() do
+        return check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
+                                               "TestModC.jl")
+    end
+    @test contains(str, "has stale (unused) explicit imports for:")
 end
