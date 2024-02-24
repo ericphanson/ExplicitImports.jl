@@ -3,6 +3,11 @@ using ExplicitImports: analyze_all_names, has_ancestor, should_skip, restrict_to
                        module_path, explicit_imports_single, using_statement
 using Test
 using DataFrames
+using Aqua
+
+@testset "Aqua" begin
+    Aqua.test_all(ExplicitImports; ambiguities=false)
+end
 
 include("Exporter.jl")
 include("TestModA.jl")

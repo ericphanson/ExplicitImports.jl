@@ -10,12 +10,15 @@ JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
 
 [compat]
 AbstractTrees = "0.4.5"
+Aqua = "0.8.4"
 DataFrames = "1.6"
 JuliaSyntax = "0.4.8"
+Test = "<0.0.1, 1"
 julia = "1.10"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Aqua", "Test"]
