@@ -91,6 +91,12 @@ end
     @test stale_explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModC.jl") ==
           [:exported_c, :exported_d]
 
+    # in particular, this ensures we don't add `using ExplicitImports: ExplicitImports`
+    # (maybe eventually we will want to though)
+    @test using_statement.(explicit_imports_single(TestMod1,
+                                                   "test_mods.jl")) ==
+          ["using ExplicitImports: print_explicit_imports"]
+
     # Recursion
     nested = @test_logs (:warn, r"stale") explicit_imports(TestModA, "TestModA.jl")
     @test nested isa Vector{Pair{Module,Vector{Pair{Symbol,Module}}}}

@@ -94,10 +94,7 @@ function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn
         k in needed_names || return false
         should_skip(v; skips) && return false
         # skip `using X: X`
-        v == string(k) && return false
-        # skip `using Main.X: X`
-
-        replace(string(v), "Main" => "") == string(".", k) && return false
+        nameof(v) == k && return false
         return true
     end
 
