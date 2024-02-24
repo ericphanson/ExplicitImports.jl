@@ -12,13 +12,20 @@ Figure out what implicit imports a Julia module is relying on, in order to make 
 
 - _implicit import_: a name `x` available in a module due to `using XYZ` for some package or module `XYZ`. This name has not been explicitly imported; rather, it is simply available since it is exported by `XYZ`.
 - _explicit import_: a name `x` available in a module due to `using XYZ: x` or `import XYZ: x` for some package or module `XYZ`.
-- _qualified usage_: a name `x` only used in the form `XYZ.x`.
 
 ## Why
 
-Relying on implicit imports can be problematic, as Base or another package can start exporting that name as well, resulting in a clash. This is tough because adding a new feature to Base (or a package) and exporting it is not considered a breaking change to its API, but it can cause working code to stop working due to these clashes.
+Relying on implicit imports can be problematic, as Base or another package can start exporting that name as well, resulting in a clash. This is a tricky situation because adding a new feature to Base (or a package) and exporting it is not considered a breaking change to its API, but it can cause working code to stop working due to these clashes.
 
-There are various takes on _how problematic_, to what extent this occurs in practice, and to what extent it is worth mitigating. See [julia#42080](https://github.com/JuliaLang/julia/pull/42080) for some discussion on this.
+If you've even seen a warning like:
+
+> WARNING: both X and Y export "foo"; uses of it in module MyPackage must be qualified
+
+Then this is the kind of clash at issue. When this occurs, the name `foo` won't point to either package's name, since it is ambiguous which one it should be. However, if the package code is relying on the name `foo` existing, then there's trouble.
+
+One fix, as the warning suggests, is to qualify the use `foo` by writing e.g. `X.foo` or `Y.foo`. Another option is to explicitly import it, by writing `using X: foo` instead of just `using X`.
+
+There are various takes on _how problematic_ this issue is, to what extent this occurs in practice, and to what extent it is worth mitigating. See [julia#42080](https://github.com/JuliaLang/julia/pull/42080) for some discussion on this.
 
 Personally, I don't think this is always a huge issue, and that it's basically fine for packages to use implicit imports if that is their preferred style and they understand the risk. But I do think this issue is somewhat a "hole" in the semver system as it applies to Julia packages, and I wanted to create some tooling to make it easier to mitigate the issue for package authors who would prefer to not rely on implicit imports.
 
