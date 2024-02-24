@@ -39,68 +39,6 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
     return map(n -> SyntaxNodeWrapper(n, wrapper.file), JuliaSyntax.children(node))
 end
 
-"""
-    analyze_all_names(file) -> Tuple{DataFrame, DataFrame}
-
-Returns:
-* a DataFrame with one row per name per scope, with information about whether or not
-it is within global scope, what modules it is in, and whether or not it was assigned before
-ever being used in that scope.
-* a DataFrame with one row per name per module path, consisting of names that have been explicitly imported in that module.
-"""
-function analyze_all_names(file; debug=false)
-    tree = SyntaxNodeWrapper(file)
-    # in local scope, a name refers to a global if it is read from before it is assigned to, OR if the global keyword is used
-    # a name refers to a local otherwise
-    # so we need to traverse the tree, keeping track of state like: which scope are we in, and for each name, in each scope, has it been used
-
-    # Here we use a `TreeCursor`; this lets us iterate over the tree, while ensuring
-    # we can call `parent` to climb up from a leaf.
-    cursor = TreeCursor(tree)
-    df = DataFrame()
-    explicit_imports = DataFrame()
-    for leaf in Leaves(cursor)
-        JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
-        # Ok, we have a "name". We want to know if:
-        # 1. it is being used in global scope
-        # or 2. it is being used in local scope, but refers to a global binding
-        # To figure out the latter, we check if it has been assigned before it has been used.
-        #
-        # We want to figure this out on a per-module basis, since each module has a different global namespace.
-
-        debug && println("-"^80)
-        file = nodevalue(leaf).file
-        line, col = JuliaSyntax.source_location(nodevalue(leaf).node)
-        location = "$file:$line:$col"
-        debug && println("Leaf position: $location")
-        name = nodevalue(leaf).node.val
-        debug && println("Leaf name: ", name)
-        qualified = is_qualified(leaf)
-
-        debug && qualified && println("$name's usage here is qualified; skipping")
-        qualified && continue
-
-        import_type = analyze_import_type(leaf)
-        debug && println("Import type: ", import_type)
-        debug && println("--")
-        debug && println("val : kind")
-        ret = analyze_name(leaf; debug)
-        debug && println(ret)
-
-        if import_type == :import_RHS
-            push!(explicit_imports, (; name, location, import_type, ret.module_path))
-        elseif import_type == :not_import
-            push!(df, (; name, location, ret...))
-        end
-    end
-
-    grps = groupby(df, [:name, :scope_path, :global_scope, :module_path])
-    names = combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
-    select!(explicit_imports, [:name, :module_path])
-    unique!(explicit_imports)
-    return names, explicit_imports
-end
-
 function is_qualified(leaf)
     # is this name being used in a qualified context, like `X.y`?
     if !isnothing(parent(leaf)) && !isnothing(parent(parent(leaf)))
@@ -200,6 +138,68 @@ function analyze_name(leaf; debug=false)
             return (; global_scope, is_assignment, is_qualified, module_path, scope_path)
         idx += 1
     end
+end
+
+"""
+    analyze_all_names(file) -> Tuple{DataFrame, DataFrame}
+
+Returns:
+* a DataFrame with one row per name per scope, with information about whether or not
+it is within global scope, what modules it is in, and whether or not it was assigned before
+ever being used in that scope.
+* a DataFrame with one row per name per module path, consisting of names that have been explicitly imported in that module.
+"""
+function analyze_all_names(file; debug=false)
+    tree = SyntaxNodeWrapper(file)
+    # in local scope, a name refers to a global if it is read from before it is assigned to, OR if the global keyword is used
+    # a name refers to a local otherwise
+    # so we need to traverse the tree, keeping track of state like: which scope are we in, and for each name, in each scope, has it been used
+
+    # Here we use a `TreeCursor`; this lets us iterate over the tree, while ensuring
+    # we can call `parent` to climb up from a leaf.
+    cursor = TreeCursor(tree)
+    df = DataFrame()
+    explicit_imports = DataFrame()
+    for leaf in Leaves(cursor)
+        JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
+        # Ok, we have a "name". We want to know if:
+        # 1. it is being used in global scope
+        # or 2. it is being used in local scope, but refers to a global binding
+        # To figure out the latter, we check if it has been assigned before it has been used.
+        #
+        # We want to figure this out on a per-module basis, since each module has a different global namespace.
+
+        debug && println("-"^80)
+        file = nodevalue(leaf).file
+        line, col = JuliaSyntax.source_location(nodevalue(leaf).node)
+        location = "$file:$line:$col"
+        debug && println("Leaf position: $location")
+        name = nodevalue(leaf).node.val
+        debug && println("Leaf name: ", name)
+        qualified = is_qualified(leaf)
+
+        debug && qualified && println("$name's usage here is qualified; skipping")
+        qualified && continue
+
+        import_type = analyze_import_type(leaf)
+        debug && println("Import type: ", import_type)
+        debug && println("--")
+        debug && println("val : kind")
+        ret = analyze_name(leaf; debug)
+        debug && println(ret)
+
+        if import_type == :import_RHS
+            push!(explicit_imports, (; name, location, import_type, ret.module_path))
+        elseif import_type == :not_import
+            push!(df, (; name, location, ret...))
+        end
+    end
+
+    grps = groupby(df, [:name, :scope_path, :global_scope, :module_path])
+    names = combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
+    select!(explicit_imports, [:name, :module_path])
+    unique!(explicit_imports)
+    return names, explicit_imports
 end
 
 """
