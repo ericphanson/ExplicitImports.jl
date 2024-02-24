@@ -31,7 +31,12 @@ function find_implicit_imports(mod::Module; skips=(Base, Core))
     mod_lookup = Dict{Symbol,Module}()
     for name in implicit_names
         resolved_module = try
+            # I would like to suppress this warning:
+            # WARNING: both X and Y export "parse"; uses of it in module Z must be qualified
+            # However, `redirect_stdio` does not help!
+            # redirect_stdio(; stderr=devnull, stdout=devnull) do
             which(mod, name)
+            # end
         catch err
             # This happens when you get stuff like
             # `WARNING: both Exporter3 and Exporter2 export "exported_a"; uses of it in module TestModA must be qualified`

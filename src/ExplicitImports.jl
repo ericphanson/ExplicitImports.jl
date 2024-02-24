@@ -10,18 +10,21 @@ include("find_implicit_imports.jl")
 export get_names_used
 include("get_names_used.jl")
 
-export explicit_imports, stale_explicit_imports, print_explicit_exports
+export explicit_imports, stale_explicit_imports, print_explicit_imports,
+       explicit_imports_single
 
 """
     explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true) -> Vector{String}
 
-Returns a list of explicit import statements one could make for the module `mod`.
+Returns a list of explicit import statements one could make for each submodule of `mod`.
 
 * `file=pathof(mod)`: this should be a path to the source code that contains the module `mod`.
     * if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
     * `mod` can be a submodule defined within `file`, but if two modules have the same name (e.g. `X.Y.X` and `X`), results may be inaccurate.
 * `skips=(Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped.
 * `warn=true`: whether or not to warn about stale explicit imports.
+
+See also [`print_explicit_exports`](@ref) to easily compute and print these results, and [`explicit_imports_single`](@ref) for a non-recursive version which ignores submodules.
 """
 function explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
     submodules = sort!(collect(find_submodules(mod)); by=reverse ∘ module_path,
@@ -34,23 +37,37 @@ function is_prefix(x, y)
     return length(x) <= length(y) && all(Base.splat(isequal), zip(x, y))
 end
 
-function print_explicit_exports(mod, file; kw...)
+print_explicit_imports(mod, file=pathof(mod); kw...) = print_explicit_imports(stdout, mod, file; kw...)
+
+"""
+    print_explicit_imports([io::IO=stdout,] mod, file=pathof(mod); kw...)
+
+Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref). Accepts the same keyword arguments as that function.
+"""
+function print_explicit_imports(io::IO, mod, file=pathof(mod); kw...)
     ee = explicit_imports(mod, file; warn=false, kw...)
     for (mod, imports) in ee
-        println("Module $mod is relying on implicit imports for $(length(imports)) names. These could be explicitly imported as follows:")
-        println()
-        println("```julia")
-        foreach(println, imports)
-        println("```")
+        println(io,
+                "Module $mod is relying on implicit imports for $(length(imports)) names. These could be explicitly imported as follows:")
+        println(io)
+        println(io, "```julia")
+        foreach(line -> println(io, line), imports)
+        println(io, "```")
         stale = stale_explicit_imports(mod, file)
         if !isempty(stale)
-            println()
-            println("Additionally $mod has explicit imports for these unused names:")
-            foreach(println, stale)
+            println(io)
+            println(io,
+                    "Additionally $mod has stale explicit imports for these unused names:")
+            foreach(line -> println(io, line), stale)
         end
     end
 end
 
+"""
+    explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn=true) -> Vector{String}
+
+A non-recursive version of [`explicit_imports`](@ref); see that function for details.
+"""
 function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn=true)
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))

@@ -9,6 +9,9 @@ DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
 
 [compat]
+AbstractTrees = "0.4.5"
+DataFrames = "1.6"
+JuliaSyntax = "0.4.8"
 julia = "1.10"
 
 [extras]

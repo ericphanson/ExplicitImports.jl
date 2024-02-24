@@ -85,4 +85,19 @@ end
 
     @test stale_explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModC.jl") ==
           [:exported_c, :exported_d]
+
+    # Recursion
+    nested = @test_logs (:warn, r"stale") explicit_imports(TestModA, "TestModA.jl")
+    @test nested isa Vector{Pair{Module,Vector{String}}}
+    @test TestModA in first.(nested)
+    @test TestModA.SubModB in first.(nested)
+    @test TestModA.SubModB.TestModA in first.(nested)
+    @test TestModA.SubModB.TestModA.TestModC in first.(nested)
+
+    # Printing
+    str = sprint(print_explicit_imports, TestModA, "TestModA.jl")
+    @test contains(str, "Module Main.TestModA is relying on implicit imports")
+    @test contains(str, "using .Exporter: exported_a")
+    @test contains(str,
+                   "Additionally Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
 end
