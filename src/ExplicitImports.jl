@@ -7,10 +7,10 @@ using DataFrames
 # https://discourse.julialang.org/t/how-to-get-all-variable-names-currently-accessible/108839/2
 modules_from_using(m::Module) = ccall(:jl_module_usings, Any, (Any,), m)
 
-function get_implicit_names(mod)
+function get_implicit_names(mod; skips = (Base, Core))
     implicit_names = Symbol[]
     for mod in modules_from_using(mod)
-        mod in (Base, Core) && continue
+        mod in skips && continue
         append!(implicit_names, names(mod))
     end
     return unique!(implicit_names)
@@ -47,10 +47,10 @@ function get_names_used(file)
     for leaf in Leaves(cursor)
         JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
         # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
-        println("----------")
+        # println("----------")
         ret = analyze_variable(leaf)
         name = nodevalue(leaf).node.val
-        println(ret)
+        # println(ret)
         push!(df, (; name, ret...))
     end
 
@@ -94,7 +94,7 @@ function analyze_variable(node)
         kind = JuliaSyntax.kind(head)
         args = nodevalue(node).node.raw.args
 
-        println(val, ": ", kind)
+        # println(val, ": ", kind)
         # clear local scope
         if kind in (K"let", K"for", K"function")
             global_scope = false
@@ -103,7 +103,6 @@ function analyze_variable(node)
         elseif idx > 3 && kind == K"=" && !isempty(args) && JuliaSyntax.kind(first(args)) == K"call"
             global_scope = false
             push!(scope_path, nodevalue(node).node)
-            # println(JuliaSyntax.kind.(nodevalue(node).node.raw.args))
         end
 
         # track which modules we are in
@@ -122,7 +121,6 @@ function analyze_variable(node)
             if !isempty(kids)
                 c = first(kids)
                 is_assignment = c == nodevalue(leaf)
-                @show c, nodevalue(leaf)
             end
         end
 
@@ -133,8 +131,8 @@ function analyze_variable(node)
 end
 
 export find_implicit_imports
-function find_implicit_imports(mod)
-    implicit_names = get_implicit_names(mod)
+function find_implicit_imports(mod; skips=(Base, Core))
+    implicit_names = get_implicit_names(mod; skips)
 
     # Build a dictionary to lookup modules from names
     # we use `which` to figure out what the name resolves to in `mod`
@@ -176,12 +174,18 @@ function find_implicit_imports(mod)
 end
 
 export do_it
-function do_it(mod, file)
-    all_implicit_imports = find_implicit_imports(mod)
+function do_it(mod, file; skips=(Base, Core))
+    all_implicit_imports = find_implicit_imports(mod; skips)
     df = get_names_used(file)
+    # subset!(df, :module_path => ByRow(==([Symbol(mod)])))
     relevant_keys = intersect(df.name, keys(all_implicit_imports))
-    return relevant_keys
+
+    for k in relevant_keys
+        v_mod = all_implicit_imports[k]
+        v_mod in skips && continue
+        v = replace(string(v_mod), "Main" => "")
+        println("using $v: $k")
+    end
 end
 
 end
-#
