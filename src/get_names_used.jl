@@ -141,17 +141,17 @@ function analyze_name(leaf; debug=false)
 
         # finished climbing to the root
         node === nothing &&
-            return (; global_scope, is_assignment, is_qualified, module_path, scope_path)
+            return (; global_scope, is_assignment, module_path, scope_path)
         idx += 1
     end
 end
 
 """
-    analyze_all_names(file) -> Tuple{DataFrame, DataFrame}
+    analyze_all_names(file)
 
-Returns:
-* a DataFrame with one row per name per scope, with information about whether or not it is within global scope, what modules it is in, and whether or not it was assigned before ever being used in that scope.
-* a DataFrame with one row per name per module path, consisting of names that have been explicitly imported in that module.
+Returns a tuple of two tables:
+* a table with one row per name per scope, with information about whether or not it is within global scope, what modules it is in, and whether or not it was assigned before ever being used in that scope.
+* a table with one row per name per module path, consisting of names that have been explicitly imported in that module.
 """
 function analyze_all_names(file; debug=false)
     tree = SyntaxNodeWrapper(file)
@@ -162,10 +162,16 @@ function analyze_all_names(file; debug=false)
     # Here we use a `TreeCursor`; this lets us iterate over the tree, while ensuring
     # we can call `parent` to climb up from a leaf.
     cursor = TreeCursor(tree)
-    df = DataFrame()
-    explicit_imports = DataFrame([:name => Symbol[], :location => String[],
-                                  :import_type => Symbol[],
-                                  :module_path => Vector{Symbol}[]])
+    per_scope_info = @NamedTuple{name::Symbol,global_scope::Bool,assigned_first::Bool,
+                                 module_path::Vector{Symbol},
+                                 scope_path::Vector{JuliaSyntax.SyntaxNode}}[]
+
+    # We actually only care about the first instance of a name in any given scope,
+    # since that tells us about assignment
+    seen = Set{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}}}()
+
+    explicit_imports = @NamedTuple{name::Symbol,module_path::Vector{Symbol}}[]
+
     for leaf in Leaves(cursor)
         JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
         # Ok, we have a "name". We want to know if:
@@ -195,17 +201,20 @@ function analyze_all_names(file; debug=false)
         debug && println(ret)
 
         if import_type == :import_RHS
-            push!(explicit_imports, (; name, location, import_type, ret.module_path))
+            push!(explicit_imports, (; name, ret.module_path))
         elseif import_type == :not_import
-            push!(df, (; name, location, ret...))
+            # Only add it the first time
+            if (; name, ret.scope_path) ∉ seen
+                push!(per_scope_info,
+                      (; name, ret.global_scope, assigned_first=ret.is_assignment,
+                       ret.module_path, ret.scope_path))
+                push!(seen, (; name, ret.scope_path))
+            end
         end
     end
 
-    grps = groupby(df, [:name, :scope_path, :global_scope, :module_path])
-    names = combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
-    select!(explicit_imports, [:name, :module_path])
     unique!(explicit_imports)
-    return names, explicit_imports
+    return per_scope_info, explicit_imports
 end
 
 """
@@ -223,7 +232,9 @@ Returns a `DataFrame` with four columns:
 """
 function get_names_used(file)
     # Here we get 1 row per name per scope
-    df, explicit_imports = analyze_all_names(file)
+    per_scope_info, explicit_imports = analyze_all_names(file)
+    df = DataFrame(per_scope_info)
+    explicit_imports = DataFrame(explicit_imports)
     explicit_imports.explicitly_imported .= true
 
     # further processing...
@@ -231,7 +242,7 @@ function get_names_used(file)
     # so combine over scopes-within-a-module and decide if this name
     # is being used to refer to a global binding within this module
     ret = combine(groupby(df, [:name, :module_path]),
-                  [:global_scope, :assigned_before_used] => function (g, a)
+                  [:global_scope, :assigned_first] => function (g, a)
                       return any(g) || any(!, a)
                   end => :may_want_to_explicitly_import)
 
