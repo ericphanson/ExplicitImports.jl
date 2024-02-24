@@ -20,26 +20,25 @@ x = 1
 
 function func()
     local_var = 1
-    for local_z = 1:3
+    for local_z in 1:3
         local_3 = 5
     end
     exported_a()
     x = 2 # local variable, shadowing global name
-    x + 1
+    return x + 1
 end
-
 
 let local2 = 1
     local3 = 4
 end
 
-for local4 = 1:5
+for local4 in 1:5
     local5 = 1
 end
 
 global_a = 1
 
-func2() = (local6=1; global_a)
+func2() = (local6 = 1; global_a)
 
 func3() = (; local7=1)
 
@@ -47,7 +46,7 @@ module SubModB
 using ..Exporter3
 using ..TestModA
 
-h() = (local8=1; f())
+h() = (local8 = 1; f())
 
 h2() = exported_b()
 

@@ -1,7 +1,7 @@
 # https://discourse.julialang.org/t/how-to-get-all-variable-names-currently-accessible/108839/2
 modules_from_using(m::Module) = ccall(:jl_module_usings, Any, (Any,), m)
 
-function get_implicit_names(mod; skips = (Base, Core))
+function get_implicit_names(mod; skips=(Base, Core))
     implicit_names = Symbol[]
     for mod in modules_from_using(mod)
         mod in skips && continue
@@ -9,7 +9,6 @@ function get_implicit_names(mod; skips = (Base, Core))
     end
     return unique!(implicit_names)
 end
-
 
 """
     find_implicit_imports(mod::Module; skips=(Base, Core))

@@ -1,5 +1,3 @@
-
-
 """
     get_names_used(file) -> DataFrame
 
@@ -15,9 +13,9 @@ function get_names_used(file)
 
     # further processing...
     ret = combine(groupby(df, [:name, :module_path]),
-        [:global_scope, :assigned_before_used] => function (g, a)
-            any(g) || any(!, a)
-        end => :may_want_to_explicitly_import)
+                  [:global_scope, :assigned_before_used] => function (g, a)
+                      return any(g) || any(!, a)
+                  end => :may_want_to_explicitly_import)
 
     subset!(ret, :may_want_to_explicitly_import)
     select!(ret, :name, :module_path)
@@ -63,7 +61,6 @@ function analyze_all_names(file)
 
     grps = groupby(df, [:name, :scope_path, :global_scope, :module_path])
     return combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
-
 end
 # Here we define a wrapper so we can use AbstractTrees without piracy
 # https://github.com/JuliaEcosystem/PackageAnalyzer.jl/blob/293a0836843f8ce476d023e1ca79b7e7354e884f/src/count_loc.jl#L91-L99
@@ -123,7 +120,8 @@ function analyze_name(leaf)
             global_scope = false
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
-        elseif idx > 3 && kind == K"=" && !isempty(args) && JuliaSyntax.kind(first(args)) == K"call"
+        elseif idx > 3 && kind == K"=" && !isempty(args) &&
+               JuliaSyntax.kind(first(args)) == K"call"
             global_scope = false
             push!(scope_path, nodevalue(node).node)
         end
@@ -131,7 +129,7 @@ function analyze_name(leaf)
         # track which modules we are in
         if kind == K"module"
             ids = filter(children(nodevalue(node))) do arg
-                JuliaSyntax.kind(arg.node) == K"Identifier"
+                return JuliaSyntax.kind(arg.node) == K"Identifier"
             end
             if !isempty(ids)
                 push!(module_path, first(ids).node.val)

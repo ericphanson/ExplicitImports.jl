@@ -25,11 +25,11 @@ include("TestModA.jl")
     @test !exported_as[2, :assigned_before_used]
 
     # Test submodules
-    @test explicit_imports(TestModA.SubModB, "TestModA.jl") == ["using .Exporter3: exported_b", "using .TestModA: f"]
+    @test explicit_imports(TestModA.SubModB, "TestModA.jl") ==
+          ["using .Exporter3: exported_b", "using .TestModA: f"]
     sub_df = subset(df, :module_path => ByRow(ms -> first(ms) == nameof(TestModA.SubModB)))
 
     h = only(subset(sub_df, :name => ByRow(==(:h))))
     @test h.global_scope
     @test !h.assigned_before_used
-
 end

@@ -18,7 +18,6 @@ using ..Exporter
 # re-export the same name
 export exported_a
 
-
 end # Exporter
 
 # a clash
