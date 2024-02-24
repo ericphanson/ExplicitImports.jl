@@ -1,6 +1,7 @@
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip
 using Test
+using DataFrames
 
 include("Exporter.jl")
 include("TestModA.jl")
