@@ -5,9 +5,10 @@ using ....TestModA
 using ....Exporter
 using ....Exporter: exported_b
 
-# unnecessary explicit import
+# unnecessary explicit imports
 # TODO: write functionality to detect this...
 using ....Exporter: exported_c
+import ....Exporter: exported_c
 
 func_c() = (local9 = 1; f())
 

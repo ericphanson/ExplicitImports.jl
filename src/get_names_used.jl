@@ -75,8 +75,11 @@ function analyze_all_names(file; debug=false)
         qualified = is_qualified(leaf)
 
         debug && qualified && println("$name's usage here is qualified; skipping")
-
         qualified && continue
+
+        is_imported = is_being_imported(leaf)
+        debug && is_imported && println("$name's usage here is part of an import; skipping")
+        is_imported && continue
 
         debug && println("--")
         debug && println("val : kind")
@@ -103,6 +106,12 @@ function is_qualified(leaf)
         end
     end
     return false
+end
+
+function is_being_imported(leaf)
+    isnothing(parent(leaf)) && return false
+    p = nodevalue(parent(leaf)).node
+    return JuliaSyntax.kind(p) == K"importpath"
 end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at

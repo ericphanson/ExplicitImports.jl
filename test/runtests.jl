@@ -73,5 +73,10 @@ end
     # This one isn't needed; it is already explicitly imported
     @test_broken "using .Exporter: exported_b" ∉ from_inner_file
 
+    # This one shouldn't be there; we never use it, only explicitly import it.
+    # So actually it should be on a list of unnecessary imports. BUT it can show up
+    # because by importing it, we have the name in the file, so we used to detect it.
+    @test "using .Exporter: exported_c" ∉ from_inner_file
+
     @test_broken from_inner_file == ["using .TestModA: f"]
 end
