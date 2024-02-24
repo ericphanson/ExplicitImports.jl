@@ -31,10 +31,6 @@ function explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
             for submodule in submodules]
 end
 
-function is_prefix(x, y)
-    return length(x) <= length(y) && all(Base.splat(isequal), zip(x, y))
-end
-
 function print_explicit_imports(mod, file=pathof(mod); kw...)
     return print_explicit_imports(stdout, mod, file; kw...)
 end
@@ -73,6 +69,10 @@ function using_statement((k, v_mod))
     # skip `Main.X`, just do `.X`
     v = replace(string(v_mod), "Main" => "")
     return "using $v: $k"
+end
+
+function is_prefix(x, y)
+    return length(x) <= length(y) && all(Base.splat(isequal), zip(x, y))
 end
 
 """
