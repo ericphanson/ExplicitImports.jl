@@ -1,4 +1,6 @@
 module TestModA
+# Note: in this file, names containing `"local"` have a particular meaning:
+# we test to ensure they are correctly identified as being in local scope.
 
 using ..Exporter
 using ..Exporter2
@@ -42,10 +44,13 @@ func2() = (local6=1; global_a)
 func3() = (; local7=1)
 
 module SubModB
-
+using ..Exporter3
 using ..TestModA
 
-h() = f()
+h() = (local8=1; f())
+
+h2() = exported_b()
+
 end # SubModB
 
 end

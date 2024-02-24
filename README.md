@@ -9,21 +9,20 @@
 
 Figure out what implicit exports a Julia module is relying on, in order to make them explicit.
 
-## Strategy
+## Strategy & status
 
 1. [DONE hackily] Figure out what names are being used to refer to bindings in global scope
 2. [DONE] Figure out what implicit exports are available in the module
 3. [TODO] Which implicit exports are already made explicit in the module
-
-Then we can put this information together to figure out what names are actually being used from other modules, and whose usage could be made explicit.
+4. [Partly done] Then we can put this information together to figure out what names are actually being used from other modules, and whose usage could be made explicit.
 
 ## Example
 
 ```julia
 julia> using ExplicitImports
 
-julia> explicit_imports(ExplicitImports, "src/ExplicitImports.jl")
-13-element Vector{Any}:
+julia> explicit_imports(ExplicitImports)
+13-element Vector{String}:
  "using AbstractTrees: Leaves"
  "using AbstractTrees: TreeCursor"
  "using AbstractTrees: children"
@@ -33,8 +32,8 @@ julia> explicit_imports(ExplicitImports, "src/ExplicitImports.jl")
  "using DataFrames: groupby"
  "using DataFrames: select!"
  "using DataFrames: subset!"
- "using JuliaSyntax: SourceFile"
  "using JuliaSyntax: SyntaxNode"
  "using JuliaSyntax: kind"
  "using JuliaSyntax: parseall"
+ "using Tables: ByRow"
 ```
