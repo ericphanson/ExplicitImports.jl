@@ -25,7 +25,7 @@ function Base.showerror(io::IO, e::StaleImportsException)
 end
 
 """
-    check_no_implicit_imports(mod, file=pathof(mod); skips=(Base, Core), ignore = (), warn=false)
+    check_no_implicit_imports(mod, file=pathof(mod); skips=(Base, Core), ignore = ())
 
 Checks that neither `mod` nor any of its submodules is relying on implicit imports, throwing
 an `ImplicitImportsException` if so, and returning `nothing` otherwise.
@@ -65,9 +65,8 @@ This would:
 
 but verify there are no other implicit imports.
 """
-function check_no_implicit_imports(mod, file=pathof(mod); skips=(Base, Core), ignore=(),
-                                   warn=false)
-    ee = explicit_imports(mod, file; warn, skips)
+function check_no_implicit_imports(mod, file=pathof(mod); skips=(Base, Core), ignore=())
+    ee = explicit_imports(mod, file; warn=false, skips)
     for (mod, names) in ee
         should_ignore!(names, mod; ignore)
         if !isempty(names)
