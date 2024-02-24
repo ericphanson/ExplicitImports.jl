@@ -131,10 +131,47 @@ end
 
     @test_throws ImplicitImportsException check_no_implicit_imports(TestMod1,
                                                                     "test_mods.jl")
+
+    # test name ignores
+    @test check_no_implicit_imports(TestMod1, "test_mods.jl";
+                                    ignore=(:print_explicit_imports,)) === nothing
+
+    # test name mod pair ignores
+    @test check_no_implicit_imports(TestMod1, "test_mods.jl";
+                                    ignore=(:print_explicit_imports => ExplicitImports,)) ===
+          nothing
+
+    # if you pass the module in the pair, you must get the right one
+    @test_throws ImplicitImportsException check_no_implicit_imports(TestMod1,
+                                                                    "test_mods.jl";
+                                                                    ignore=(:print_explicit_imports => TestModA,)) ===
+                                          nothing
+
+    # non-existent names are OK
+    @test check_no_implicit_imports(TestMod1, "test_mods.jl";
+                                    ignore=(:print_explicit_imports => ExplicitImports,
+                                            :does_not_exist)) === nothing
+
+    # you can use skips to skip whole modules
+    @test check_no_implicit_imports(TestMod1, "test_mods.jl";
+                                    skips=(Base, Core, ExplicitImports)) === nothing
+
     @test_throws ImplicitImportsException check_no_implicit_imports(TestModA.SubModB.TestModA.TestModC,
                                                                     "TestModC.jl")
+
+    # test submodule ignores
+    @test check_no_implicit_imports(TestModA.SubModB.TestModA, "TestModC.jl";
+                                    ignore=(TestModA.SubModB.TestModA.TestModC,)) ===
+          nothing
+
     @test_throws StaleImportsException check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
                                                                        "TestModC.jl")
+
+    # ignore works:
+    @test check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
+                                          "TestModC.jl";
+                                          ignore=(:exported_c, :exported_d)) ===
+          nothing
 
     # Test the printing is hitting our formatted errors
     str = exception_string() do
