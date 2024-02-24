@@ -150,9 +150,7 @@ end
     analyze_all_names(file) -> Tuple{DataFrame, DataFrame}
 
 Returns:
-* a DataFrame with one row per name per scope, with information about whether or not
-it is within global scope, what modules it is in, and whether or not it was assigned before
-ever being used in that scope.
+* a DataFrame with one row per name per scope, with information about whether or not it is within global scope, what modules it is in, and whether or not it was assigned before ever being used in that scope.
 * a DataFrame with one row per name per module path, consisting of names that have been explicitly imported in that module.
 """
 function analyze_all_names(file; debug=false)
