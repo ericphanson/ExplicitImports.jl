@@ -46,7 +46,7 @@ Returns a DataFrame with one row per name per scope, with information about whet
 it is within global scope, what modules it is in, and whether or not it was assigned before
 ever being used in that scope.
 """
-function analyze_all_names(file)
+function analyze_all_names(file; debug=false)
     tree = SyntaxNodeWrapper(file)
     # in local scope, a name refers to a global if it is read from before it is assigned to, OR if the global keyword is used
     # a name refers to a local otherwise
@@ -65,20 +65,49 @@ function analyze_all_names(file)
         #
         # We want to figure this out on a per-module basis, since each module has a different global namespace.
 
-        # println("----------")
-        ret = analyze_name(leaf)
+        debug && println("-"^80)
+        file = nodevalue(leaf).file
+        line, col = JuliaSyntax.source_location(nodevalue(leaf).node)
+        location = "$file:$line:$col"
+        debug && println("Leaf position: $location")
         name = nodevalue(leaf).node.val
-        # println(ret)
-        push!(df, (; name, ret...))
+        debug && println("Leaf name: ", name)
+        qualified = is_qualified(leaf)
+
+        debug && qualified && println("$name's usage here is qualified; skipping")
+
+        qualified && continue
+
+        debug && println("--")
+        debug && println("val : kind")
+        ret = analyze_name(leaf; debug)
+        debug && println(ret)
+        push!(df, (; name, location, ret...))
     end
 
     grps = groupby(df, [:name, :scope_path, :global_scope, :module_path])
     return combine(grps, :is_assignment => (a -> a[1]) => :assigned_before_used)
 end
 
+function is_qualified(leaf)
+    # is this name being used in a qualified context, like `X.y`?
+    if !isnothing(parent(leaf)) && !isnothing(parent(parent(leaf)))
+        p = nodevalue(parent(leaf)).node
+        p2 = nodevalue(parent(parent(leaf))).node
+        if JuliaSyntax.kind(p) == K"quote" && JuliaSyntax.kind(p2) == K"."
+            # ok but is the quote we are in the 2nd argument, not the first?
+            dot_kids = JuliaSyntax.children(p2)
+            if length(dot_kids) == 2 && dot_kids[2] == p
+                return true
+            end
+        end
+    end
+    return false
+end
+
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
 # a leaf and follow the parents up to see what scopes our leaf is in.
-function analyze_name(leaf)
+function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
     global_scope = true
     module_path = Symbol[]
@@ -86,6 +115,7 @@ function analyze_name(leaf)
     is_assignment = false
     node = leaf
     idx = 1
+
     while true
         # update our state
         val = nodevalue(node).node.val
@@ -93,7 +123,7 @@ function analyze_name(leaf)
         kind = JuliaSyntax.kind(head)
         args = nodevalue(node).node.raw.args
 
-        # println(val, ": ", kind)
+        debug && println(val, ": ", kind)
         if kind in (K"let", K"for", K"function")
             global_scope = false
             push!(scope_path, nodevalue(node).node)
@@ -116,6 +146,8 @@ function analyze_name(leaf)
         end
 
         # figure out if our name (`nodevalue(leaf)`) is the LHS of an assignment
+        # Note: this doesn't detect assignments to qualified variables (`X.y = rhs`)
+        # but that's OK since we don't want to pick them up anyway.
         if kind == K"="
             kids = children(nodevalue(node))
             if !isempty(kids)
@@ -123,10 +155,12 @@ function analyze_name(leaf)
                 is_assignment = c == nodevalue(leaf)
             end
         end
+
         node = parent(node)
 
         # finished climbing to the root
-        node === nothing && return (; global_scope, is_assignment, module_path, scope_path)
+        node === nothing &&
+            return (; global_scope, is_assignment, is_qualified, module_path, scope_path)
         idx += 1
     end
 end

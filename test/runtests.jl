@@ -67,11 +67,10 @@ end
     from_inner_file = explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModC.jl")
     @test from_inner_file == from_outer_file
     @test "using .TestModA: f" in from_inner_file
-
     # This one isn't needed bc all usages are fully qualified
-    @test_broken "using .Exporter: exported_a" ∉ from_inner_file
+    @test "using .Exporter: exported_a" ∉ from_inner_file
 
-    # This one isn't needed it is already explicitly imported
+    # This one isn't needed; it is already explicitly imported
     @test_broken "using .Exporter: exported_b" ∉ from_inner_file
 
     @test_broken from_inner_file == ["using .TestModA: f"]
