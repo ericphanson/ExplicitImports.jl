@@ -1,9 +1,16 @@
 using ExplicitImports
-using ExplicitImports: analyze_all_names, has_ancestor, should_skip, restrict_to_module,
+using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_single, using_statement
 using Test
 using DataFrames
 using Aqua
+
+# DataFrames version of `restrict_to_module!`
+function restrict_to_module(df, mod)
+    mod_path = module_path(mod)
+    return subset(df,
+                  :module_path => ByRow(ms -> all(Base.splat(isequal), zip(ms, mod_path))))
+end
 
 include("Exporter.jl")
 include("TestModA.jl")

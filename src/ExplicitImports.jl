@@ -2,7 +2,6 @@ module ExplicitImports
 
 using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
-using DataFrames
 
 export explicit_imports, stale_explicit_imports, print_explicit_imports,
        explicit_imports_single, check_no_implicit_imports, check_no_stale_explicit_imports
@@ -85,11 +84,10 @@ function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
     all_implicit_imports = find_implicit_imports(mod; skips)
-    df = get_names_used(file)
-    df = restrict_to_module(df, mod)
+    needs_explicit_import, unnecessary_explicit_import = get_names_used(file)
+    restrict_to_module!(needs_explicit_import, mod)
 
-    needs = subset(df, :needs_explicit_import)
-    needed_names = Set(needs.name)
+    needed_names = Set(nt.name for nt in needs_explicit_import)
     filter!(all_implicit_imports) do (k, v)
         k in needed_names || return false
         should_skip(v; skips) && return false
@@ -116,7 +114,8 @@ function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn
     sort!(to_make_explicit; lt)
 
     if warn
-        unnecessary = unique(sort(subset(df, :unnecessary_explicit_import).name))
+        restrict_to_module!(unnecessary_explicit_import, mod)
+        unnecessary = unique!(sort!([nt.name for nt in unnecessary_explicit_import]))
         if !isempty(unnecessary)
             @warn "Found stale explicit imports in $mod for these names: $unnecessary. To get this list programmatically, call `stale_explicit_imports`. To silence this warning, pass `warn=false`."
         end
@@ -134,10 +133,9 @@ function stale_explicit_imports(mod, file=pathof(mod))
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
-    df = get_names_used(file)
-    df = restrict_to_module(df, mod)
-    unnecessary = unique(sort(subset(df, :unnecessary_explicit_import).name))
-    return unnecessary
+    _, unnecessary_explicit_import = get_names_used(file)
+    restrict_to_module!(unnecessary_explicit_import, mod)
+    return unique!(sort!([nt.name for nt in unnecessary_explicit_import]))
 end
 
 function has_ancestor(query, target)
@@ -167,7 +165,7 @@ function module_path(mod)
     end
 end
 
-function restrict_to_module(df, mod)
+function restrict_to_module!(set, mod)
     # Limit to only the module of interest. We make some attempt to avoid name collisions
     # (where two nested modules have the same name) by matching on the full path - to some extent.
     # We can't really assume we were given the "top-level" file (I think), so we might not be
@@ -177,8 +175,10 @@ function restrict_to_module(df, mod)
     # This means we cannot distinguish X.Y.X from X in some cases.
     # Don't do that!
     mod_path = module_path(mod)
-    return subset(df,
-                  :module_path => ByRow(ms -> all(Base.splat(isequal), zip(ms, mod_path))))
+    filter!(set) do nt
+        return all(Base.splat(isequal), zip(nt.module_path, mod_path))
+    end
+    return set
 end
 
 # recurse through to find all submodules of `mod`

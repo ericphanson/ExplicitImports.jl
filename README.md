@@ -42,22 +42,13 @@ julia> using ExplicitImports
 
 julia> print_explicit_imports(ExplicitImports)
 WARNING: both JuliaSyntax and Base export "parse"; uses of it in module ExplicitImports must be qualified
-Module ExplicitImports is relying on implicit imports for 13 names. These could be explicitly imported as follows:
+Module ExplicitImports is relying on implicit imports for 4 names. These could be explicitly imported as follows:
 
 ```julia
 using AbstractTrees: Leaves
 using AbstractTrees: TreeCursor
 using AbstractTrees: children
 using AbstractTrees: nodevalue
-using DataAPI: outerjoin
-using DataFrames: AsTable
-using DataFrames: DataFrame
-using DataFrames: combine
-using DataFrames: groupby
-using DataFrames: select!
-using DataFrames: subset
-using DataFrames: subset!
-using Tables: ByRow
 ```
 
 ````

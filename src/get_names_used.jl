@@ -170,7 +170,7 @@ function analyze_all_names(file; debug=false)
     # since that tells us about assignment
     seen = Set{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}}}()
 
-    explicit_imports = @NamedTuple{name::Symbol,module_path::Vector{Symbol}}[]
+    explicit_imports = Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}()
 
     for leaf in Leaves(cursor)
         JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
@@ -213,7 +213,6 @@ function analyze_all_names(file; debug=false)
         end
     end
 
-    unique!(explicit_imports)
     return per_scope_info, explicit_imports
 end
 
@@ -224,39 +223,27 @@ Figures out which global names are used in `file`, and what modules they are use
 
 Traverses static `include` statements.
 
-Returns a `DataFrame` with four columns:
-* `name`: the name in question
-* `module_path`: the path of modules to access the name, where the first module in the path is the innermost.
-* `needs_explicit_import::Bool`
-* `unnecessary_explicit_import::Bool`
+Returns two `Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}`, namely
+
+* `needs_explicit_import`
+* `unnecessary_explicit_import`
 """
 function get_names_used(file)
     # Here we get 1 row per name per scope
     per_scope_info, explicit_imports = analyze_all_names(file)
-    df = DataFrame(per_scope_info)
-    explicit_imports = DataFrame(explicit_imports)
-    explicit_imports.explicitly_imported .= true
 
-    # further processing...
-    # we want one row per name per module path, not per scope,
-    # so combine over scopes-within-a-module and decide if this name
-    # is being used to refer to a global binding within this module
-    ret = combine(groupby(df, [:name, :module_path]),
-                  [:global_scope, :assigned_first] => function (g, a)
-                      return any(g) || any(!, a)
-                  end => :may_want_to_explicitly_import)
-
-    ret = outerjoin(ret, explicit_imports; on=[:name, :module_path])
-    ret.explicitly_imported = coalesce.(ret.explicitly_imported, false)
-    ret.may_want_to_explicitly_import = coalesce.(ret.may_want_to_explicitly_import, false)
-
-    select!(ret, :name, :module_path,
-            [:may_want_to_explicitly_import, :explicitly_imported] => ByRow() do want, is
-                needs_explicit_import = want && !is
-                unnecessary_explicit_import = !want && is
-                return (; needs_explicit_import, unnecessary_explicit_import)
-            end => AsTable)
-
-    subset!(ret, [:needs_explicit_import, :unnecessary_explicit_import] => ByRow(|))
-    return ret
+    # if a name is used to refer to a global in any scope within a module,
+    # then we may want to explicitly import it.
+    # So we iterate through our scopes and see.
+    names_used_for_global_bindings = Set{@NamedTuple{name::Symbol,
+                                                     module_path::Vector{Symbol}}}()
+    for nt in per_scope_info
+        if nt.global_scope || !nt.assigned_first
+            push!(names_used_for_global_bindings, (; nt.name, nt.module_path))
+        end
+    end
+    # name used to point to a global which was not explicitly imported
+    needs_explicit_import = setdiff(names_used_for_global_bindings, explicit_imports)
+    unnecessary_explicit_import = setdiff(explicit_imports, names_used_for_global_bindings)
+    return (; needs_explicit_import, unnecessary_explicit_import)
 end
