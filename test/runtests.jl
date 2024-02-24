@@ -1,9 +1,16 @@
 using ExplicitImports
-using ExplicitImports: analyze_all_names
+using ExplicitImports: analyze_all_names, has_ancestor, should_skip
 using Test
 
 include("Exporter.jl")
 include("TestModA.jl")
+
+@testset "has_ancestor" begin
+    @test has_ancestor(TestModA.SubModB, TestModA)
+    @test !has_ancestor(TestModA, TestModA.SubModB)
+
+    @test should_skip(Base.Iterators; skips=(Base, Core))
+end
 
 @testset "ExplicitImports.jl" begin
     @test explicit_imports(TestModA, "TestModA.jl") == ["using .Exporter: exported_a"]

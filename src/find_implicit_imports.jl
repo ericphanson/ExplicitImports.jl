@@ -4,7 +4,7 @@ modules_from_using(m::Module) = ccall(:jl_module_usings, Any, (Any,), m)
 function get_implicit_names(mod; skips=(Base, Core))
     implicit_names = Symbol[]
     for mod in modules_from_using(mod)
-        mod in skips && continue
+        should_skip(mod; skips) && continue
         append!(implicit_names, names(mod))
     end
     return unique!(implicit_names)

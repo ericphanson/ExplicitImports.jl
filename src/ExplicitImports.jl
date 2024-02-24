@@ -32,7 +32,7 @@ function explicit_imports(mod, file=pathof(mod); skips=(Base, Core))
     usings = String[]
     for k in relevant_keys
         v_mod = all_implicit_imports[k]
-        v_mod in skips && continue
+        should_skip(v_mod; skips) && continue
 
         # hacky stuff...
 
@@ -48,6 +48,23 @@ function explicit_imports(mod, file=pathof(mod); skips=(Base, Core))
     end
     sort!(usings)
     return usings
+end
+
+function has_ancestor(query, target)
+    query == target && return true
+    while true
+        next = parentmodule(query)
+        next == target && return true
+        next == query && return false
+        query = next
+    end
+end
+
+function should_skip(target; skips)
+    for skip in skips
+        has_ancestor(target, skip) && return true
+    end
+    return false
 end
 
 end
