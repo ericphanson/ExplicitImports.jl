@@ -229,7 +229,7 @@ function get_names_used(file)
                       return any(g) || any(!, a)
                   end => :may_want_to_explicitly_import)
 
-    ret = outerjoin(ret, explicit_imports, on=[:name, :module_path])
+    ret = outerjoin(ret, explicit_imports; on=[:name, :module_path])
     ret.explicitly_imported = coalesce.(ret.explicitly_imported, false)
     ret.may_want_to_explicitly_import = coalesce.(ret.may_want_to_explicitly_import, false)
 
