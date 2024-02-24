@@ -37,7 +37,9 @@ function is_prefix(x, y)
     return length(x) <= length(y) && all(Base.splat(isequal), zip(x, y))
 end
 
-print_explicit_imports(mod, file=pathof(mod); kw...) = print_explicit_imports(stdout, mod, file; kw...)
+function print_explicit_imports(mod, file=pathof(mod); kw...)
+    return print_explicit_imports(stdout, mod, file; kw...)
+end
 
 """
     print_explicit_imports([io::IO=stdout,] mod, file=pathof(mod); kw...)
