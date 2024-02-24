@@ -26,7 +26,7 @@ Personally, I don't think this is always a huge issue, and that it's basically f
 
 This seems to be working! However it has not been extensively used or tested.
 
-See the [docs](https://ericphanson.github.io/ExplicitImports.jl/dev/) for the available functionality.
+See the [API docs](https://ericphanson.github.io/ExplicitImports.jl/dev/api/) for the available functionality.
 
 ## Example
 

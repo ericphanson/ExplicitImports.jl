@@ -8,13 +8,15 @@ include("find_implicit_imports.jl")
 
 include("get_names_used.jl")
 
+include("checks.jl")
+
 export explicit_imports, stale_explicit_imports, print_explicit_imports,
-       explicit_imports_single
+       explicit_imports_single, check_no_implicit_imports, check_no_stale_explicit_imports
 
 """
-    explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true) -> Vector{String}
+    explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
 
-Returns a list of explicit import statements one could make for each submodule of `mod`.
+Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`.
 
 * `file=pathof(mod)`: this should be a path to the source code that contains the module `mod`.
     * if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
@@ -25,8 +27,7 @@ Returns a list of explicit import statements one could make for each submodule o
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, and [`explicit_imports_single`](@ref) for a non-recursive version which ignores submodules.
 """
 function explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
-    submodules = sort!(collect(find_submodules(mod)); by=reverse ∘ module_path,
-                       lt=is_prefix)
+    submodules = find_submodules(mod)
     return [submodule => explicit_imports_single(submodule, file; skips, warn)
             for submodule in submodules]
 end
@@ -54,7 +55,9 @@ function print_explicit_imports(io::IO, mod, file=pathof(mod); kw...)
                     "Module $mod is relying on implicit imports for $(length(imports)) names. These could be explicitly imported as follows:")
             println(io)
             println(io, "```julia")
-            foreach(line -> println(io, line), imports)
+            for pair in imports
+                println(io, using_statement(pair))
+            end
             println(io, "```")
         end
         stale = stale_explicit_imports(mod, file)
@@ -67,8 +70,14 @@ function print_explicit_imports(io::IO, mod, file=pathof(mod); kw...)
     end
 end
 
+function using_statement((k, v_mod))
+    # skip `Main.X`, just do `.X`
+    v = replace(string(v_mod), "Main" => "")
+    return "using $v: $k"
+end
+
 """
-    explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn=true) -> Vector{String}
+    explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn=true)
 
 A non-recursive version of [`explicit_imports`](@ref); see that function for details.
 """
@@ -81,25 +90,34 @@ function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn
     df = restrict_to_module(df, mod)
 
     needs = subset(df, :needs_explicit_import)
-    relevant_keys = intersect(needs.name, keys(all_implicit_imports))
-    usings = String[]
-    for k in relevant_keys
-        v_mod = all_implicit_imports[k]
-        should_skip(v_mod; skips) && continue
-
-        # hacky stuff...
-
-        # skip `Main.X`, just do `.X`
-        v = replace(string(v_mod), "Main" => "")
-
+    needed_names = Set(needs.name)
+    filter!(all_implicit_imports) do (k, v)
+        k in needed_names || return false
+        should_skip(v; skips) && return false
         # skip `using X: X`
-        v == string(k) && continue
+        v == string(k) && return false
+        # skip `using Main.X: X`
 
-        # skip `using .X: X`
-        v == string(".", k) && continue
-        push!(usings, "using $v: $k")
+        replace(string(v), "Main" => "") == string(".", k) && return false
+        return true
     end
-    sort!(usings)
+
+    to_make_explicit = [k => v for (k, v) in all_implicit_imports]
+
+    function lt((k1, v1), (k2, v2))
+        p1 = reverse(module_path(v1))
+        p2 = reverse(module_path(v2))
+        is_lt = if p1 == p2
+            isless(k1, k2)
+        elseif is_prefix(p1, p2)
+            true
+        else
+            tuple(p1) <= tuple(p2)
+        end
+        return is_lt
+    end
+
+    sort!(to_make_explicit; lt)
 
     if warn
         unnecessary = unique(sort(subset(df, :unnecessary_explicit_import).name))
@@ -108,7 +126,7 @@ function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn
         end
     end
 
-    return usings
+    return to_make_explicit
 end
 
 """
@@ -153,10 +171,6 @@ function module_path(mod)
     end
 end
 
-function string_module_path(mod)
-    return join(reverse(module_path(mod)), ".")
-end
-
 function restrict_to_module(df, mod)
     # Limit to only the module of interest. We make some attempt to avoid name collisions
     # (where two nested modules have the same name) by matching on the full path - to some extent.
@@ -172,7 +186,7 @@ function restrict_to_module(df, mod)
 end
 
 # recurse through to find all submodules of `mod`
-function find_submodules(mod)
+function _find_submodules(mod)
     sub_modules = Set{Module}([mod])
     for name in names(mod; all=true)
         name == nameof(mod) && continue
@@ -185,11 +199,16 @@ function find_submodules(mod)
         if is_submodule
             submod = getglobal(mod, name)
             if submod ∉ sub_modules
-                union!(sub_modules, find_submodules(submod))
+                union!(sub_modules, _find_submodules(submod))
             end
         end
     end
     return sub_modules
+end
+
+function find_submodules(mod)
+    return sort!(collect(_find_submodules(mod)); by=reverse ∘ module_path,
+                 lt=is_prefix)
 end
 
 end
