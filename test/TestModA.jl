@@ -50,6 +50,18 @@ h() = (local8 = 1; f())
 
 h2() = exported_b()
 
+module TestModA # again
+
+inner_f() = 1
+
+using ..Exporter3
+
+inner_h() = exported_b()
+
+include("TestModC.jl")
+
+end
+
 end # SubModB
 
 end

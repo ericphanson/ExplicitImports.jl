@@ -1,5 +1,6 @@
 using ExplicitImports
-using ExplicitImports: analyze_all_names, has_ancestor, should_skip
+using ExplicitImports: analyze_all_names, has_ancestor, should_skip, restrict_to_module,
+                       module_path
 using Test
 using DataFrames
 
@@ -35,9 +36,35 @@ end
     # Test submodules
     @test explicit_imports(TestModA.SubModB, "TestModA.jl") ==
           ["using .Exporter3: exported_b", "using .TestModA: f"]
-    sub_df = subset(df, :module_path => ByRow(ms -> first(ms) == nameof(TestModA.SubModB)))
+
+    mod_path = module_path(TestModA.SubModB)
+    @test mod_path == [:SubModB, :TestModA]
+    sub_df = restrict_to_module(df, TestModA.SubModB)
 
     h = only(subset(sub_df, :name => ByRow(==(:h))))
     @test h.global_scope
     @test !h.assigned_before_used
+
+    # Nested submodule with same name as outer module...
+    @test explicit_imports(TestModA.SubModB.TestModA, "TestModA.jl") ==
+          ["using .Exporter3: exported_b"]
+
+    # Check we are getting innermost names and not outer ones
+    subsub_df = restrict_to_module(df, TestModA.SubModB.TestModA)
+    @test :inner_h in subsub_df.name
+    @test :h ∉ subsub_df.name
+    # ...we do currently get the outer ones when the module path prefixes collide
+    @test_broken :f ∉ subsub_df.name
+    @test_broken :func ∉ subsub_df.name
+
+    df = analyze_all_names("TestModC.jl")
+
+    # starts from innermost
+    @test module_path(TestModA.SubModB.TestModA.TestModC) ==
+          [:TestModC, :TestModA, :SubModB, :TestModA]
+
+    @test explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModA.jl") ==
+          ["using .TestModA: f"]
+    @test explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModC.jl") ==
+          ["using .TestModA: f"]
 end
