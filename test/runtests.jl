@@ -14,6 +14,8 @@ include("TestModA.jl")
     @test should_skip(Base.Iterators; skips=(Base, Core))
 end
 
+# TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
+
 @testset "ExplicitImports.jl" begin
     @test explicit_imports_single(TestModA, "TestModA.jl") ==
           ["using .Exporter: exported_a"]
