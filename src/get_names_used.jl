@@ -12,6 +12,9 @@ function get_names_used(file)
     df = analyze_all_names(file)
 
     # further processing...
+    # we want one row per name per module path, not per scope,
+    # so combine over scopes-within-a-module and decide if this name
+    # is being used to refer to a global binding within this module
     ret = combine(groupby(df, [:name, :module_path]),
                   [:global_scope, :assigned_before_used] => function (g, a)
                       return any(g) || any(!, a)
