@@ -4,10 +4,8 @@ using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
 using DataFrames
 
-export find_implicit_imports
 include("find_implicit_imports.jl")
 
-export get_names_used
 include("get_names_used.jl")
 
 export explicit_imports, stale_explicit_imports, print_explicit_imports,
@@ -24,7 +22,7 @@ Returns a list of explicit import statements one could make for each submodule o
 * `skips=(Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped.
 * `warn=true`: whether or not to warn about stale explicit imports.
 
-See also [`print_explicit_exports`](@ref) to easily compute and print these results, and [`explicit_imports_single`](@ref) for a non-recursive version which ignores submodules.
+See also [`print_explicit_imports`](@ref) to easily compute and print these results, and [`explicit_imports_single`](@ref) for a non-recursive version which ignores submodules.
 """
 function explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
     submodules = sort!(collect(find_submodules(mod)); by=reverse ∘ module_path,
