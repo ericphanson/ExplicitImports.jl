@@ -67,7 +67,7 @@ Known issues:
 - multi-argument `include` calls are ignored
 - In Julia, `include` adds the included code at top-level in the module in which it is called. Here, when `include` is called within a local scope, all of the code being included is treated as being within that local scope.
 
-The consequences of these issues are that ExplicitImports may misunderstand whether or not a particular name refers to a local variable or a global one, and thus whether or not some particular implicitly-available name (exported by some module) is in fact being used. This could cause it to suggest an unnecessary explicit import, fail to suggest an explicit import, or to falsely claim that an explicit import is stale.
+The consequence of these issues is that ExplicitImports may misunderstand whether or not a particular name refers to a local variable or a global one, and thus whether or not some particular implicitly-available name (exported by some module) is in fact being used. This could cause it to suggest an unnecessary explicit import, fail to suggest an explicit import, or to falsely claim that an explicit import is stale.
 
 Hopefully these situations are somewhat rare, because even if ExplicitExports misunderstands the scoping for one usage of a name, it may correctly parse the scoping of it in another usage in the same module, and could end up drawing the correct conclusion anyway.
 
@@ -87,7 +87,9 @@ end
 
 This is problematic for ExplicitImports.jl; unless we really use a full-blown interpreter (which I do think could be a viable strategy[^1]), we can't really execute this code to know what files are being included. Thus being unable to traverse dynamic includes is essentially an inherent limitation of the approach used in this package.
 
-However, we do detect this situation, so we can know when our analysis is invalid. For example, running `print_explicit_imports` on this module gives:
+The consequence of missing files is that the any names used or imports made in those files are totally missed. Even if we did take a strategy like "scan the package `src` directory for Julia code, and analyze all those files", without understanding `includes`, we wouldn't understand which files belong to which modules, making this analysis useless.
+
+However, we do at least detect this situation, so we can which modules are affected by the missing information, and (by default) refuse to make claims about them. For example, running `print_explicit_imports` on this module gives:
 
 ```sh
 julia> print_explicit_imports(MathOptInterface.Test, pkgdir(MathOptInterface))
@@ -97,6 +99,17 @@ Module MathOptInterface.Test._BaseTest could not be accurately analyzed, likely 
 ```
 
 Note here we need to pass `pkgdir(MathOptInterface)` as the second argument, since `pathof(MathOptInterface.Test) === nothing` so otherwise we would get a `FileNotFoundException`.
+
+If we do pass `strict=false`, in this case we get
+
+```sh
+julia> print_explicit_imports(MathOptInterface.Test, pkgdir(MathOptInterface); strict=false)
+Module MathOptInterface.Test is not relying on any implicit imports.
+
+Module MathOptInterface.Test._BaseTest is not relying on any implicit imports.
+```
+
+However, we can't really be sure there is't a reliance on implicit imports present in the files that we weren't able to scan (or perhaps some stale explicit imports made in those files).
 
 ### Need to load the package/module
 
