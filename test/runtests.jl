@@ -295,6 +295,9 @@ end
 
         @test_logs log @test_throws e check_no_stale_explicit_imports(DynMod,
                                                                       "DynMod.jl")
+
+        str = sprint(Base.showerror, UnanalyzableModuleException(DynMod))
+        @test contains(str, "was found to be unanalyzable")
     end
 end
 
