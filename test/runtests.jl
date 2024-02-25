@@ -110,7 +110,7 @@ end
 
     # Printing
     str = sprint(print_stale_explicit_imports, TestModA, "TestModA.jl")
-    @test contains(str, "TestModA is has no stale explicit imports")
+    @test contains(str, "TestModA has no stale explicit imports")
     @test contains(str, "TestModC has stale explicit imports for these unused names")
 
     # in particular, this ensures we don't add `using ExplicitImports: ExplicitImports`

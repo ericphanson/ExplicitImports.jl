@@ -148,7 +148,7 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod))
     for (i, (mod, stale_imports)) in enumerate(stale_explicit_imports(mod, file))
         i == 1 || println(io)
         if isempty(stale_imports)
-            println(io, "Module $mod is has no stale explicit imports.")
+            println(io, "Module $mod has no stale explicit imports.")
         else
             println(io,
                     "Module $mod has stale explicit imports for these unused names:")
@@ -270,6 +270,7 @@ function inspect_session(io::IO; skips=(Base, Core), inner=print_explicit_import
         pathof(mod) === nothing && continue
         isfile(pathof(mod)) || continue
         inner(io, mod)
+        println(io)
     end
 end
 
