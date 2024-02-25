@@ -7,7 +7,6 @@ The main entrypoint for interactive use is [`print_explicit_imports`](@ref). Exp
 ```@docs
 print_explicit_imports
 explicit_imports
-explicit_imports_nonrecursive
 ```
 
 ### Looking just for stale explicit exports
@@ -17,7 +16,6 @@ While [`print_explicit_imports`](@ref) prints stale explicit exports, and [`expl
 ```@docs
 print_stale_explicit_imports
 stale_explicit_imports
-stale_explicit_imports_nonrecursive
 ```
 
 ### Usage in testing
@@ -27,4 +25,13 @@ ExplicitImports.jl provides two functions which can be used to regression test t
 ```@docs
 check_no_implicit_imports
 check_no_stale_explicit_imports
+```
+
+### Non-recursive variants
+
+The above functions all recurse through submodules of the provided module, providing information about each. Here, we provide non-recursive variants (which in fact power the recursive ones), in case it is useful, perhaps for building other tooling on top of ExplicitImports.jl.
+
+```@docs
+explicit_imports_nonrecursive
+stale_explicit_imports_nonrecursive
 ```
