@@ -89,7 +89,7 @@ This is problematic for ExplicitImports.jl; unless we really use a full-blown in
 
 The consequence of missing files is that the any names used or imports made in those files are totally missed. Even if we did take a strategy like "scan the package `src` directory for Julia code, and analyze all those files", without understanding `includes`, we wouldn't understand which files belong to which modules, making this analysis useless.
 
-However, we do at least detect this situation, so we can which modules are affected by the missing information, and (by default) refuse to make claims about them. For example, running `print_explicit_imports` on this module gives:
+However, we do at least detect this situation, so we can know which modules are affected by the missing information, and (by default) refuse to make claims about them. For example, running `print_explicit_imports` on this module gives:
 
 ```sh
 julia> print_explicit_imports(MathOptInterface.Test, pkgdir(MathOptInterface))
@@ -98,7 +98,7 @@ Module MathOptInterface.Test could not be accurately analyzed, likely due to dyn
 Module MathOptInterface.Test._BaseTest could not be accurately analyzed, likely due to dynamic `include` statements. You can pass `strict=false` to attempt to get (possibly inaccurate) results anyway.
 ```
 
-Note here we need to pass `pkgdir(MathOptInterface)` as the second argument, since `pathof(MathOptInterface.Test) === nothing` so otherwise we would get a `FileNotFoundException`.
+Note here we need to pass `pkgdir(MathOptInterface)` as the second argument, as `pathof(MathOptInterface.Test) === nothing` and we would get a `FileNotFoundException`.
 
 If we do pass `strict=false`, in this case we get
 
@@ -109,7 +109,7 @@ Module MathOptInterface.Test is not relying on any implicit imports.
 Module MathOptInterface.Test._BaseTest is not relying on any implicit imports.
 ```
 
-However, we can't really be sure there is't a reliance on implicit imports present in the files that we weren't able to scan (or perhaps some stale explicit imports made in those files).
+However, we can't really be sure there is't a reliance on implicit imports present in the files that we weren't able to scan (or perhaps some stale explicit imports made in those files, or perhaps usages of names explicitly imported in the files we could scan, which would prove those explicit imports are in fact not stale).
 
 ### Need to load the package/module
 
