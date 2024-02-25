@@ -11,7 +11,7 @@ end
 
 function SyntaxNodeWrapper(file::AbstractString; bad_files=Set{String}())
     contents = read(file, String)
-    parsed = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, contents)
+    parsed = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, contents; ignore_warnings=true)
     return SyntaxNodeWrapper(parsed, file, bad_files)
 end
 
@@ -21,15 +21,8 @@ function try_parse_wrapper(file::AbstractString; bad_files=Set{String}())
         SyntaxNodeWrapper(file; bad_files)
     catch e
         push!(bad_files, file)
-        # JuliaSyntax#350 is a common and known issue, so let's not dump the whole scary stacktrace
-        if "parentheses are not required here" in
-           (d.message for d in e.diagnostics)
-            msg = "Hit https://github.com/JuliaLang/JuliaSyntax.jl/issues/350. Skipping this file."
-            @error msg file exception = e
-        else
-            msg = "Error when parsing file. Skipping this file."
-            @error msg file exception = (e, catch_backtrace())
-        end
+        msg = "Error when parsing file. Skipping this file."
+        @error msg file exception = (e, catch_backtrace())
         nothing
     end
 end
