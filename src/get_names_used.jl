@@ -12,7 +12,7 @@ end
 Base.@kwdef struct FileAnalysis
     needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}
     unnecessary_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}
-    tainted_modules::Set{Vector{Symbol}}
+    untainted_modules::Set{Vector{Symbol}}
 end
 
 function SyntaxNodeWrapper(file::AbstractString; bad_files=Set{String}())
@@ -73,21 +73,12 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                         end
                     else
                         location = location_str(wrapper)
-                        # We choose our `id` so maxlog will work the way we want
-                        # (don't log the same message multiple times, but do log each separate location)
-                        id = Symbol("missing_file_", location)
-                        @warn("`include` at $location points to missing file; cannot recurse into it.",
-                              _id = id,
-                              maxlog = 1)
+                        @warn "`include` at $location points to missing file; cannot recurse into it."
                         return [SkippedFile(new_file)]
                     end
                 else
                     location = location_str(wrapper)
-                    # We choose our `id` so maxlog will work the way we want
-                    # (don't log the same message multiple times, but do log each separate location)
-                    id = Symbol("dynamic_include_", location)
-                    @warn("Dynamic `include` found at $location; not recursing", _id = id,
-                          maxlog = 1)
+                    @warn "Dynamic `include` found at $location; not recursing"
                     return [SkippedFile(nothing)]
                 end
             end
@@ -205,7 +196,7 @@ Returns a tuple of three items:
 
 * a table with one row per name per scope, with information about whether or not it is within global scope, what modules it is in, and whether or not it was assigned before ever being used in that scope.
 * a table with one row per name per module path, consisting of names that have been explicitly imported in that module.
-* a set of tainted module paths, in which a skipped file was identified
+* a set of "untainted" module paths, which were analyzed and no `include`s were skipped
 """
 function analyze_all_names(file; debug=false)
     # we don't use `try_parse_wrapper` here, since there's no recovery possible
@@ -228,6 +219,13 @@ function analyze_all_names(file; debug=false)
 
     explicit_imports = Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}()
 
+    # we need to keep track of all names that we see, because we could
+    # miss entire modules if it is an `include` we cannot follow.
+    # Therefore, the "untainted" modules will be all the seen ones
+    # minus all the explicitly tainted ones, and those will be the ones
+    # safe to analyze.
+    seen_modules = Set{Vector{Symbol}}()
+
     tainted_modules = Set{Vector{Symbol}}()
 
     for leaf in Leaves(cursor)
@@ -238,7 +236,12 @@ function analyze_all_names(file; debug=false)
             push!(tainted_modules, mod_path)
             continue
         end
+
+        # if we don't find any identifiers in a module, I think it's OK to mark it as
+        # "not-seen"? Otherwise we need to analyze every leaf, not just the identifiers
+        # and that sounds slow. Seems like a very rare edge case to have no identifiers...
         JuliaSyntax.kind(item.node) == K"Identifier" || continue
+
         # Ok, we have a "name". We want to know if:
         # 1. it is being used in global scope
         # or 2. it is being used in local scope, but refers to a global binding
@@ -252,15 +255,21 @@ function analyze_all_names(file; debug=false)
         debug && println("Leaf name: ", name)
         qualified = is_qualified(leaf)
 
-        debug && qualified && println("$name's usage here is qualified; skipping")
-        qualified && continue
-
+        if qualified
+            debug && println("$name's usage here is qualified; skipping")
+            # We will still do the analysis to mark the module as seen
+            mod_path = analyze_name(leaf; debug).module_path
+            push!(seen_modules, mod_path)
+            continue
+        end
         import_type = analyze_import_type(leaf)
         debug && println("Import type: ", import_type)
         debug && println("--")
         debug && println("val : kind")
         ret = analyze_name(leaf; debug)
         debug && println(ret)
+
+        push!(seen_modules, ret.module_path)
 
         if import_type == :import_RHS
             push!(explicit_imports, (; name, ret.module_path))
@@ -274,8 +283,8 @@ function analyze_all_names(file; debug=false)
             end
         end
     end
-
-    return per_scope_info, explicit_imports, tainted_modules
+    untainted_modules = setdiff!(seen_modules, tainted_modules)
+    return per_scope_info, explicit_imports, untainted_modules
 end
 
 """
@@ -290,13 +299,13 @@ Returns two `Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}`, namely
 * `needs_explicit_import`
 * `unnecessary_explicit_import`
 
-and a `Set{Vector{Symbol}}` of "tainted module paths", i.e. those which contained an unanalyzable `include`:
+and a `Set{Vector{Symbol}}` of "untainted module paths", i.e. those which were analyzed and do not contain an unanalyzable `include`:
 
-* `tainted_modules`
+* `untainted_modules`
 """
 function get_names_used(file)
     # Here we get 1 row per name per scope
-    per_scope_info, explicit_imports, tainted_modules = analyze_all_names(file)
+    per_scope_info, explicit_imports, untainted_modules = analyze_all_names(file)
 
     # if a name is used to refer to a global in any scope within a module,
     # then we may want to explicitly import it.
@@ -313,5 +322,5 @@ function get_names_used(file)
     unnecessary_explicit_import = setdiff(explicit_imports, names_used_for_global_bindings)
 
     return FileAnalysis(; needs_explicit_import, unnecessary_explicit_import,
-                        tainted_modules)
+                        untainted_modules)
 end

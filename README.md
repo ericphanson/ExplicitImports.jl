@@ -72,8 +72,7 @@ julia> print_explicit_imports(MathOptInterface)
 ...
 ```
 
-In this case, names in files which are included via `include` are not analyzed while parsing.
-This can result in inaccurate results, such as false positives in `explicit_imports` and false negatives (or false positives) in `stale_explicit_imports`. The consequences here could be improved by "tainting" any modules with unanalyzed files, to mark them as unanalyzable, rather than attempting to analyze them but providing inaccurate results.
+In this case, names in files which are included via `include` are not analyzed while parsing. This is detected, and modules containing these are "tainted", and omitted from analysis (unless `strict=false`).
 
 Being unable to traverse dynamic includes is essentially an inherent limitation of the approach used in this package. An alternate implementation using an `AbstractInterpreter` (like JET does) may be able to handle this (at the cost of increased complexity).
 

@@ -24,8 +24,19 @@ function Base.showerror(io::IO, e::StaleImportsException)
     end
 end
 
+struct UnanalyzableModuleException <: Exception
+    mod::Module
+end
+
+function Base.showerror(io::IO, e::UnanalyzableModuleException)
+    println(io, "UnanalyzableModuleException")
+    println(io,
+            "Module `$(e.mod)` was found to be unanalyzable. Include this module in the `allow_unanalyzable` keyword argument to allow it to be unanalyzable.")
+    return nothing
+end
+
 """
-    check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), ignore = ())
+    check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), ignore = (), allow_unanalyzable=())
 
 Checks that neither `mod` nor any of its submodules is relying on implicit imports, throwing
 an `ImplicitImportsException` if so, and returning `nothing` otherwise.
@@ -35,6 +46,13 @@ This function can be used in a package's tests, e.g.
 ```julia
 @test check_no_implicit_imports(MyPackage) === nothing
 ```
+
+## Allowing some submodules to be unanalyzable
+
+Pass `allow_unanalyzable` as a collection of submodules which are allowed to be unanalyzable.
+Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
+
+These unanalyzable submodules can alternatively be included in `ignore`.
 
 ## Allowing some implicit imports
 
@@ -67,12 +85,15 @@ This would:
 but verify there are no other implicit imports.
 """
 function check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
-                                   ignore=())
+                                   ignore=(), allow_unanalyzable=())
     ee = explicit_imports(mod, file; warn_stale=false, skips)
-    for (mod, names) in ee
-        should_ignore!(names, mod; ignore)
+    for (submodule, names) in ee
+        if isnothing(names) && submodule in allow_unanalyzable
+            continue
+        end
+        should_ignore!(names, submodule; ignore)
         if !isempty(names)
-            throw(ImplicitImportsException(mod, names))
+            throw(ImplicitImportsException(submodule, names))
         end
     end
     return nothing
@@ -91,8 +112,19 @@ function should_ignore!(names, mod; ignore)
     end
 end
 
+function should_ignore!(::Nothing, mod; ignore)
+    for elt in ignore
+        # we're ignoring this whole module
+        if elt == mod
+            return
+        end
+    end
+    # Not ignored, and unanalyzable
+    throw(UnanalyzableModuleException(mod))
+end
+
 """
-    check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore=())
+    check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore=(), allow_unanalyzable=())
 
 Checks that neither `mod` nor any of its submodules has stale (unused) explicit imports, throwing
 an `StaleImportsException` if so, and returning `nothing` otherwise.
@@ -102,6 +134,11 @@ This can be used in a package's tests, e.g.
 ```julia
 @test check_no_stale_explicit_imports(MyPackage) === nothing
 ```
+
+## Allowing some submodules to be unanalyzable
+
+Pass `allow_unanalyzable` as a collection of submodules which are allowed to be unanalyzable.
+Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
 
 ## Allowing some stale explicit imports
 
@@ -114,8 +151,13 @@ that are allowed to be stale explicit imports. For example,
 
 would check there were no stale explicit imports besides that of the name `DataFrame`.
 """
-function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore=())
+function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore=(),
+                                         allow_unanalyzable=())
     for (submodule, stale_imports) in stale_explicit_imports(mod, file)
+        if isnothing(stale_imports)
+            submodule in allow_unanalyzable && continue
+            throw(UnanalyzableModuleException(submodule))
+        end
         setdiff!(stale_imports, ignore)
         if !isempty(stale_imports)
             throw(StaleImportsException(submodule, stale_imports))

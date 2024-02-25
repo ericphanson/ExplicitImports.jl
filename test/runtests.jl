@@ -196,7 +196,7 @@ end
                                                                     "TestModC.jl")
 
     # test submodule ignores
-    @test check_no_implicit_imports(TestModA.SubModB.TestModA, "TestModC.jl";
+    @test check_no_implicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModC.jl";
                                     ignore=(TestModA.SubModB.TestModA.TestModC,)) ===
           nothing
 
@@ -220,6 +220,55 @@ end
                                                "TestModC.jl")
     end
     @test contains(str, "has stale (unused) explicit imports for:")
+
+    @testset "Tainted modules" begin
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            @test explicit_imports(DynMod, "DynMod.jl") == [DynMod => nothing]
+        end
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            @test explicit_imports(DynMod, "DynMod.jl"; strict=false) ==
+                  [DynMod => [:print_explicit_imports => ExplicitImports]]
+        end
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            @test explicit_imports_nonrecursive(DynMod, "DynMod.jl") === nothing
+        end
+
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            @test explicit_imports_nonrecursive(DynMod, "DynMod.jl"; strict=false) ==
+                  [:print_explicit_imports => ExplicitImports]
+        end
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            @test stale_explicit_imports(DynMod, "DynMod.jl") == [DynMod => nothing]
+        end
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            @test stale_explicit_imports_nonrecursive(DynMod, "DynMod.jl") === nothing
+        end
+
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            @test stale_explicit_imports(DynMod, "DynMod.jl"; strict=false) ==
+                  [DynMod => []]
+        end
+
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            @test stale_explicit_imports_nonrecursive(DynMod, "DynMod.jl"; strict=false) ==
+                  []
+        end
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            str = sprint(print_stale_explicit_imports, DynMod, "DynMod.jl")
+        end
+        @test contains(str, "DynMod could not be accurately analyzed")
+
+        @test_logs (:warn, r"Dynamic") match_mode = :any begin
+            str = sprint(print_explicit_imports, DynMod, "DynMod.jl")
+        end
+        @test contains(str, "DynMod could not be accurately analyzed")
+
+        # @test_logs (:warn, r"Dynamic") match_mode = :any begin
+        @test check_no_implicit_imports(DynMod, "DynMod.jl";
+                                        allow_unanalyzable=(DynMod,)) ===
+              nothing
+        # end
+    end
 end
 
 @testset "Aqua" begin
