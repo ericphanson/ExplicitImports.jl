@@ -46,6 +46,7 @@ module SubModB
 using ..Exporter3
 using ..TestModA
 
+export h2
 h() = (local8 = 1; f())
 
 h2() = exported_b()
@@ -63,5 +64,11 @@ include("TestModC.jl")
 end
 
 end # SubModB
+
+# back inside outer TestModA
+
+using .SubModB
+
+h2()
 
 end
