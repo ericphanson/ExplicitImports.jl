@@ -67,7 +67,7 @@ but verify there are no other implicit imports.
 """
 function check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
                                    ignore=())
-    ee = explicit_imports(mod, file; warn=false, skips)
+    ee = explicit_imports(mod, file; warn_stale=false, skips)
     for (mod, names) in ee
         should_ignore!(names, mod; ignore)
         if !isempty(names)

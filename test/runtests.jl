@@ -99,6 +99,10 @@ end
 
     @test from_inner_file == ["using .TestModA: f"]
 
+    # No logs when `warn_stale=false`
+    @test_logs explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                             "TestModC.jl"; warn_stale=false)
+
     @test stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
                                               "TestModC.jl") ==
           [:exported_c, :exported_d]
@@ -127,12 +131,22 @@ end
     @test TestModA.SubModB.TestModA in first.(nested)
     @test TestModA.SubModB.TestModA.TestModC in first.(nested)
 
+    # No logs when `warn_stale=false`
+    @test_logs explicit_imports(TestModA, "TestModA.jl"; warn_stale=false)
+
     # Printing
-    str = sprint(print_explicit_imports, TestModA, "TestModA.jl")
+    # should be no logs
+    str = @test_logs sprint(print_explicit_imports, TestModA, "TestModA.jl")
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
     @test contains(str, "using .Exporter: exported_a")
     @test contains(str,
                    "However, Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
+
+    # `warn_stale=false` does something (also still no logs)
+    str_no_warn = @test_logs sprint(io -> print_explicit_imports(io, TestModA,
+                                                                 "TestModA.jl";
+                                                                 warn_stale=false))
+    @test length(str_no_warn) <= length(str)
 end
 
 function exception_string(f)

@@ -14,7 +14,7 @@ include("get_names_used.jl")
 include("checks.jl")
 
 """
-    explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn=true)
+    explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true)
 
 Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`.
 
@@ -22,13 +22,14 @@ Returns a nested structure providing information about explicit import statement
     * if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
     * `mod` can be a submodule defined within `file`, but if two modules have the same name (e.g. `X.Y.X` and `X`), results may be inaccurate.
 * `skips=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
-* `warn=true`: whether or not to warn about stale explicit imports.
+* `warn_stale=true`: whether or not to warn about stale explicit imports.
 
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_no_implicit_imports`](@ref) for a version that throws errors, for regression testing.
 """
-function explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn=true)
+function explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
+                          warn_stale=true)
     submodules = find_submodules(mod)
-    return [submodule => explicit_imports_nonrecursive(submodule, file; skips, warn)
+    return [submodule => explicit_imports_nonrecursive(submodule, file; skips, warn_stale)
             for submodule in submodules]
 end
 
@@ -37,14 +38,17 @@ function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
 end
 
 """
-    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); kw...)
+    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true)
 
-Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref). Accepts the same keyword arguments as that function.
+Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref). The keyword argument `skips` ignores implicit imports from those modules (and their submodules).
+
+If `warn_stale=true` (the default), this function will also print information about stale explicit imports.
 
 See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
-function print_explicit_imports(io::IO, mod::Module, file=pathof(mod); kw...)
-    ee = explicit_imports(mod, file; warn=false, kw...)
+function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
+                                skips=(mod, Base, Core), warn_stale=true)
+    ee = explicit_imports(mod, file; warn_stale=false, skips)
     for (i, (mod, imports)) in enumerate(ee)
         i == 1 || println(io)
         if isempty(imports)
@@ -60,14 +64,16 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod); kw...)
             end
             println(io, "```")
         end
-        stale = stale_explicit_imports_nonrecursive(mod, file)
-        if !isempty(stale)
-            word = isempty(imports) ? "However" : "Additionally"
-            println(io)
-            println(io,
-                    "$word, $mod has stale explicit imports for these unused names:")
-            for name in stale
-                println(io, "- $name")
+        if warn_stale
+            stale = stale_explicit_imports_nonrecursive(mod, file)
+            if !isempty(stale)
+                word = isempty(imports) ? "However" : "Additionally"
+                println(io)
+                println(io,
+                        "$word, $mod has stale explicit imports for these unused names:")
+                for name in stale
+                    println(io, "- $name")
+                end
             end
         end
     end
@@ -84,13 +90,13 @@ function is_prefix(x, y)
 end
 
 """
-    explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn=true)
+    explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true)
 
 A non-recursive version of [`explicit_imports`](@ref); see that function for details.
 """
 function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                        skips=(mod, Base, Core),
-                                       warn=true)
+                                       warn_stale=true)
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
@@ -124,11 +130,11 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
 
     sort!(to_make_explicit; lt)
 
-    if warn
+    if warn_stale
         restrict_to_module!(unnecessary_explicit_import, mod)
         unnecessary = unique!(sort!([nt.name for nt in unnecessary_explicit_import]))
         if !isempty(unnecessary)
-            @warn "Found stale explicit imports in $mod for these names: $unnecessary. To get this list programmatically, call `stale_explicit_imports`. To silence this warning, pass `warn=false`."
+            @warn "Found stale explicit imports in $mod for these names: $unnecessary. To get this list programmatically, call `stale_explicit_imports`. To silence this warning, pass `warn_stale=false`."
         end
     end
 
