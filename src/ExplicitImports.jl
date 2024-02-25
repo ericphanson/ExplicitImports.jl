@@ -26,7 +26,7 @@ const STRICT_PRINTING_KWARG = """
     """
 
 const STRICT_NONRECURSIVE_KWARG = """
-    * `strict=true`: when `strict` is set, results will be `nothing` in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate."""
+    * `strict=true`: when `strict=true`, results will be `nothing` in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate."""
 
 const WARN_STALE_KWARG = """
     * `warn_stale=true`: whether or not to warn about stale explicit imports.
@@ -60,7 +60,7 @@ Returns a nested structure providing information about explicit import statement
 
 * `mod::Module`: the module to (recursively) analyze. Often this is a package.
 * `file=pathof(mod)`: this should be a path to the source code that contains the module `mod`.
-    * if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
+    * if `mod` is the top-level module of a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
     * `mod` can be a submodule defined within `file`, but if two modules have the same name (e.g. `X.Y.X` and `X`), results may be inaccurate.
 
 ## Keyword arguments
