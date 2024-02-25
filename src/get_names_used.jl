@@ -15,6 +15,30 @@ function SyntaxNodeWrapper(file::AbstractString; bad_files=Set{String}())
     return SyntaxNodeWrapper(parsed, file, bad_files)
 end
 
+function try_parse_wrapper(file::AbstractString; bad_files=Set{String}())
+    file in bad_files && return nothing
+    return try
+        SyntaxNodeWrapper(file; bad_files)
+    catch e
+        push!(bad_files, file)
+        # JuliaSyntax#350 is a common and known issue, so let's not dump the whole scary stacktrace
+        if "parentheses are not required here" in
+           (d.message for d in e.diagnostics)
+            msg = "Hit https://github.com/JuliaLang/JuliaSyntax.jl/issues/350. Skipping this file."
+            @error msg file exception = e
+        else
+            msg = "Error when parsing file. Skipping this file."
+            @error msg file exception = (e, catch_backtrace())
+        end
+        nothing
+    end
+end
+
+function location_str(wrapper::SyntaxNodeWrapper)
+    line, col = JuliaSyntax.source_location(wrapper.node)
+    return "$(wrapper.file):$line:$col"
+end
+
 # Here we define children such that if we get to a static `include`, we just recurse
 # into the parse tree of that file.
 # This function has become increasingly horrible in the name of robustness
@@ -36,28 +60,12 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                     end
                     if isfile(new_file)
                         @debug "Recursing into `$new_file`" node wrapper.file
-                        new_wrapper = try
-                            SyntaxNodeWrapper(new_file; wrapper.bad_files)
-                        catch e
-                            push!(wrapper.bad_files, new_file)
-                            # JuliaSyntax#350 is a common and known issue, so let's not dump the whole scary stacktrace
-                            if "parentheses are not required here" in
-                               (d.message for d in e.diagnostics)
-                                msg = "Hit https://github.com/JuliaLang/JuliaSyntax.jl/issues/350 while parsing $new_file. Skipping this file."
-                                @error msg exception = e
-                            else
-                                msg = "Error when parsing file. Skipping this file."
-                                @error msg new_file exception = (e,
-                                                                 catch_backtrace())
-                            end
-                            nothing
-                        end
+                        new_wrapper = try_parse_wrapper(new_file; wrapper.bad_files)
                         if new_wrapper !== nothing
                             return [new_wrapper]
                         end
                     else
-                        line, col = JuliaSyntax.source_location(wrapper.node)
-                        location = "$(wrapper.file):$line:$col"
+                        location = location_str(wrapper)
                         # We choose our `id` so maxlog will work the way we want
                         # (don't log the same message multiple times, but do log each separate location)
                         id = Symbol("missing_file_", location)
@@ -66,8 +74,7 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                               maxlog = 1)
                     end
                 else
-                    line, col = JuliaSyntax.source_location(wrapper.node)
-                    location = "$(wrapper.file):$line:$col"
+                    location = location_str(wrapper)
                     # We choose our `id` so maxlog will work the way we want
                     # (don't log the same message multiple times, but do log each separate location)
                     id = Symbol("dynamic_include_", location)
@@ -192,6 +199,8 @@ Returns a tuple of two tables:
 * a table with one row per name per module path, consisting of names that have been explicitly imported in that module.
 """
 function analyze_all_names(file; debug=false)
+    # we don't use `try_parse_wrapper` here, since there's no recovery possible
+    # (no other files we know about to look at)
     tree = SyntaxNodeWrapper(file)
     # in local scope, a name refers to a global if it is read from before it is assigned to, OR if the global keyword is used
     # a name refers to a local otherwise
@@ -220,10 +229,7 @@ function analyze_all_names(file; debug=false)
         # We want to figure this out on a per-module basis, since each module has a different global namespace.
 
         debug && println("-"^80)
-        file = nodevalue(leaf).file
-        line, col = JuliaSyntax.source_location(nodevalue(leaf).node)
-        location = "$file:$line:$col"
-        debug && println("Leaf position: $location")
+        debug && println("Leaf position: $(location_str(nodevalue(leaf)))")
         name = nodevalue(leaf).node.val
         debug && println("Leaf name: ", name)
         qualified = is_qualified(leaf)
