@@ -35,7 +35,9 @@ See also [`print_explicit_imports`](@ref) to easily compute and print these resu
 function explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
                           warn_stale=true)
     submodules = find_submodules(mod)
-    return [submodule => explicit_imports_nonrecursive(submodule, file; skips, warn_stale)
+    file_analysis = get_names_used(file) # only do this once
+    return [submodule => explicit_imports_nonrecursive(submodule, file; skips, warn_stale,
+                                                       file_analysis)
             for submodule in submodules]
 end
 
@@ -102,14 +104,20 @@ A non-recursive version of [`explicit_imports`](@ref), meaning it only analyzes 
 """
 function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                        skips=(mod, Base, Core),
-                                       warn_stale=true)
+                                       warn_stale=true,
+                                       # private undocumented kwarg for hoisting this analysis
+                                       file_analysis=get_names_used(file))
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
     all_implicit_imports = find_implicit_imports(mod; skips)
-    needs_explicit_import, unnecessary_explicit_import = get_names_used(file)
-    restrict_to_module!(needs_explicit_import, mod)
 
+    needs_explicit_import, unnecessary_explicit_import, tainted = filter_to_module(file_analysis,
+                                                                                   mod)
+
+    if tainted
+        # todo
+    end
     needed_names = Set(nt.name for nt in needs_explicit_import)
     filter!(all_implicit_imports) do (k, v)
         k in needed_names || return false
@@ -137,7 +145,6 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     sort!(to_make_explicit; lt)
 
     if warn_stale
-        restrict_to_module!(unnecessary_explicit_import, mod)
         unnecessary = unique!(sort!([nt.name for nt in unnecessary_explicit_import]))
         if !isempty(unnecessary)
             @warn "Found stale explicit imports in $mod for these names: $unnecessary. To get this list programmatically, call `stale_explicit_imports`. To silence this warning, pass `warn_stale=false`."
@@ -190,7 +197,8 @@ See also [`print_explicit_imports`](@ref) which prints this information.
 """
 function stale_explicit_imports(mod::Module, file=pathof(mod))
     submodules = find_submodules(mod)
-    return [submodule => stale_explicit_imports_nonrecursive(submodule, file)
+    file_analysis = get_names_used(file) # only do this once
+    return [submodule => stale_explicit_imports_nonrecursive(submodule, file; file_analysis)
             for submodule in submodules]
 end
 
@@ -203,12 +211,13 @@ Returns a list of names that are not used in `mod`, but are still explicitly imp
 
 See also [`print_explicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref), both of which do recurse through submodules.
 """
-function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod))
+function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
+                                             # private undocumented kwarg for hoisting this analysis
+                                             file_analysis=get_names_used(file))
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
-    _, unnecessary_explicit_import = get_names_used(file)
-    restrict_to_module!(unnecessary_explicit_import, mod)
+    (; unnecessary_explicit_import) = filter_to_module(file_analysis, mod)
     return unique!(sort!([nt.name for nt in unnecessary_explicit_import]))
 end
 
@@ -239,7 +248,8 @@ function module_path(mod)
     end
 end
 
-function restrict_to_module!(set, mod)
+function filter_to_module(file_analysis::FileAnalysis, mod::Module)
+    mod_path = module_path(mod)
     # Limit to only the module of interest. We make some attempt to avoid name collisions
     # (where two nested modules have the same name) by matching on the full path - to some extent.
     # We can't really assume we were given the "top-level" file (I think), so we might not be
@@ -248,11 +258,16 @@ function restrict_to_module!(set, mod)
     # to the extent they agree (starting at the earliest point).
     # This means we cannot distinguish X.Y.X from X in some cases.
     # Don't do that!
-    mod_path = module_path(mod)
-    filter!(set) do nt
-        return all(Base.splat(isequal), zip(nt.module_path, mod_path))
+    match = module_path -> all(Base.splat(isequal), zip(module_path, mod_path))
+
+    needs_explicit_import = filter(file_analysis.needs_explicit_import) do nt
+        return match(nt.module_path)
     end
-    return set
+    unnecessary_explicit_import = filter(file_analysis.unnecessary_explicit_import) do nt
+        return match(nt.module_path)
+    end
+    tainted = any(match, file_analysis.tainted_modules)
+    return (; needs_explicit_import, unnecessary_explicit_import, tainted)
 end
 
 # recurse through to find all submodules of `mod`

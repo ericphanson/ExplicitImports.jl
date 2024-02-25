@@ -9,6 +9,12 @@ struct SyntaxNodeWrapper
     bad_files::Set{String}
 end
 
+Base.@kwdef struct FileAnalysis
+    needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}
+    unnecessary_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}
+    tainted_modules::Set{Vector{Symbol}}
+end
+
 function SyntaxNodeWrapper(file::AbstractString; bad_files=Set{String}())
     contents = read(file, String)
     parsed = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, contents; ignore_warnings=true)
@@ -32,6 +38,12 @@ function location_str(wrapper::SyntaxNodeWrapper)
     return "$(wrapper.file):$line:$col"
 end
 
+struct SkippedFile
+    file::Union{Nothing,String}
+end
+
+AbstractTrees.children(::SkippedFile) = ()
+
 # Here we define children such that if we get to a static `include`, we just recurse
 # into the parse tree of that file.
 # This function has become increasingly horrible in the name of robustness
@@ -49,13 +61,15 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                     # The children of a static include statement is the entire file being included
                     new_file = joinpath(dirname(wrapper.file), c.val)
                     if new_file in wrapper.bad_files
-                        @goto normal_exit
+                        return [SkippedFile(new_file)]
                     end
                     if isfile(new_file)
                         @debug "Recursing into `$new_file`" node wrapper.file
                         new_wrapper = try_parse_wrapper(new_file; wrapper.bad_files)
                         if new_wrapper !== nothing
                             return [new_wrapper]
+                        else
+                            return [SkippedFile(new_file)]
                         end
                     else
                         location = location_str(wrapper)
@@ -65,6 +79,7 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                         @warn("`include` at $location points to missing file; cannot recurse into it.",
                               _id = id,
                               maxlog = 1)
+                        return [SkippedFile(new_file)]
                     end
                 else
                     location = location_str(wrapper)
@@ -73,11 +88,11 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                     id = Symbol("dynamic_include_", location)
                     @warn("Dynamic `include` found at $location; not recursing", _id = id,
                           maxlog = 1)
+                    return [SkippedFile(nothing)]
                 end
             end
         end
     end
-    @label normal_exit
     return map(n -> SyntaxNodeWrapper(n, wrapper.file, wrapper.bad_files),
                JuliaSyntax.children(node))
 end
@@ -186,10 +201,11 @@ end
 """
     analyze_all_names(file)
 
-Returns a tuple of two tables:
+Returns a tuple of three items:
 
 * a table with one row per name per scope, with information about whether or not it is within global scope, what modules it is in, and whether or not it was assigned before ever being used in that scope.
 * a table with one row per name per module path, consisting of names that have been explicitly imported in that module.
+* a set of tainted module paths, in which a skipped file was identified
 """
 function analyze_all_names(file; debug=false)
     # we don't use `try_parse_wrapper` here, since there's no recovery possible
@@ -212,8 +228,17 @@ function analyze_all_names(file; debug=false)
 
     explicit_imports = Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}()
 
+    tainted_modules = Set{Vector{Symbol}}()
+
     for leaf in Leaves(cursor)
-        JuliaSyntax.kind(nodevalue(leaf).node) == K"Identifier" || continue
+        item = nodevalue(leaf)
+        if item isa SkippedFile
+            # we start from the parent
+            mod_path = analyze_name(parent(leaf); debug).module_path
+            push!(tainted_modules, mod_path)
+            continue
+        end
+        JuliaSyntax.kind(item.node) == K"Identifier" || continue
         # Ok, we have a "name". We want to know if:
         # 1. it is being used in global scope
         # or 2. it is being used in local scope, but refers to a global binding
@@ -250,11 +275,11 @@ function analyze_all_names(file; debug=false)
         end
     end
 
-    return per_scope_info, explicit_imports
+    return per_scope_info, explicit_imports, tainted_modules
 end
 
 """
-    get_names_used(file) -> DataFrame
+    get_names_used(file) -> FileAnalysis
 
 Figures out which global names are used in `file`, and what modules they are used within.
 
@@ -264,10 +289,14 @@ Returns two `Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}`, namely
 
 * `needs_explicit_import`
 * `unnecessary_explicit_import`
+
+and a `Set{Vector{Symbol}}` of "tainted module paths", i.e. those which contained an unanalyzable `include`:
+
+* `tainted_modules`
 """
 function get_names_used(file)
     # Here we get 1 row per name per scope
-    per_scope_info, explicit_imports = analyze_all_names(file)
+    per_scope_info, explicit_imports, tainted_modules = analyze_all_names(file)
 
     # if a name is used to refer to a global in any scope within a module,
     # then we may want to explicitly import it.
@@ -282,5 +311,7 @@ function get_names_used(file)
     # name used to point to a global which was not explicitly imported
     needs_explicit_import = setdiff(names_used_for_global_bindings, explicit_imports)
     unnecessary_explicit_import = setdiff(explicit_imports, names_used_for_global_bindings)
-    return (; needs_explicit_import, unnecessary_explicit_import)
+
+    return FileAnalysis(; needs_explicit_import, unnecessary_explicit_import,
+                        tainted_modules)
 end

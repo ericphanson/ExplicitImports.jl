@@ -7,7 +7,7 @@ using DataFrames
 using Aqua
 using Logging
 
-# DataFrames version of `restrict_to_module!`
+# DataFrames version of `filter_to_module`
 function restrict_to_module(df, mod)
     mod_path = module_path(mod)
     return subset(df,
