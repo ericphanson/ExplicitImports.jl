@@ -23,7 +23,7 @@ include("DynMod.jl")
     @test has_ancestor(TestModA.SubModB, TestModA)
     @test !has_ancestor(TestModA, TestModA.SubModB)
 
-    @test should_skip(Base.Iterators; skips=(Base, Core))
+    @test should_skip(Base.Iterators; skip=(Base, Core))
 end
 
 # TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
@@ -199,9 +199,9 @@ end
                                     ignore=(:print_explicit_imports => ExplicitImports,
                                             :does_not_exist)) === nothing
 
-    # you can use skips to skip whole modules
+    # you can use skip to skip whole modules
     @test check_no_implicit_imports(TestMod1, "test_mods.jl";
-                                    skips=(Base, Core, ExplicitImports)) === nothing
+                                    skip=(Base, Core, ExplicitImports)) === nothing
 
     @test_throws ImplicitImportsException check_no_implicit_imports(TestModA.SubModB.TestModA.TestModC,
                                                                     "TestModC.jl")

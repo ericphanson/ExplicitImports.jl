@@ -15,7 +15,7 @@ include("get_names_used.jl")
 include("checks.jl")
 
 const SKIPS_KWARG = """
-    * `skips=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
+    * `skip=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
     """
 
 const STRICT_KWARG = """
@@ -52,7 +52,7 @@ function check_file(file)
 end
 
 """
-    explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true, strict=true)
+    explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true, strict=true)
 
 Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself), and the values are `name => exporting_module` pairs, showing which names are being used implicitly and which modules they are being used from.
 
@@ -71,13 +71,13 @@ $STRICT_KWARG
 
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_no_implicit_imports`](@ref) for a version that throws errors, for regression testing.
 """
-function explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
+function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                           warn_stale=true, strict=true,
                           # private undocumented kwarg for hoisting this analysis
                           file_analysis=get_names_used(file))
     check_file(file)
     submodules = find_submodules(mod)
-    return [submodule => explicit_imports_nonrecursive(submodule, file; skips, warn_stale,
+    return [submodule => explicit_imports_nonrecursive(submodule, file; skip, warn_stale,
                                                        file_analysis, strict)
             for submodule in submodules]
 end
@@ -87,7 +87,7 @@ function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
 end
 
 """
-    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true, strict=true)
+    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true, strict=true)
 
 Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref).
 
@@ -100,9 +100,9 @@ $STRICT_PRINTING_KWARG
 See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
-                                skips=(mod, Base, Core), warn_stale=true, strict=true)
+                                skip=(mod, Base, Core), warn_stale=true, strict=true)
     file_analysis = get_names_used(file)
-    ee = explicit_imports(mod, file; warn_stale=false, skips, strict, file_analysis)
+    ee = explicit_imports(mod, file; warn_stale=false, skip, strict, file_analysis)
     for (i, (mod, imports)) in enumerate(ee)
         i == 1 || println(io)
         if isnothing(imports)
@@ -147,7 +147,7 @@ function is_prefix(x, y)
 end
 
 """
-    explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true, strict=true)
+    explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true, strict=true)
 
 A non-recursive version of [`explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details.
 
@@ -159,13 +159,13 @@ $STRICT_NONRECURSIVE_KWARG
 
 """
 function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
-                                       skips=(mod, Base, Core),
+                                       skip=(mod, Base, Core),
                                        warn_stale=true,
                                        strict=true,
                                        # private undocumented kwarg for hoisting this analysis
                                        file_analysis=get_names_used(file))
     check_file(file)
-    all_implicit_imports = find_implicit_imports(mod; skips)
+    all_implicit_imports = find_implicit_imports(mod; skip)
 
     needs_explicit_import, unnecessary_explicit_import, tainted = filter_to_module(file_analysis,
                                                                                    mod)
@@ -176,7 +176,7 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     needed_names = Set(nt.name for nt in needs_explicit_import)
     filter!(all_implicit_imports) do (k, v)
         k in needed_names || return false
-        should_skip(v; skips) && return false
+        should_skip(v; skip) && return false
         # skip `using X: X`
         nameof(v) == k && return false
         return true
@@ -304,9 +304,9 @@ function has_ancestor(query, target)
     end
 end
 
-function should_skip(target; skips)
-    for skip in skips
-        has_ancestor(target, skip) && return true
+function should_skip(target; skip)
+    for m in skip
+        has_ancestor(target, m) && return true
     end
     return false
 end
@@ -372,13 +372,13 @@ end
 inspect_session(; kw...) = inspect_session(stdout; kw...)
 
 """
-    ExplicitImports.inspect_session([io::IO=stdout,]; skips=(Base, Core), inner=print_explicit_imports)
+    ExplicitImports.inspect_session([io::IO=stdout,]; skip=(Base, Core), inner=print_explicit_imports)
 
 Experimental functionality to call `inner` (defaulting to `print_explicit_imports`) on each loaded package in the Julia session.
 """
-function inspect_session(io::IO; skips=(Base, Core), inner=print_explicit_imports)
+function inspect_session(io::IO; skip=(Base, Core), inner=print_explicit_imports)
     for mod in Base.loaded_modules_array()
-        should_skip(mod; skips) && continue
+        should_skip(mod; skip) && continue
         pathof(mod) === nothing && continue
         isfile(pathof(mod)) || continue
         inner(io, mod)

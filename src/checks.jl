@@ -36,7 +36,7 @@ function Base.showerror(io::IO, e::UnanalyzableModuleException)
 end
 
 """
-    check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), ignore::Tuple=(), allow_unanalyzable::Tuple=())
+    check_no_implicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), ignore::Tuple=(), allow_unanalyzable::Tuple=())
 
 Checks that neither `mod` nor any of its submodules is relying on implicit imports, throwing
 an `ImplicitImportsException` if so, and returning `nothing` otherwise.
@@ -56,10 +56,10 @@ These unanalyzable submodules can alternatively be included in `ignore`.
 
 ## Allowing some implicit imports
 
-The `skips` keyword argument can be passed to allow implicit imports from some modules (and their submodules). By default, `skips` is set to `(Base, Core)`. For example:
+The `skip` keyword argument can be passed to allow implicit imports from some modules (and their submodules). By default, `skip` is set to `(Base, Core)`. For example:
 
 ```julia
-@test check_no_implicit_imports(MyPackage; skips=(Base, Core, DataFrames)) === nothing
+@test check_no_implicit_imports(MyPackage; skip=(Base, Core, DataFrames)) === nothing
 ```
 
 would verify there are no implicit imports from modules other than Base, Core, and DataFrames.
@@ -84,10 +84,10 @@ This would:
 
 but verify there are no other implicit imports.
 """
-function check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
+function check_no_implicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                                    ignore::Tuple=(), allow_unanalyzable::Tuple=())
     check_file(file)
-    ee = explicit_imports(mod, file; warn_stale=false, skips)
+    ee = explicit_imports(mod, file; warn_stale=false, skip)
     for (submodule, names) in ee
         if isnothing(names) && submodule in allow_unanalyzable
             continue
