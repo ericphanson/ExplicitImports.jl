@@ -132,7 +132,7 @@ end
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
     @test contains(str, "using .Exporter: exported_a")
     @test contains(str,
-                   "Additionally Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
+                   "However, Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
 end
 
 function exception_string(f)
