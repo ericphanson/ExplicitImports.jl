@@ -63,30 +63,40 @@ These can likely all be fixed by improving the code in `src/get_names_used.jl`, 
 
 Known issues:
 
-* `global` and `local` keywords are currently ignored
-* multi-argument `include` calls are ignored
-* In Julia, `include` adds the included code at top-level in the module in which it is called. Here, when `include` is called within a local scope, all of the code being included is treated as being within that local scope.
+- `global` and `local` keywords are currently ignored
+- multi-argument `include` calls are ignored
+- In Julia, `include` adds the included code at top-level in the module in which it is called. Here, when `include` is called within a local scope, all of the code being included is treated as being within that local scope.
 
-The consequences of these issues is that ExplicitImports may misunderstand whether or not a particular name refers to a local variable or a global one, and thus whether or not some particular implicitly-available name (exported by some project) is in fact being used. This could cause it to suggest an unnecessary explicit import, fail to suggest an explicit import, or to falsely claim that an explicit import is stale.
+The consequences of these issues are that ExplicitImports may misunderstand whether or not a particular name refers to a local variable or a global one, and thus whether or not some particular implicitly-available name (exported by some module) is in fact being used. This could cause it to suggest an unnecessary explicit import, fail to suggest an explicit import, or to falsely claim that an explicit import is stale.
 
-Hopefully these situations are somewhat rare, because even if ExplicitExports misunderstands the scoping for one usage of a name, it may correctly parse the scoping of it in another usage in the same module, and end up drawing the correct conclusion anyway.
+Hopefully these situations are somewhat rare, because even if ExplicitExports misunderstands the scoping for one usage of a name, it may correctly parse the scoping of it in another usage in the same module, and could end up drawing the correct conclusion anyway.
 
 Additionally, the testing-oriented functions `check_no_implicit_imports` and `check_no_stale_explicit_imports` have the ability to filter out problematic names or modules, to allow manual intervention in cases in which ExplicitImports gets it wrong.
 
 ### Cannot recurse through dynamic `include` statements
 
-These are `include` in which the argument is not a string literal. For example:
+These are `include` in which the argument is not a string literal. For example, the package MathOptInterface.jl currently includes the following code in it's `Test` module:
 
 ```julia
-julia> print_explicit_imports(MathOptInterface)
-┌ Warning: Dynamic `include` found at /Users/eph/.julia/packages/MathOptInterface/tpiUw/src/Test/Test.jl:631:9; not recursing
-└ @ ExplicitImports ~/ExplicitImports/src/get_names_used.jl:37
-...
+for file in readdir(@__DIR__)
+    if startswith(file, "test_") && endswith(file, ".jl")
+        include(file)
+    end
+end
 ```
 
-In this case, names in files which are included via `include` are not analyzed while parsing. This is detected, and modules containing these are "tainted", and omitted from analysis (unless `strict=false`).
+This is problematic for ExplicitImports.jl; unless we really use a full-blown interpreter (which I do think could be a viable strategy^[An alternate implementation using an `AbstractInterpreter` (like JET does) might solve this issue (at the cost of increased complexity), and possibly get some handling of tricky scoping situations "for free".]), we can't really execute this code to know what files are being included. Thus being unable to traverse dynamic includes is essentially an inherent limitation of the approach used in this package.
 
-Being unable to traverse dynamic includes is essentially an inherent limitation of the approach used in this package. An alternate implementation using an `AbstractInterpreter` (like JET does) may be able to handle this (at the cost of increased complexity), and possibly get some handling of tricky scoping situations "for free".
+However, we do detect this situation, so we can know when our analysis is invalid. For example, running `print_explicit_imports` on this module gives:
+
+```sh
+julia> print_explicit_imports(MathOptInterface.Test, pkgdir(MathOptInterface))
+Module MathOptInterface.Test could not be accurately analyzed, likely due to dynamic `include` statements. You can pass `strict=false` to attempt to get (possibly inaccurate) results anyway.
+
+Module MathOptInterface.Test._BaseTest could not be accurately analyzed, likely due to dynamic `include` statements. You can pass `strict=false` to attempt to get (possibly inaccurate) results anyway.
+```
+
+Note here we need to pass `pkgdir(MathOptInterface)` as the second argument, since `pathof(MathOptInterface.Test) === nothing` so otherwise we would get a `FileNotFoundException`.
 
 ### Need to load the package/module
 
