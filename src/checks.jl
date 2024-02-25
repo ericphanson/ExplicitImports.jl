@@ -36,7 +36,7 @@ function Base.showerror(io::IO, e::UnanalyzableModuleException)
 end
 
 """
-    check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), ignore = (), allow_unanalyzable=())
+    check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), ignore::Tuple=(), allow_unanalyzable::Tuple=())
 
 Checks that neither `mod` nor any of its submodules is relying on implicit imports, throwing
 an `ImplicitImportsException` if so, and returning `nothing` otherwise.
@@ -49,7 +49,7 @@ This function can be used in a package's tests, e.g.
 
 ## Allowing some submodules to be unanalyzable
 
-Pass `allow_unanalyzable` as a collection of submodules which are allowed to be unanalyzable.
+Pass `allow_unanalyzable` as a tuple of submodules which are allowed to be unanalyzable.
 Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
 
 These unanalyzable submodules can alternatively be included in `ignore`.
@@ -64,7 +64,7 @@ The `skips` keyword argument can be passed to allow implicit imports from some m
 
 would verify there are no implicit imports from modules other than Base, Core, and DataFrames.
 
-Additionally, the keyword `ignore` can be passed to represent a collection of items to ignore. These can be:
+Additionally, the keyword `ignore` can be passed to represent a tuple of items to ignore. These can be:
 
 * modules. Any submodule of `mod` matching an element of `ignore` is skipped. This can be used to allow the usage of implicit imports in some submodule of your package.
 * symbols: any implicit import of a name matching an element of `ignore` is ignored (does not throw)
@@ -85,7 +85,7 @@ This would:
 but verify there are no other implicit imports.
 """
 function check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
-                                   ignore=(), allow_unanalyzable=())
+                                   ignore::Tuple=(), allow_unanalyzable::Tuple=())
     ee = explicit_imports(mod, file; warn_stale=false, skips)
     for (submodule, names) in ee
         if isnothing(names) && submodule in allow_unanalyzable
@@ -124,7 +124,7 @@ function should_ignore!(::Nothing, mod; ignore)
 end
 
 """
-    check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore=(), allow_unanalyzable=())
+    check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(), allow_unanalyzable::Tuple=())
 
 Checks that neither `mod` nor any of its submodules has stale (unused) explicit imports, throwing
 an `StaleImportsException` if so, and returning `nothing` otherwise.
@@ -137,12 +137,12 @@ This can be used in a package's tests, e.g.
 
 ## Allowing some submodules to be unanalyzable
 
-Pass `allow_unanalyzable` as a collection of submodules which are allowed to be unanalyzable.
+Pass `allow_unanalyzable` as a tuple of submodules which are allowed to be unanalyzable.
 Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
 
 ## Allowing some stale explicit imports
 
-If `ignore` is supplied, it should be a collection of `Symbol`s, representing names
+If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
 that are allowed to be stale explicit imports. For example,
 
 ```julia
@@ -151,8 +151,8 @@ that are allowed to be stale explicit imports. For example,
 
 would check there were no stale explicit imports besides that of the name `DataFrame`.
 """
-function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore=(),
-                                         allow_unanalyzable=())
+function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(),
+                                         allow_unanalyzable::Tuple=())
     for (submodule, stale_imports) in stale_explicit_imports(mod, file)
         if isnothing(stale_imports)
             submodule in allow_unanalyzable && continue
