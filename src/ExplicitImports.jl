@@ -7,7 +7,8 @@ export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
 export print_stale_explicit_imports, stale_explicit_imports,
        check_no_stale_explicit_imports, stale_explicit_imports_nonrecursive
-export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException
+export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException,
+       FileNotFoundException
 
 include("find_implicit_imports.jl")
 include("get_names_used.jl")
@@ -30,6 +31,25 @@ const STRICT_NONRECURSIVE_KWARG = """
 const WARN_STALE_KWARG = """
     * `warn_stale=true`: whether or not to warn about stale explicit imports.
     """
+
+struct FileNotFoundException <: Exception end
+
+function Base.showerror(io::IO, ::FileNotFoundException)
+    println(io,
+            """
+            FileNotFoundException:
+            This appears to be a module which is not top-level in a package. In this case, a file which defines the module (or includes files which do) must be passed explicitly as the second argument.
+            """)
+    print(io,
+          """
+          For example, if you've passed a submodule of a package, you can pass `pkgdir(MyPackage)` as the second argument. Or if you've passed a module which is not part of a package, pass the filepath to the code that defines the module.""")
+    return nothing
+end
+
+function check_file(file)
+    isnothing(file) && throw(FileNotFoundException())
+    return nothing
+end
 
 """
     explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true, strict=true)
@@ -55,6 +75,7 @@ function explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core)
                           warn_stale=true, strict=true,
                           # private undocumented kwarg for hoisting this analysis
                           file_analysis=get_names_used(file))
+    check_file(file)
     submodules = find_submodules(mod)
     return [submodule => explicit_imports_nonrecursive(submodule, file; skips, warn_stale,
                                                        file_analysis, strict)
@@ -143,9 +164,7 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                        strict=true,
                                        # private undocumented kwarg for hoisting this analysis
                                        file_analysis=get_names_used(file))
-    if isnothing(file)
-        throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
-    end
+    check_file(file)
     all_implicit_imports = find_implicit_imports(mod; skips)
 
     needs_explicit_import, unnecessary_explicit_import, tainted = filter_to_module(file_analysis,
@@ -207,6 +226,7 @@ function print_stale_explicit_imports(mod::Module, file=pathof(mod); kw...)
     return print_stale_explicit_imports(stdout, mod, file; kw...)
 end
 function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); strict=true)
+    check_file(file)
     for (i, (mod, stale_imports)) in enumerate(stale_explicit_imports(mod, file; strict))
         i == 1 || println(io)
         if isnothing(stale_imports)
@@ -243,6 +263,7 @@ See [`stale_explicit_imports_nonrecursive`](@ref) for a non-recursive version, a
 See also [`print_explicit_imports`](@ref) which prints this information.
 """
 function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
+    check_file(file)
     submodules = find_submodules(mod)
     file_analysis = get_names_used(file) # only do this once
     return [submodule => stale_explicit_imports_nonrecursive(submodule, file; file_analysis,
@@ -267,9 +288,7 @@ function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                              strict=true,
                                              # private undocumented kwarg for hoisting this analysis
                                              file_analysis=get_names_used(file))
-    if isnothing(file)
-        throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
-    end
+    check_file(file)
     (; unnecessary_explicit_import, tainted) = filter_to_module(file_analysis, mod)
     tainted && strict && return nothing
     return unique!(sort!([nt.name for nt in unnecessary_explicit_import]))

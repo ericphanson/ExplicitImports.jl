@@ -27,7 +27,17 @@ include("DynMod.jl")
 end
 
 # TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
-# TODO- tests for dynamic imports (e.g. that the warning is thrown correctly, once per path)
+
+@testset "file not found" begin
+    for f in (check_no_implicit_imports, check_no_stale_explicit_imports, explicit_imports,
+              explicit_imports_nonrecursive, print_explicit_imports,
+              print_stale_explicit_imports, stale_explicit_imports,
+              stale_explicit_imports_nonrecursive)
+        @test_throws FileNotFoundException f(TestModA)
+    end
+    str = sprint(Base.showerror, FileNotFoundException())
+    @test contains(str, "module which is not top-level in a package")
+end
 
 @testset "ExplicitImports.jl" begin
     @test using_statement.(explicit_imports_nonrecursive(TestModA, "TestModA.jl")) ==

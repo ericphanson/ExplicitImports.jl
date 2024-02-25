@@ -306,6 +306,7 @@ and a `Set{Vector{Symbol}}` of "untainted module paths", i.e. those which were a
 * `untainted_modules`
 """
 function get_names_used(file)
+    check_file(file)
     # Here we get 1 row per name per scope
     per_scope_info, explicit_imports, untainted_modules = analyze_all_names(file)
 
