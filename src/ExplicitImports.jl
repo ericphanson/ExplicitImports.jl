@@ -60,6 +60,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod); kw...)
             println(io,
                     "Additionally $mod has stale explicit imports for these unused names:")
             foreach(line -> println(io, line), stale)
+            println(io)
         end
     end
 end
