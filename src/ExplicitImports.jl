@@ -16,11 +16,17 @@ include("checks.jl")
 """
     explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true)
 
-Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`.
+Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself), and the values are `name => exporting_module` pairs, showing which names are being used implicitly and which modules they are being used from.
 
+## Arguments
+
+* `mod::Module`: the module to (recursively) analyze. Often this is a package.
 * `file=pathof(mod)`: this should be a path to the source code that contains the module `mod`.
     * if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
     * `mod` can be a submodule defined within `file`, but if two modules have the same name (e.g. `X.Y.X` and `X`), results may be inaccurate.
+
+## Keyword arguments
+
 * `skips=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
 * `warn_stale=true`: whether or not to warn about stale explicit imports.
 
@@ -92,7 +98,7 @@ end
 """
     explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn_stale=true)
 
-A non-recursive version of [`explicit_imports`](@ref); see that function for details.
+A non-recursive version of [`explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details.
 """
 function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                        skips=(mod, Base, Core),
@@ -169,10 +175,16 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod))
 end
 
 """
-    stale_explicit_imports(mod::Module, file=pathof(mod)) -> Vector{Pair{Module, Vector{Symbol}}}
+    stale_explicit_imports(mod::Module, file=pathof(mod))
 
-Returns a list of names that are not used in each submodule of `mod`, but are still explicitly imported.
-See [`stale_explicit_imports_nonrecursive`](@ref) for a non-recursive version, and [`check_no_stale_explicit_imports`] for a version that throws an error when encountering stale explicit imports.
+Returns a collection of pairs, where the keys are submodules of `mod` (including `mod` itself), and the values are lists of names that are explicitly imported in that submodule, but which either are not used, or are only used in a qualified fashion, making the explicit import a priori unnecessary.
+
+!!! warning
+    Note that it is possible for an import from a module (say `X`) into one module (say `A`) to be relied on from another unrelated module (say `B`). For example, if `A` contains the code `using X: x`, but either does not use `x` at all or only uses `x` in the form `X.x`, then `x` will be flagged as a stale explicit import by this function. However, it could be that the code in some unrelated module `B` uses `A.x` or `using A: x`, relying on the fact that `x` has been imported into `A`'s namespace.
+
+    This is an unusual situation (generally `B` should just get `x` directly from `X`, rather than indirectly via `A`), but there are situations in which it arises, so one may need to be careful about naively removing all "stale" explicit imports flagged by this function.
+
+See [`stale_explicit_imports_nonrecursive`](@ref) for a non-recursive version, and [`check_no_stale_explicit_imports`](@ref) for a version that throws an error when encountering stale explicit imports.
 
 See also [`print_explicit_imports`](@ref) which prints this information.
 """
@@ -185,8 +197,9 @@ end
 """
     stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod)) -> Vector{Symbol}
 
+A non-recursive version of [`stale_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules.
+
 Returns a list of names that are not used in `mod`, but are still explicitly imported.
-Note this function does not inspect submodules of `mod`.
 
 See also [`print_explicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref), both of which do recurse through submodules.
 """
@@ -273,7 +286,7 @@ inspect_session(; kw...) = inspect_session(stdout; kw...)
 """
     ExplicitImports.inspect_session([io::IO=stdout,]; skips=(Base, Core), inner=print_explicit_imports)
 
-Calls `inner` (defaulting to `print_explicit_imports`) on each loaded package in the Julia session.
+Experimental functionality to call `inner` (defaulting to `print_explicit_imports`) on each loaded package in the Julia session.
 """
 function inspect_session(io::IO; skips=(Base, Core), inner=print_explicit_imports)
     for mod in Base.loaded_modules_array()

@@ -31,6 +31,7 @@ Checks that neither `mod` nor any of its submodules is relying on implicit impor
 an `ImplicitImportsException` if so, and returning `nothing` otherwise.
 
 This function can be used in a package's tests, e.g.
+
 ```julia
 @test check_no_implicit_imports(MyPackage) === nothing
 ```
@@ -97,6 +98,7 @@ Checks that neither `mod` nor any of its submodules has stale (unused) explicit 
 an `StaleImportsException` if so, and returning `nothing` otherwise.
 
 This can be used in a package's tests, e.g.
+
 ```julia
 @test check_no_stale_explicit_imports(MyPackage) === nothing
 ```
