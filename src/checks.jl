@@ -25,7 +25,7 @@ function Base.showerror(io::IO, e::StaleImportsException)
 end
 
 """
-    check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(Base, Core), ignore = ())
+    check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), ignore = ())
 
 Checks that neither `mod` nor any of its submodules is relying on implicit imports, throwing
 an `ImplicitImportsException` if so, and returning `nothing` otherwise.
@@ -65,7 +65,7 @@ This would:
 
 but verify there are no other implicit imports.
 """
-function check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(Base, Core),
+function check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
                                    ignore=())
     ee = explicit_imports(mod, file; warn=false, skips)
     for (mod, names) in ee
@@ -113,9 +113,7 @@ that are allowed to be stale explicit imports. For example,
 would check there were no stale explicit imports besides that of the name `DataFrame`.
 """
 function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore=())
-    submodules = find_submodules(mod)
-    for submodule in submodules
-        stale_imports = stale_explicit_imports(submodule, file)
+    for (submodule, stale_imports) in stale_explicit_imports(mod, file)
         setdiff!(stale_imports, ignore)
         if !isempty(stale_imports)
             throw(StaleImportsException(submodule, stale_imports))

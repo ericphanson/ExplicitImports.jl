@@ -1,6 +1,6 @@
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
-                       module_path, explicit_imports_single, using_statement,
+                       module_path, explicit_imports_nonrecursive, using_statement,
                        inspect_session
 using Test
 using DataFrames
@@ -29,7 +29,7 @@ end
 # TODO- tests for dynamic imports (e.g. that the warning is thrown correctly, once per path)
 
 @testset "ExplicitImports.jl" begin
-    @test using_statement.(explicit_imports_single(TestModA, "TestModA.jl")) ==
+    @test using_statement.(explicit_imports_nonrecursive(TestModA, "TestModA.jl")) ==
           ["using .Exporter: exported_a"]
 
     per_scope_info, imports = analyze_all_names("TestModA.jl")
@@ -50,7 +50,7 @@ end
     @test !exported_as[2, :assigned_first]
 
     # Test submodules
-    @test using_statement.(explicit_imports_single(TestModA.SubModB, "TestModA.jl")) ==
+    @test using_statement.(explicit_imports_nonrecursive(TestModA.SubModB, "TestModA.jl")) ==
           ["using .Exporter3: exported_b", "using .TestModA: f"]
 
     mod_path = module_path(TestModA.SubModB)
@@ -62,8 +62,8 @@ end
     @test !h.assigned_first
 
     # Nested submodule with same name as outer module...
-    @test using_statement.(explicit_imports_single(TestModA.SubModB.TestModA,
-                                                   "TestModA.jl")) ==
+    @test using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA,
+                                                         "TestModA.jl")) ==
           ["using .Exporter3: exported_b"]
 
     # Check we are getting innermost names and not outer ones
@@ -80,10 +80,10 @@ end
     @test module_path(TestModA.SubModB.TestModA.TestModC) ==
           [:TestModC, :TestModA, :SubModB, :TestModA]
 
-    from_outer_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_single(TestModA.SubModB.TestModA.TestModC,
-                                                                                            "TestModA.jl"))
-    from_inner_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_single(TestModA.SubModB.TestModA.TestModC,
-                                                                                            "TestModC.jl"))
+    from_outer_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                                                                  "TestModA.jl"))
+    from_inner_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                                                                  "TestModC.jl"))
     @test from_inner_file == from_outer_file
     @test "using .TestModA: f" in from_inner_file
     # This one isn't needed bc all usages are fully qualified
@@ -99,13 +99,24 @@ end
 
     @test from_inner_file == ["using .TestModA: f"]
 
-    @test stale_explicit_imports(TestModA.SubModB.TestModA.TestModC, "TestModC.jl") ==
+    @test stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                              "TestModC.jl") ==
           [:exported_c, :exported_d]
+
+    # Recursive version
+    lookup = Dict(stale_explicit_imports(TestModA, "TestModA.jl"))
+    @test lookup[TestModA.SubModB.TestModA.TestModC] == [:exported_c, :exported_d]
+    @test isempty(lookup[TestModA])
+
+    # Printing
+    str = sprint(print_stale_explicit_imports, TestModA, "TestModA.jl")
+    @test contains(str, "TestModA is has no stale explicit imports")
+    @test contains(str, "TestModC has stale explicit imports for these unused names")
 
     # in particular, this ensures we don't add `using ExplicitImports: ExplicitImports`
     # (maybe eventually we will want to though)
-    @test using_statement.(explicit_imports_single(TestMod1,
-                                                   "test_mods.jl")) ==
+    @test using_statement.(explicit_imports_nonrecursive(TestMod1,
+                                                         "test_mods.jl")) ==
           ["using ExplicitImports: print_explicit_imports"]
 
     # Recursion
