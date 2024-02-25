@@ -7,7 +7,7 @@ export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
 export print_stale_explicit_imports, stale_explicit_imports,
        check_no_stale_explicit_imports, stale_explicit_imports_nonrecursive
-export StaleImportsException, ImplicitImportsException
+export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException
 
 include("find_implicit_imports.jl")
 include("get_names_used.jl")

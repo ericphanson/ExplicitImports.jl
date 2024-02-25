@@ -92,7 +92,7 @@ function check_no_implicit_imports(mod::Module, file=pathof(mod); skips=(mod, Ba
             continue
         end
         should_ignore!(names, submodule; ignore)
-        if !isempty(names)
+        if !isnothing(names) && !isempty(names)
             throw(ImplicitImportsException(submodule, names))
         end
     end

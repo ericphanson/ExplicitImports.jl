@@ -6,7 +6,7 @@
 struct SyntaxNodeWrapper
     node::JuliaSyntax.SyntaxNode
     file::String
-    bad_files::Set{String}
+    bad_locations::Set{String}
 end
 
 Base.@kwdef struct FileAnalysis
@@ -15,18 +15,16 @@ Base.@kwdef struct FileAnalysis
     untainted_modules::Set{Vector{Symbol}}
 end
 
-function SyntaxNodeWrapper(file::AbstractString; bad_files=Set{String}())
+function SyntaxNodeWrapper(file::AbstractString; bad_locations=Set{String}())
     contents = read(file, String)
     parsed = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, contents; ignore_warnings=true)
-    return SyntaxNodeWrapper(parsed, file, bad_files)
+    return SyntaxNodeWrapper(parsed, file, bad_locations)
 end
 
-function try_parse_wrapper(file::AbstractString; bad_files=Set{String}())
-    file in bad_files && return nothing
+function try_parse_wrapper(file::AbstractString; bad_locations)
     return try
-        SyntaxNodeWrapper(file; bad_files)
+        SyntaxNodeWrapper(file; bad_locations)
     catch e
-        push!(bad_files, file)
         msg = "Error when parsing file. Skipping this file."
         @error msg file exception = (e, catch_backtrace())
         nothing
@@ -39,7 +37,9 @@ function location_str(wrapper::SyntaxNodeWrapper)
 end
 
 struct SkippedFile
-    file::Union{Nothing,String}
+    # location of the file being skipped
+    # (we don't include the file itself, since we may not know what it is)
+    location::Union{String}
 end
 
 AbstractTrees.children(::SkippedFile) = ()
@@ -54,37 +54,39 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
         if length(children) == 2
             f, arg = children::Vector{JuliaSyntax.SyntaxNode} # make JET happy
             if f.val === :include
+                location = location_str(wrapper)
+                if location in wrapper.bad_locations
+                    return [SkippedFile(location)]
+                end
                 if JuliaSyntax.kind(arg) == K"string"
                     children = JuliaSyntax.children(arg)
                     # string literals can only have one child (I think...)
                     c = only(children)
                     # The children of a static include statement is the entire file being included
                     new_file = joinpath(dirname(wrapper.file), c.val)
-                    if new_file in wrapper.bad_files
-                        return [SkippedFile(new_file)]
-                    end
                     if isfile(new_file)
                         @debug "Recursing into `$new_file`" node wrapper.file
-                        new_wrapper = try_parse_wrapper(new_file; wrapper.bad_files)
+                        new_wrapper = try_parse_wrapper(new_file; wrapper.bad_locations)
                         if new_wrapper !== nothing
                             return [new_wrapper]
                         else
-                            return [SkippedFile(new_file)]
+                            push!(wrapper.bad_locations, location)
+                            return [SkippedFile(location)]
                         end
                     else
-                        location = location_str(wrapper)
                         @warn "`include` at $location points to missing file; cannot recurse into it."
-                        return [SkippedFile(new_file)]
+                        push!(wrapper.bad_locations, location)
+                        return [SkippedFile(location)]
                     end
                 else
-                    location = location_str(wrapper)
                     @warn "Dynamic `include` found at $location; not recursing"
-                    return [SkippedFile(nothing)]
+                    push!(wrapper.bad_locations, location)
+                    return [SkippedFile(location)]
                 end
             end
         end
     end
-    return map(n -> SyntaxNodeWrapper(n, wrapper.file, wrapper.bad_files),
+    return map(n -> SyntaxNodeWrapper(n, wrapper.file, wrapper.bad_locations),
                JuliaSyntax.children(node))
 end
 
