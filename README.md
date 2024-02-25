@@ -57,9 +57,9 @@ Note: the `WARNING` is more or less harmless; the way this package is written, i
 
 ## Limitations
 
-### `global` scope quantifier ignored
+### `global` and `local` scope quantifiers ignored
 
-Currently, my parsing implementation does not take into account the `global` keyword, and thus results may be inaccurate when that is used. This could be fixed by improving the code in `src/get_names_used.jl`.
+Currently, my parsing implementation does not take into account the `local` or `global` keyword, and thus results may be inaccurate when they is used. This could be fixed by improving the code in `src/get_names_used.jl`.
 
 ### Cannot recurse through dynamic `include` statements
 
