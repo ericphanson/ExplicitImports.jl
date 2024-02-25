@@ -18,4 +18,5 @@ Then we can put this information together to figure out what names are actually 
 ExplicitImports.find_implicit_imports
 ExplicitImports.get_names_used
 ExplicitImports.analyze_all_names
+ExplicitImports.inspect_session
 ```

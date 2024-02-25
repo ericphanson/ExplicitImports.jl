@@ -1,9 +1,11 @@
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
-                       module_path, explicit_imports_single, using_statement
+                       module_path, explicit_imports_single, using_statement,
+                       inspect_session
 using Test
 using DataFrames
 using Aqua
+using Logging
 
 # DataFrames version of `restrict_to_module!`
 function restrict_to_module(df, mod)
@@ -197,4 +199,11 @@ end
 
 @testset "Aqua" begin
     Aqua.test_all(ExplicitImports; ambiguities=false)
+end
+
+@testset "`inspect_session`" begin
+    # We just want to make sure we are robust enough that this doesn't error
+    big_str = with_logger(Logging.NullLogger()) do
+        return sprint(inspect_session)
+    end
 end

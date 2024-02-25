@@ -14,8 +14,14 @@ function SyntaxNodeWrapper(file::AbstractString)
     return SyntaxNodeWrapper(parsed, file)
 end
 
+# We have errored when trying to parse these, so don't try it again.
+# (We could make this an LRU cache if we were worried about the memory leak,
+#  but I don't think it's worth a dependency or rolling our own.)
+const BAD_FILES = Set{String}()
+
 # Here we define children such that if we get to a static `include`, we just recurse
 # into the parse tree of that file.
+# This function has become increasingly horrible in the name of robustness
 function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
     node = wrapper.node
     if JuliaSyntax.kind(node) == K"call"
@@ -25,11 +31,36 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
             if f.val === :include
                 if JuliaSyntax.kind(arg) == K"string"
                     children = JuliaSyntax.children(arg)
+                    # string literals can only have one child (I think...)
                     c = only(children)
-                    # The children of a static include statement is the entire file being included...
+                    # The children of a static include statement is the entire file being included
                     new_file = joinpath(dirname(wrapper.file), c.val)
-                    @debug "Recursing into `$new_file`" node wrapper.file
-                    return [SyntaxNodeWrapper(new_file)]
+                    if new_file in BAD_FILES
+                        @goto normal_exit
+                    end
+                    if isfile(new_file)
+                        @debug "Recursing into `$new_file`" node wrapper.file
+                        new_wrapper = try
+                            SyntaxNodeWrapper(new_file)
+                        catch e
+                            push!(BAD_FILES, new_file)
+                            @error "Error when parsing file. Skipping this file." new_file exception = (e,
+                                                                                                        catch_backtrace())
+                            nothing
+                        end
+                        if new_wrapper !== nothing
+                            return [new_wrapper]
+                        end
+                    else
+                        line, col = JuliaSyntax.source_location(wrapper.node)
+                        location = "$(wrapper.file):$line:$col"
+                        # We choose our `id` so maxlog will work the way we want
+                        # (don't log the same message multiple times, but do log each separate location)
+                        id = Symbol("missing_file_", location)
+                        @warn("`include` at $location points to missing file; cannot recurse into it.",
+                              _id = id,
+                              maxlog = 1)
+                    end
                 else
                     line, col = JuliaSyntax.source_location(wrapper.node)
                     location = "$(wrapper.file):$line:$col"
@@ -42,6 +73,7 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
             end
         end
     end
+    @label normal_exit
     return map(n -> SyntaxNodeWrapper(n, wrapper.file), JuliaSyntax.children(node))
 end
 

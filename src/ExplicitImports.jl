@@ -214,4 +214,20 @@ function find_submodules(mod::Module)
                  lt=is_prefix)
 end
 
+inspect_session(; skips=(Base, Core)) = inspect_session(stdout; skips)
+
+"""
+    ExplicitImports.inspect_session([io::IO=stdout,]; skips=(Base, Core))
+
+Calls `print_explicit_imports` on each loaded package in the Julia session.
+"""
+function inspect_session(io::IO; skips=(Base, Core))
+    for mod in Base.loaded_modules_array()
+        should_skip(mod; skips) && continue
+        pathof(mod) === nothing && continue
+        isfile(pathof(mod)) || continue
+        print_explicit_imports(io, mod)
+    end
+end
+
 end
