@@ -22,7 +22,7 @@ Returns a nested structure providing information about explicit import statement
 * `skips=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
 * `warn=true`: whether or not to warn about stale explicit imports.
 
-See also [`print_explicit_imports`](@ref) to easily compute and print these results, and [`explicit_imports_single`](@ref) for a non-recursive version which ignores submodules.
+See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`explicit_imports_single`](@ref) for a non-recursive version which ignores submodules, and  [`check_no_implicit_imports`](@ref) for a version that throws errors, for regression testing.
 """
 function explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn=true)
     submodules = find_submodules(mod)
@@ -38,6 +38,8 @@ end
     print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); kw...)
 
 Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref). Accepts the same keyword arguments as that function.
+
+See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod); kw...)
     ee = explicit_imports(mod, file; warn=false, kw...)
@@ -130,6 +132,9 @@ end
     stale_explicit_imports(mod::Module, file=pathof(mod)) -> Vector{Symbol}
 
 Returns a list of names that are not used in `mod`, but are still explicitly imported.
+Note this function does not inspect submodules of `mod`.
+
+See also [`print_explicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref), both of which do recurse through submodules.
 """
 function stale_explicit_imports(mod::Module, file=pathof(mod))
     if isnothing(file)
