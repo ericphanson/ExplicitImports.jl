@@ -85,7 +85,7 @@ for file in readdir(@__DIR__)
 end
 ```
 
-This is problematic for ExplicitImports.jl; unless we really use a full-blown interpreter (which I do think could be a viable strategy^[An alternate implementation using an `AbstractInterpreter` (like JET does) might solve this issue (at the cost of increased complexity), and possibly get some handling of tricky scoping situations "for free".]), we can't really execute this code to know what files are being included. Thus being unable to traverse dynamic includes is essentially an inherent limitation of the approach used in this package.
+This is problematic for ExplicitImports.jl; unless we really use a full-blown interpreter (which I do think could be a viable strategy[^1]), we can't really execute this code to know what files are being included. Thus being unable to traverse dynamic includes is essentially an inherent limitation of the approach used in this package.
 
 However, we do detect this situation, so we can know when our analysis is invalid. For example, running `print_explicit_imports` on this module gives:
 
@@ -105,3 +105,5 @@ This implementation relies on `Base.which` to introspect which module any given 
 In particular, this means it is hard to convert implicit imports to explicit as a formatting pass, for example.
 
 Given a running [language server](https://github.com/julia-vscode/LanguageServer.jl), however, I think it should be possible to query that for the information needed.
+
+[^1]: An alternate implementation using an `AbstractInterpreter` (like JET does) might solve this issue (at the cost of increased complexity), and possibly get some handling of tricky scoping situations "for free".
