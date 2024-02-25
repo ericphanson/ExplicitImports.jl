@@ -12,7 +12,7 @@ include("get_names_used.jl")
 include("checks.jl")
 
 """
-    explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
+    explicit_imports(mod::Module, file=pathof(mod); skips=(Base, Core), warn=true)
 
 Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`.
 
@@ -24,22 +24,22 @@ Returns a nested structure providing information about explicit import statement
 
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, and [`explicit_imports_single`](@ref) for a non-recursive version which ignores submodules.
 """
-function explicit_imports(mod, file=pathof(mod); skips=(Base, Core), warn=true)
+function explicit_imports(mod::Module, file=pathof(mod); skips=(Base, Core), warn=true)
     submodules = find_submodules(mod)
     return [submodule => explicit_imports_single(submodule, file; skips, warn)
             for submodule in submodules]
 end
 
-function print_explicit_imports(mod, file=pathof(mod); kw...)
+function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
     return print_explicit_imports(stdout, mod, file; kw...)
 end
 
 """
-    print_explicit_imports([io::IO=stdout,] mod, file=pathof(mod); kw...)
+    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); kw...)
 
 Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref). Accepts the same keyword arguments as that function.
 """
-function print_explicit_imports(io::IO, mod, file=pathof(mod); kw...)
+function print_explicit_imports(io::IO, mod::Module, file=pathof(mod); kw...)
     ee = explicit_imports(mod, file; warn=false, kw...)
     for (mod, imports) in ee
         if isempty(imports)
@@ -75,11 +75,12 @@ function is_prefix(x, y)
 end
 
 """
-    explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn=true)
+    explicit_imports_single(mod::Module, file=pathof(mod); skips=(Base, Core), warn=true)
 
 A non-recursive version of [`explicit_imports`](@ref); see that function for details.
 """
-function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn=true)
+function explicit_imports_single(mod::Module, file=pathof(mod); skips=(Base, Core),
+                                 warn=true)
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
@@ -125,11 +126,11 @@ function explicit_imports_single(mod, file=pathof(mod); skips=(Base, Core), warn
 end
 
 """
-    stale_explicit_imports(mod, file=pathof(mod)) -> Vector{Symbol}
+    stale_explicit_imports(mod::Module, file=pathof(mod)) -> Vector{Symbol}
 
 Returns a list of names that are not used in `mod`, but are still explicitly imported.
 """
-function stale_explicit_imports(mod, file=pathof(mod))
+function stale_explicit_imports(mod::Module, file=pathof(mod))
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))
     end
@@ -202,7 +203,7 @@ function _find_submodules(mod)
     return sub_modules
 end
 
-function find_submodules(mod)
+function find_submodules(mod::Module)
     return sort!(collect(_find_submodules(mod)); by=reverse ∘ module_path,
                  lt=is_prefix)
 end

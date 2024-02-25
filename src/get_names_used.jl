@@ -21,7 +21,7 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
     if JuliaSyntax.kind(node) == K"call"
         children = JuliaSyntax.children(node)
         if length(children) == 2
-            f, arg = children
+            f, arg = children::Vector{JuliaSyntax.SyntaxNode} # make JET happy
             if f.val === :include
                 if JuliaSyntax.kind(arg) == K"string"
                     children = JuliaSyntax.children(arg)
@@ -150,6 +150,7 @@ end
     analyze_all_names(file)
 
 Returns a tuple of two tables:
+
 * a table with one row per name per scope, with information about whether or not it is within global scope, what modules it is in, and whether or not it was assigned before ever being used in that scope.
 * a table with one row per name per module path, consisting of names that have been explicitly imported in that module.
 """
