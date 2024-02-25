@@ -12,19 +12,19 @@ include("get_names_used.jl")
 include("checks.jl")
 
 """
-    explicit_imports(mod::Module, file=pathof(mod); skips=(Base, Core), warn=true)
+    explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn=true)
 
 Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`.
 
 * `file=pathof(mod)`: this should be a path to the source code that contains the module `mod`.
     * if `mod` is not from a package, `pathof` will be unable to find the code, and a file must be passed which contains `mod` (either directly or indirectly through `include`s)
     * `mod` can be a submodule defined within `file`, but if two modules have the same name (e.g. `X.Y.X` and `X`), results may be inaccurate.
-* `skips=(Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped.
+* `skips=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
 * `warn=true`: whether or not to warn about stale explicit imports.
 
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, and [`explicit_imports_single`](@ref) for a non-recursive version which ignores submodules.
 """
-function explicit_imports(mod::Module, file=pathof(mod); skips=(Base, Core), warn=true)
+function explicit_imports(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn=true)
     submodules = find_submodules(mod)
     return [submodule => explicit_imports_single(submodule, file; skips, warn)
             for submodule in submodules]
@@ -76,11 +76,11 @@ function is_prefix(x, y)
 end
 
 """
-    explicit_imports_single(mod::Module, file=pathof(mod); skips=(Base, Core), warn=true)
+    explicit_imports_single(mod::Module, file=pathof(mod); skips=(mod, Base, Core), warn=true)
 
 A non-recursive version of [`explicit_imports`](@ref); see that function for details.
 """
-function explicit_imports_single(mod::Module, file=pathof(mod); skips=(Base, Core),
+function explicit_imports_single(mod::Module, file=pathof(mod); skips=(mod, Base, Core),
                                  warn=true)
     if isnothing(file)
         throw(ArgumentError("This appears to be a module which is not defined in package. In this case, the file which defines the module must be passed explicitly as the second argument."))

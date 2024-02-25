@@ -1,7 +1,7 @@
 # https://discourse.julialang.org/t/how-to-get-all-variable-names-currently-accessible/108839/2
 modules_from_using(m::Module) = ccall(:jl_module_usings, Any, (Any,), m)
 
-function get_implicit_names(mod; skips=(Base, Core))
+function get_implicit_names(mod; skips=(mod, Base, Core))
     implicit_names = Symbol[]
     for mod in modules_from_using(mod)
         should_skip(mod; skips) && continue
@@ -11,7 +11,7 @@ function get_implicit_names(mod; skips=(Base, Core))
 end
 
 """
-    find_implicit_imports(mod::Module; skips=(Base, Core))
+    find_implicit_imports(mod::Module; skips=(mod, Base, Core))
 
 Given a module `mod`, returns a `Dict{Symbol, Module}` showing
 names exist in `mod`'s namespace which are available due to implicit
@@ -23,7 +23,7 @@ is unavailable in the module, and hence the name will not be present in the dict
 
 This is powered by `Base.which`.
 """
-function find_implicit_imports(mod::Module; skips=(Base, Core))
+function find_implicit_imports(mod::Module; skips=(mod, Base, Core))
     implicit_names = get_implicit_names(mod; skips)
 
     # Build a dictionary to lookup modules from names
