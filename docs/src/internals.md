@@ -1,3 +1,5 @@
+# Internal details
+
 ## Implementation strategy
 
 1. [DONE hackily] Figure out what names used in the module are being used to refer to bindings in global scope (as opposed to e.g. shadowing globals).
