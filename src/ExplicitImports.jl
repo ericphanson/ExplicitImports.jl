@@ -62,10 +62,13 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod); kw...)
         end
         stale = stale_explicit_imports_nonrecursive(mod, file)
         if !isempty(stale)
+            word = isempty(imports) ? "However" : "Additionally"
             println(io)
             println(io,
-                    "Additionally $mod has stale explicit imports for these unused names:")
-            foreach(line -> println(io, line), stale)
+                    "$word, $mod has stale explicit imports for these unused names:")
+            for name in stale
+                println(io, "- $name")
+            end
         end
     end
 end
@@ -152,7 +155,9 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod))
         else
             println(io,
                     "Module $mod has stale explicit imports for these unused names:")
-            foreach(line -> println(io, line), stale_imports)
+            for name in stale_imports
+                println(io, "- $name")
+            end
         end
     end
 end
