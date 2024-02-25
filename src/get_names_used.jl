@@ -6,18 +6,14 @@
 struct SyntaxNodeWrapper
     node::JuliaSyntax.SyntaxNode
     file::String
+    bad_files::Set{String}
 end
 
-function SyntaxNodeWrapper(file::AbstractString)
+function SyntaxNodeWrapper(file::AbstractString; bad_files=Set{String}())
     contents = read(file, String)
     parsed = JuliaSyntax.parseall(JuliaSyntax.SyntaxNode, contents)
-    return SyntaxNodeWrapper(parsed, file)
+    return SyntaxNodeWrapper(parsed, file, bad_files)
 end
-
-# We have errored when trying to parse these, so don't try it again.
-# (We could make this an LRU cache if we were worried about the memory leak,
-#  but I don't think it's worth a dependency or rolling our own.)
-const BAD_FILES = Set{String}()
 
 # Here we define children such that if we get to a static `include`, we just recurse
 # into the parse tree of that file.
@@ -35,17 +31,25 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                     c = only(children)
                     # The children of a static include statement is the entire file being included
                     new_file = joinpath(dirname(wrapper.file), c.val)
-                    if new_file in BAD_FILES
+                    if new_file in wrapper.bad_files
                         @goto normal_exit
                     end
                     if isfile(new_file)
                         @debug "Recursing into `$new_file`" node wrapper.file
                         new_wrapper = try
-                            SyntaxNodeWrapper(new_file)
+                            SyntaxNodeWrapper(new_file; wrapper.bad_files)
                         catch e
-                            push!(BAD_FILES, new_file)
-                            @error "Error when parsing file. Skipping this file." new_file exception = (e,
-                                                                                                        catch_backtrace())
+                            push!(wrapper.bad_files, new_file)
+                            # JuliaSyntax#350 is a common and known issue, so let's not dump the whole scary stacktrace
+                            if "parentheses are not required here" in
+                               (d.message for d in e.diagnostics)
+                                msg = "Hit https://github.com/JuliaLang/JuliaSyntax.jl/issues/350 while parsing $new_file. Skipping this file."
+                                @error msg exception = e
+                            else
+                                msg = "Error when parsing file. Skipping this file."
+                                @error msg new_file exception = (e,
+                                                                 catch_backtrace())
+                            end
                             nothing
                         end
                         if new_wrapper !== nothing
@@ -74,7 +78,8 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
         end
     end
     @label normal_exit
-    return map(n -> SyntaxNodeWrapper(n, wrapper.file), JuliaSyntax.children(node))
+    return map(n -> SyntaxNodeWrapper(n, wrapper.file, wrapper.bad_files),
+               JuliaSyntax.children(node))
 end
 
 function is_qualified(leaf)
