@@ -225,21 +225,29 @@ end
     @testset "Tainted modules" begin
         log = (:warn, r"Dynamic")
 
-        @test_logs log @test explicit_imports(DynMod, "DynMod.jl") == [DynMod => nothing]
+        @test_logs log @test explicit_imports(DynMod, "DynMod.jl") ==
+                             [DynMod => nothing, DynMod.Hidden => nothing]
         @test_logs log @test explicit_imports(DynMod, "DynMod.jl"; strict=false) ==
-                             [DynMod => [:print_explicit_imports => ExplicitImports]]
+                             [DynMod => [:print_explicit_imports => ExplicitImports],
+                              # Wrong! Missing explicit export
+                              DynMod.Hidden => []]
+
         @test_logs log @test explicit_imports_nonrecursive(DynMod, "DynMod.jl") === nothing
 
         @test_logs log @test explicit_imports_nonrecursive(DynMod, "DynMod.jl";
                                                            strict=false) ==
                              [:print_explicit_imports => ExplicitImports]
         @test_logs log @test stale_explicit_imports(DynMod, "DynMod.jl") ==
-                             [DynMod => nothing]
+                             [DynMod => nothing,
+                              DynMod.Hidden => nothing]
+
         @test_logs log @test stale_explicit_imports_nonrecursive(DynMod, "DynMod.jl") ===
                              nothing
 
         @test_logs log @test stale_explicit_imports(DynMod, "DynMod.jl"; strict=false) ==
-                             [DynMod => []]
+                             [DynMod => [],
+                              # Wrong! Missing stale explicit export
+                              DynMod.Hidden => []]
 
         @test_logs log @test stale_explicit_imports_nonrecursive(DynMod, "DynMod.jl";
                                                                  strict=false) ==
@@ -251,20 +259,28 @@ end
         @test contains(str, "DynMod could not be accurately analyzed")
 
         @test_logs log @test check_no_implicit_imports(DynMod, "DynMod.jl";
-                                                       allow_unanalyzable=(DynMod,)) ===
+                                                       allow_unanalyzable=(DynMod,
+                                                                           DynMod.Hidden)) ===
                              nothing
 
         # Ignore also works
         @test_logs log @test check_no_implicit_imports(DynMod, "DynMod.jl";
-                                                       ignore=(DynMod,)) ===
+                                                       allow_unanalyzable=(DynMod,),
+                                                       ignore=(DynMod.Hidden,)) ===
                              nothing
 
         e = UnanalyzableModuleException
         @test_logs log @test_throws e check_no_implicit_imports(DynMod,
                                                                 "DynMod.jl")
 
+        # Missed `Hidden`
+        @test_logs log @test_throws e check_no_implicit_imports(DynMod,
+                                                                "DynMod.jl";
+                                                                allow_unanalyzable=(DynMod,),)
+
         @test_logs log @test check_no_stale_explicit_imports(DynMod, "DynMod.jl";
-                                                             allow_unanalyzable=(DynMod,)) ===
+                                                             allow_unanalyzable=(DynMod,
+                                                                                 DynMod.Hidden)) ===
                              nothing
 
         @test_logs log @test_throws e check_no_stale_explicit_imports(DynMod,
