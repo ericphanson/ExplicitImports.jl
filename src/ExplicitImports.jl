@@ -186,7 +186,13 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
         p1 = reverse(module_path(v1))
         p2 = reverse(module_path(v2))
         is_lt = if p1 == p2
-            isless(k1, k2)
+            if nameof(v1) == k1
+                true
+            elseif nameof(v1) == k2
+                false
+            else
+                isless(k1, k2)
+            end
         elseif is_prefix(p1, p2)
             true
         else
