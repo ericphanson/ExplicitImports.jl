@@ -128,8 +128,7 @@ end
     @test contains(str, "TestModA has no stale explicit imports")
     @test contains(str, "TestModC has stale explicit imports for these unused names")
 
-    # in particular, this ensures we don't add `using ExplicitImports: ExplicitImports`
-    # (maybe eventually we will want to though)
+    # in particular, this ensures we add `using ExplicitImports: ExplicitImports`
     @test using_statement.(explicit_imports_nonrecursive(TestMod1,
                                                          "test_mods.jl")) ==
           ["using ExplicitImports: print_explicit_imports"]
