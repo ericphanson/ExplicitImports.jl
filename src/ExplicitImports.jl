@@ -177,8 +177,6 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     filter!(all_implicit_imports) do (k, v)
         k in needed_names || return false
         should_skip(v; skip) && return false
-        # skip `using X: X`
-        nameof(v) == k && return false
         return true
     end
 
