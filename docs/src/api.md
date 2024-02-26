@@ -11,7 +11,7 @@ explicit_imports
 
 ## Looking just for stale explicit exports
 
-While [`print_explicit_imports`](@ref) prints stale explicit exports, and [`explicit_imports`](@ref) by default provides a warning when stale explicit exports are present, sometimes one wants to only look for stale explicit exports without looking at implicit imports. Here we provide some entrypoints that help for this use-case.
+While [`print_explicit_imports`](@ref) prints stale explicit exports, and [`explicit_imports`](@ref) by default provides a warning when stale explicit exports are present, sometimes one wants to only look for stale explicit imports without looking at implicit imports. Here we provide some entrypoints that help for this use-case.
 
 ```@docs
 print_stale_explicit_imports
