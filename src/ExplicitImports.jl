@@ -54,7 +54,7 @@ end
 """
     explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true, strict=true)
 
-Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself), and the values are `name => exporting_module` pairs, showing which names are being used implicitly and which modules they are being used from.
+Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself), and the values are `NamedTuple`s, with at least the keys `name` and `source`, showing which names are being used implicitly and which modules they came from. Additional keys may be added to the `NamedTuple`'s in the future in non-breaking releases of ExplicitImports.jl.
 
 ## Arguments
 
@@ -116,8 +116,8 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                     "These could be explicitly imported as follows:")
             println(io)
             println(io, "```julia")
-            for pair in imports
-                println(io, using_statement(pair))
+            for nt in imports
+                println(io, using_statement(nt))
             end
             println(io, "```")
         end
@@ -128,7 +128,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 println(io)
                 println(io,
                         "$word, $mod has stale explicit imports for these unused names:")
-                for name in stale
+                for (; name) in stale
                     println(io, "- $name")
                 end
             end
@@ -180,7 +180,7 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
         return true
     end
 
-    to_make_explicit = [k => v for (k, v) in all_implicit_imports]
+    to_make_explicit = [(; name=k, source=v) for (k, v) in all_implicit_imports]
 
     function lt((k1, v1), (k2, v2))
         p1 = reverse(module_path(v1))
@@ -251,7 +251,9 @@ end
 """
     stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
 
-Returns a collection of pairs, where the keys are submodules of `mod` (including `mod` itself), and the values are lists of names that are explicitly imported in that submodule, but which either are not used, or are only used in a qualified fashion, making the explicit import a priori unnecessary.
+Returns a collection of pairs, where the keys are submodules of `mod` (including `mod` itself), and the values are either `nothing` if `strict=true` and the module couldn't analyzed, or else a vector of `NamedTuple`s with at least the keys `name`, consisting of names that are explicitly imported in that submodule, but which either are not used, or are only used in a qualified fashion, making the explicit import a priori unnecessary.
+
+More keys may be added to the NamedTuples in the future in non-breaking releases of ExplicitImports.jl.
 
 !!! warning
     Note that it is possible for an import from a module (say `X`) into one module (say `A`) to be relied on from another unrelated module (say `B`). For example, if `A` contains the code `using X: x`, but either does not use `x` at all or only uses `x` in the form `X.x`, then `x` will be flagged as a stale explicit import by this function. However, it could be that the code in some unrelated module `B` uses `A.x` or `using A: x`, relying on the fact that `x` has been imported into `A`'s namespace.
@@ -276,11 +278,11 @@ function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
 end
 
 """
-    stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true) -> Union{Nothing, Vector{Symbol}}
+    stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true)
 
 A non-recursive version of [`stale_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules.
 
-Returns a list of names that are not used in `mod`, but are still explicitly imported.
+If `mod` was unanalyzable and `strict=true`, returns `nothing`. Otherwise, returns a collection of `NamedTuple`'s, with at least the key `name`, corresponding to the names of stale explicit imports. More keys may be added in the future in non-breaking releases of ExplicitImports.jl.
 
 ## Keyword arguments
 
@@ -295,7 +297,7 @@ function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     check_file(file)
     (; unnecessary_explicit_import, tainted) = filter_to_module(file_analysis, mod)
     tainted && strict && return nothing
-    return unique!(sort!([nt.name for nt in unnecessary_explicit_import]))
+    return unique!(sort!([(; nt.name) for nt in unnecessary_explicit_import]))
 end
 
 function has_ancestor(query, target)
