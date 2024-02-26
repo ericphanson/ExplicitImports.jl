@@ -20,7 +20,7 @@ using ..Exporter
 # re-export the same name
 export exported_a
 
-end # Exporter
+end # Exporter2
 
 # a clash
 module Exporter3
@@ -29,4 +29,16 @@ export exported_b
 
 exported_b() = "hi-b-clash"
 
-end # Exporter
+end # Exporter3
+
+# many exports to test sorting
+module Exporter4
+
+export A, Z, a, z
+
+A() = "A"
+Z() = "Z"
+a() = "a"
+z() = "z"
+
+end # Exporter4

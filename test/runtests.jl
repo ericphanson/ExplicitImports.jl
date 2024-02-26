@@ -128,7 +128,6 @@ end
     @test contains(str, "TestModA has no stale explicit imports")
     @test contains(str, "TestModC has stale explicit imports for these unused names")
 
-    # in particular, this ensures we add `using ExplicitImports: ExplicitImports`
     @test using_statement.(explicit_imports_nonrecursive(TestMod1,
                                                          "test_mods.jl")) ==
           ["using ExplicitImports: print_explicit_imports"]
@@ -157,6 +156,14 @@ end
                                                                  "TestModA.jl";
                                                                  warn_stale=false))
     @test length(str_no_warn) <= length(str)
+
+    # in particular, this ensures we add `using Foo: Foo` as the first line
+    @test using_statement.(explicit_imports_nonrecursive(TestMod4, "test_mods.jl")) ==
+          ["using .Exporter4: Exporter4"
+           "using .Exporter4: A"
+           "using .Exporter4: Z"
+           "using .Exporter4: a"
+           "using .Exporter4: z"]
 end
 
 function exception_string(f)
