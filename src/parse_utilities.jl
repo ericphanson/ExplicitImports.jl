@@ -82,18 +82,22 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                JuliaSyntax.children(node))
 end
 
+js_children(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.children(js_node(n))
 js_node(n::SyntaxNodeWrapper) = n.node
 js_node(n::TreeCursor) = js_node(nodevalue(n))
 
-kind(n::JuliaSyntax.SyntaxNode) = JuliaSyntax.kind(n)
-kind(n::JuliaSyntax.GreenNode) = JuliaSyntax.kind(n)
-kind(n::JuliaSyntax.SyntaxHead) = JuliaSyntax.kind(n)
-kind(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.kind(js_node(n))
+function kind(n::Union{JuliaSyntax.SyntaxNode,JuliaSyntax.GreenNode,JuliaSyntax.SyntaxHead})
+    return JuliaSyntax.kind(n)
+end
+kind(n::Union{TreeCursor,SyntaxNodeWrapper}) = kind(js_node(n))
 
-head(n::JuliaSyntax.SyntaxNode) = JuliaSyntax.head(n)
-head(n::JuliaSyntax.GreenNode) = JuliaSyntax.head(n)
-head(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.head(js_node(n))
-js_children(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.children(js_node(n))
+head(n::Union{JuliaSyntax.SyntaxNode,JuliaSyntax.GreenNode}) = JuliaSyntax.head(n)
+head(n::Union{TreeCursor,SyntaxNodeWrapper}) = head(js_node(n))
+
+function has_flags(n::Union{JuliaSyntax.SyntaxNode,JuliaSyntax.GreenNode}, args...)
+    return JuliaSyntax.has_flags(n, args...)
+end
+has_flags(n::Union{TreeCursor,SyntaxNodeWrapper}, args...) = has_flags(js_node(n), args...)
 
 # which child are we of our parent
 function child_index(n::TreeCursor)

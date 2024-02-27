@@ -34,61 +34,33 @@ function analyze_import_type(leaf)
     end
 end
 
+# check if `leaf` is a function argument (or kwarg), but not a default value etc
 function is_function_arg(leaf)
-    # are we a positional argument?
-    # if our immediate parent is a call, then either we are the function name
-    # or a function argument (I think)
-    if parent(leaf) !== nothing
-        p = nodevalue(parent(leaf)).node
-        if kind(p) == K"call"
-            infix = JuliaSyntax.has_flags(p, JuliaSyntax.INFIX_FLAG)
-            fn_name_pos = infix ? 2 : 1
-            our_pos = findfirst(==(nodevalue(leaf).node), JuliaSyntax.children(p))
-            @assert our_pos !== nothing
-            # We are a function arg if we're a child of `call` who is not the function name itself
-            return our_pos != fn_name_pos
-        elseif kind(p) == K"parameters"
-            # Perhaps we are instead a keyword arg
-            if parent(parent(leaf)) !== nothing
-                pp = nodevalue(parent(parent(leaf))).node
-                if kind(pp) == K"call"
-                    return true
-                else
-                    # This can happen in a NamedTuple or such
-                    return false
-                end
-            else
-                @info "parameters has no parent" p
-                return false
-            end
-        elseif kind(p) == K"="
-            # perhaps we are the LHS of a positional arg that has a default
-            # first, let's verify we are on the LHS of this `=`
-            our_pos = findfirst(==(nodevalue(leaf).node), JuliaSyntax.children(p))
-            our_pos == 1 || return false
-            # now let's check if we are directly in a call - we'd be a positional arg
-            if parent(parent(leaf)) !== nothing
-                pp = nodevalue(parent(parent(leaf))).node
-                if kind(pp) == K"call"
-                    return true
-                elseif kind(pp) == K"parameters"
-                    # Ok, we may be a kwarg. Verify next parent is a call.
-                    if parent(parent(parent(leaf))) !== nothing
-                        ppp = nodevalue(parent(parent(parent(leaf)))).node
-                        return kind(ppp) == K"call"
-                    else
-                        # not sure how this would happen
-                        @info "parameters has no parent" pp
-                        return false
-                    end
-                else
-                    return false
-                end
-            end
+    if parents_match(leaf, (K"call",))
+        infix = has_flags(parent(leaf), JuliaSyntax.INFIX_FLAG)
+        fn_name_pos = infix ? 2 : 1
+        # We are a function arg if we're a child of `call` who is not the function name itself
+        return child_index(leaf) != fn_name_pos
+    elseif parents_match(leaf, (K"parameters", K"call"))
+        # we're a kwarg without default value in a call
+        return true
+    elseif parents_match(leaf, (K"=",))
+        # we must be on the LHS, otherwise we aren't a function arg
+        child_index(leaf) == 1 || return false
+        # Ok, let's check if we're in a function at all
+        if parents_match(leaf, (K"=", K"call"))
+            # yep, we must be a positional arg w/ default value
+            return true
+        elseif parents_match(leaf, (K"=", K"parameters", K"call"))
+            # yep, we must be a kwarg w/ default value
+            return true
+        else
+            # Nope, we're on the LHS of an `=` but not a function arg
             return false
         end
+    else
+        return false
     end
-    return false
 end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
