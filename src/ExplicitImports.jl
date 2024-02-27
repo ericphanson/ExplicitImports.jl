@@ -10,6 +10,7 @@ export print_stale_explicit_imports, stale_explicit_imports,
 export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException,
        FileNotFoundException
 
+include("parse_utilities.jl")
 include("find_implicit_imports.jl")
 include("get_names_used.jl")
 include("checks.jl")
