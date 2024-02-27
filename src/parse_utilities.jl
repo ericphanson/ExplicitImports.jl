@@ -1,6 +1,6 @@
 
-# Here we define a wrapper so we can use AbstractTrees without piracy
-# https://github.com/JuliaEcosystem/PackageAnalyzer.jl/blob/293a0836843f8ce476d023e1ca79b7e7354e884f/src/count_loc.jl#L91-L99
+# We define a new tree that wraps a `SyntaxNode`.
+# For this tree, we we add an `AbstractTrees` `children` method to traverse `include` statements to span our tree across files.
 struct SyntaxNodeWrapper
     node::JuliaSyntax.SyntaxNode
     file::String
@@ -59,11 +59,11 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                     if isfile(new_file)
                         @debug "Recursing into `$new_file`" node wrapper.file
                         new_wrapper = try_parse_wrapper(new_file; wrapper.bad_locations)
-                        if new_wrapper !== nothing
-                            return [new_wrapper]
-                        else
+                        if new_wrapper === nothing
                             push!(wrapper.bad_locations, location)
                             return [SkippedFile(location)]
+                        else
+                            return [new_wrapper]
                         end
                     else
                         @warn "`include` at $location points to missing file; cannot recurse into it."
