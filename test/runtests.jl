@@ -30,6 +30,13 @@ end
     @test should_skip(Base.Iterators; skip=(Base, Core))
 end
 
+function get_per_scope(per_usage_info)
+    per_usage_df = DataFrame(per_usage_info)
+    subset!(per_usage_df, :qualified => ByRow(!), :import_type => ByRow(==(:not_import)))
+    return combine(groupby(per_usage_df, [:name, :scope_path, :module_path, :global_scope]),
+                   :is_assignment => first => :assigned_first)
+end
+
 # TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
 
 @testset "file not found" begin
@@ -47,8 +54,8 @@ end
     @test using_statement.(explicit_imports_nonrecursive(TestModA, "TestModA.jl")) ==
           ["using .Exporter: exported_a"]
 
-    per_scope_info, imports = analyze_all_names("TestModA.jl")
-    df = DataFrame(per_scope_info)
+    per_usage_info, _ = analyze_all_names("TestModA.jl")
+    df = get_per_scope(per_usage_info)
     locals = contains.(string.(df.name), Ref("local"))
     @test all(!, df.global_scope[locals])
 
@@ -89,8 +96,6 @@ end
     @test_broken :f ∉ subsub_df.name
     @test_broken :func ∉ subsub_df.name
 
-    per_scope_info, imports = analyze_all_names("TestModC.jl")
-    df = DataFrame(per_scope_info)
     # starts from innermost
     @test module_path(TestModA.SubModB.TestModA.TestModC) ==
           [:TestModC, :TestModA, :SubModB, :TestModA]
