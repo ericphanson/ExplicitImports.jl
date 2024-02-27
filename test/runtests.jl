@@ -19,12 +19,19 @@ include("TestModA.jl")
 include("test_mods.jl")
 include("DynMod.jl")
 include("TestModArgs.jl")
+include("examples.jl")
 
 @testset "TestModArgs" begin
     # don't detect `a`!
     statements = using_statement.(explicit_imports_nonrecursive(TestModArgs,
                                                                 "TestModArgs.jl"))
     @test statements == ["using .Exporter4: Exporter4", "using .Exporter4: A"]
+
+    statements = using_statement.(explicit_imports_nonrecursive(ThreadPinning,
+                                                                "examples.jl"))
+
+    # TODO... handle type parameters in function args!
+    @test_broken statements == ["using LinearAlgebra: LinearAlgebra"]
 end
 
 @testset "has_ancestor" begin
