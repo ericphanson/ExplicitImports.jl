@@ -6,6 +6,8 @@ using Test
 using DataFrames
 using Aqua
 using Logging
+using AbstractTrees
+using ExplicitImports: is_function_arg, SyntaxNodeWrapper, get_val
 
 # DataFrames version of `filter_to_module`
 function restrict_to_module(df, mod)
@@ -32,6 +34,19 @@ include("examples.jl")
 
     # TODO... handle type parameters in function args!
     @test_broken statements == ["using LinearAlgebra: LinearAlgebra"]
+end
+
+@testset "is_function_arg" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("TestModArgs.jl"))
+    leaves = collect(Leaves(cursor))
+    purported_function_args = filter(is_function_arg, leaves)
+    # we have 6*4 = 24 functions with one argument `a`:
+
+    # written this way to get clearer test failure messages
+    vals = unique(get_val.(purported_function_args))
+    @test vals == [:a]
+
+    @test length(purported_function_args) == 24
 end
 
 @testset "has_ancestor" begin

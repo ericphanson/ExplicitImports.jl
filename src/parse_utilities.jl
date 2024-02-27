@@ -103,6 +103,9 @@ kind(n::Union{TreeCursor,SyntaxNodeWrapper}) = kind(js_node(n))
 head(n::Union{JuliaSyntax.SyntaxNode,JuliaSyntax.GreenNode}) = JuliaSyntax.head(n)
 head(n::Union{TreeCursor,SyntaxNodeWrapper}) = head(js_node(n))
 
+get_val(n::JuliaSyntax.SyntaxNode) = n.val
+get_val(n::Union{TreeCursor,SyntaxNodeWrapper}) = get_val(js_node(n))
+
 function has_flags(n::Union{JuliaSyntax.SyntaxNode,JuliaSyntax.GreenNode}, args...)
     return JuliaSyntax.has_flags(n, args...)
 end

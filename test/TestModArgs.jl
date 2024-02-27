@@ -41,4 +41,40 @@ h3(a=1) = a
 
 h4(; a=1) = a
 
+function i1(a::Int)
+    return a
+end
+
+function i2(; a::Int)
+    return a
+end
+
+i3(a::Int) = a
+
+i4(; a::Int) = a
+
+function j1(a::Int=1)
+    return a
+end
+
+function j2(; a::Int=1)
+    return a
+end
+
+j3(a::Int=1) = a
+
+j4(; a::Int=1) = a
+
+function k1(a::Int=j1(A))
+    return a
+end
+
+function k2(; a::Int=j1(A))
+    return a
+end
+
+k3(a::Int=j1(A)) = a
+
+k4(; a::Int=j1(A)) = a
+
 end # TestModArgs

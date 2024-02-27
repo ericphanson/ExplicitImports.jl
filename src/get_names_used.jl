@@ -36,7 +36,17 @@ function analyze_import_type(leaf)
 end
 
 # check if `leaf` is a function argument (or kwarg), but not a default value etc
+# We want to distinguish from function *calls* in default args and things like that
+# Those can be arbitrarily nested!
+# What we need to do is identify the top-most function signature we are a part of
+# and then figure out if that one is a definition or not.
+# The following is only capable of finding out if a node is a variable
+# being function-called, but not if that call is a definition
 function is_function_arg(leaf)
+    if get_val(leaf) == :A
+        t = js_node(parent(parent(parent(parent(leaf)))))
+        @show t
+    end
     if parents_match(leaf, (K"call",))
         infix = has_flags(parent(leaf), JuliaSyntax.INFIX_FLAG)
         fn_name_pos = infix ? 2 : 1
@@ -59,6 +69,11 @@ function is_function_arg(leaf)
             # Nope, we're on the LHS of an `=` but not a function arg
             return false
         end
+    elseif parents_match(leaf, (K"::",))
+        # we must be on the LHS, otherwise we're a type
+        child_index(leaf) == 1 || return false
+        # Ok, let's just step up one level and see again
+        return is_function_arg(parent(leaf))
     else
         return false
     end
@@ -66,7 +81,7 @@ end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
 # a leaf and follow the parents up to see what scopes our leaf is in.
-# TODO- cleanup with parsing utilities
+# TODO- cleanup with parsing utilities (?)
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
     function_arg = is_function_arg(leaf)
@@ -79,9 +94,8 @@ function analyze_name(leaf; debug=false)
 
     while true
         # update our state
-        val = nodevalue(node).node.val
-        head = nodevalue(node).node.raw.head
-        k = kind(head)
+        val = get_val(node)
+        k = kind(node)
         args = nodevalue(node).node.raw.args
 
         debug && println(val, ": ", k)
