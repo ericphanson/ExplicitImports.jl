@@ -1,5 +1,6 @@
 # In this file, we try to answer the question: what global bindings are being used in a particular module?
 # We will do this by parsing, then re-implementing scoping rules on top of the parse tree.
+# See `src/parse_utilities.jl` for an overview of the strategy and the utility functions we will use.
 
 Base.@kwdef struct FileAnalysis
     needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
@@ -65,6 +66,7 @@ end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
 # a leaf and follow the parents up to see what scopes our leaf is in.
+# TODO- cleanup with parsing utilities
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
     function_arg = is_function_arg(leaf)

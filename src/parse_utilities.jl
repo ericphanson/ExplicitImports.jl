@@ -1,3 +1,9 @@
+# Since we mostly care about identifiers, our parsing strategy will be:
+# 1. Parse into `SyntaxNode` with JuliaSyntax
+# 2. use an `AbstractTrees.TreeCursor` so we can navigate up (i.e. from leaf to root), not just down, the parse tree
+# 3. Use `AbstractTrees.Leaves` to find all the leaves (which is where the identifiers are)
+# 4. Find the identifiers, then traverse up (via `AbstractTrees.parent`) to check what is true about the identifier
+#    such as if it's a local variable, function argument, if it is qualified, etc.
 
 # We define a new tree that wraps a `SyntaxNode`.
 # For this tree, we we add an `AbstractTrees` `children` method to traverse `include` statements to span our tree across files.
@@ -23,6 +29,9 @@ function try_parse_wrapper(file::AbstractString; bad_locations)
     end
 end
 
+# string representation of the location of the node
+# this prints in a format where if it shows up in the VSCode terminal, you can click it
+# to jump to the file
 function location_str(wrapper::SyntaxNodeWrapper)
     line, col = JuliaSyntax.source_location(wrapper.node)
     return "$(wrapper.file):$line:$col"
