@@ -1,25 +1,25 @@
 struct ImplicitImportsException <: Exception
     mod::Module
-    names::Vector{Pair{Symbol,Module}}
+    names::Vector{@NamedTuple{name::Symbol,source::Module}}
 end
 
 function Base.showerror(io::IO, e::ImplicitImportsException)
     println(io, "ImplicitImportsException")
     println(io, "Module `$(e.mod)` is relying on the following implicit imports:")
-    for (name, source) in e.names
+    for (; name, source) in e.names
         println(io, "* `$name` which is exported by $(source)")
     end
 end
 
 struct StaleImportsException <: Exception
     mod::Module
-    names::Vector{Symbol}
+    names::Vector{@NamedTuple{name::Symbol}}
 end
 
 function Base.showerror(io::IO, e::StaleImportsException)
     println(io, "StaleImportsException")
     println(io, "Module `$(e.mod)` has stale (unused) explicit imports for:")
-    for name in e.names
+    for (; name) in e.names
         println(io, "* `$name`")
     end
 end
@@ -160,8 +160,9 @@ function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::
             submodule in allow_unanalyzable && continue
             throw(UnanalyzableModuleException(submodule))
         end
-        setdiff!(stale_imports, ignore)
-        if !isempty(stale_imports)
+        stale_names = [i.name for i in stale_imports]
+        setdiff!(stale_names, ignore)
+        if !isempty(stale_names)
             throw(StaleImportsException(submodule, stale_imports))
         end
     end
