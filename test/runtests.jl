@@ -63,7 +63,8 @@ end
 
 @testset "ExplicitImports.jl" begin
     @test using_statement.(explicit_imports_nonrecursive(TestModA, "TestModA.jl")) ==
-          ["using .Exporter: exported_a"]
+          ["using .Exporter: Exporter", "using .Exporter: exported_a",
+           "using .Exporter2: Exporter2", "using .Exporter3: Exporter3"]
 
     per_usage_info, _ = analyze_all_names("TestModA.jl")
     df = get_per_scope(per_usage_info)
@@ -84,7 +85,8 @@ end
 
     # Test submodules
     @test using_statement.(explicit_imports_nonrecursive(TestModA.SubModB, "TestModA.jl")) ==
-          ["using .Exporter3: exported_b", "using .TestModA: f"]
+          ["using .Exporter3: Exporter3", "using .Exporter3: exported_b",
+           "using .TestModA: f"]
 
     mod_path = module_path(TestModA.SubModB)
     @test mod_path == [:SubModB, :TestModA]
@@ -97,7 +99,7 @@ end
     # Nested submodule with same name as outer module...
     @test using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA,
                                                          "TestModA.jl")) ==
-          ["using .Exporter3: exported_b"]
+          ["using .Exporter3: Exporter3", "using .Exporter3: exported_b"]
 
     # Check we are getting innermost names and not outer ones
     subsub_df = restrict_to_module(df, TestModA.SubModB.TestModA)
@@ -128,7 +130,7 @@ end
     # because by importing it, we have the name in the file, so we used to detect it.
     @test "using .Exporter: exported_c" ∉ from_inner_file
 
-    @test from_inner_file == ["using .TestModA: f"]
+    @test from_inner_file == ["using .TestModA: TestModA", "using .TestModA: f"]
 
     # No logs when `warn_stale=false`
     @test_logs explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
