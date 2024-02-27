@@ -18,7 +18,11 @@ include("Exporter.jl")
 include("TestModA.jl")
 include("test_mods.jl")
 include("DynMod.jl")
+include("TestModArgs.jl")
 
+@testset "" begin
+    ret = ExplicitImports.get_names_used("TestModArgs.jl")
+end
 @testset "has_ancestor" begin
     @test has_ancestor(TestModA.SubModB, TestModA)
     @test !has_ancestor(TestModA, TestModA.SubModB)

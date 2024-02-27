@@ -10,8 +10,10 @@ struct SyntaxNodeWrapper
 end
 
 Base.@kwdef struct FileAnalysis
-    needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}
-    unnecessary_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}
+    needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
+                                           location::String}}
+    unnecessary_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
+                                                 location::String}}
     untainted_modules::Set{Vector{Symbol}}
 end
 
@@ -131,13 +133,71 @@ function analyze_import_type(leaf)
     return :not_import
 end
 
+function is_function_arg(leaf)
+    # are we a positional argument?
+    # if our immediate parent is a call, then either we are the function name
+    # or a function argument (I think)
+    if parent(leaf) !== nothing
+        p = nodevalue(parent(leaf)).node
+        if JuliaSyntax.kind(p) == K"call"
+            infix = JuliaSyntax.has_flags(p, JuliaSyntax.INFIX_FLAG)
+            fn_name_pos = infix ? 2 : 1
+            our_pos = findfirst(==(nodevalue(leaf).node), JuliaSyntax.children(p))
+            @assert our_pos !== nothing
+            # We are a function arg if we're a child of `call` who is not the function name itself
+            return our_pos != fn_name_pos
+        elseif JuliaSyntax.kind(p) == K"parameters"
+            # Perhaps we are instead a keyword arg
+            if parent(parent(leaf)) !== nothing
+                pp = nodevalue(parent(parent(leaf))).node
+                if JuliaSyntax.kind(pp) == K"call"
+                    return true
+                else
+                    # This can happen in a NamedTuple or such
+                    return false
+                end
+            else
+                @info "parameters has no parent" p
+                return false
+            end
+        elseif JuliaSyntax.kind(p) == K"="
+            # perhaps we are the LHS of a positional arg that has a default
+            # first, let's verify we are on the LHS of this `=`
+            our_pos = findfirst(==(nodevalue(leaf).node), JuliaSyntax.children(p))
+            our_pos == 1 || return false
+            # now let's check if we are directly in a call - we'd be a positional arg
+            if parent(parent(leaf)) !== nothing
+                pp = nodevalue(parent(parent(leaf))).node
+                if JuliaSyntax.kind(pp) == K"call"
+                    return true
+                elseif JuliaSyntax.kind(pp) == K"parameters"
+                    # Ok, we may be a kwarg. Verify next parent is a call.
+                    if parent(parent(parent(leaf))) !== nothing
+                        ppp = nodevalue(parent(parent(parent(leaf)))).node
+                        return JuliaSyntax.kind(ppp) == K"call"
+                    else
+                        # not sure how this would happen
+                        @info "parameters has no parent" pp
+                        return false
+                    end
+                else
+                    return false
+                end
+            end
+            return false
+        end
+    end
+    return false
+end
+
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
 # a leaf and follow the parents up to see what scopes our leaf is in.
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
-    global_scope = true
+    function_arg = is_function_arg(leaf)
+    global_scope = !function_arg
     module_path = Symbol[]
-    scope_path = []
+    scope_path = JuliaSyntax.SyntaxNode[]
     is_assignment = false
     node = leaf
     idx = 1
@@ -186,7 +246,7 @@ function analyze_name(leaf; debug=false)
 
         # finished climbing to the root
         node === nothing &&
-            return (; global_scope, is_assignment, module_path, scope_path)
+            return (; function_arg, global_scope, is_assignment, module_path, scope_path)
         idx += 1
     end
 end
@@ -211,15 +271,12 @@ function analyze_all_names(file; debug=false)
     # Here we use a `TreeCursor`; this lets us iterate over the tree, while ensuring
     # we can call `parent` to climb up from a leaf.
     cursor = TreeCursor(tree)
-    per_scope_info = @NamedTuple{name::Symbol,global_scope::Bool,assigned_first::Bool,
+
+    per_usage_info = @NamedTuple{name::Symbol,qualified::Bool,import_type::Symbol,
+                                 location::String,
+                                 function_arg::Bool,global_scope::Bool,is_assignment::Bool,
                                  module_path::Vector{Symbol},
                                  scope_path::Vector{JuliaSyntax.SyntaxNode}}[]
-
-    # We actually only care about the first instance of a name in any given scope,
-    # since that tells us about assignment
-    seen = Set{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}}}()
-
-    explicit_imports = Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}()
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.
@@ -227,7 +284,6 @@ function analyze_all_names(file; debug=false)
     # minus all the explicitly tainted ones, and those will be the ones
     # safe to analyze.
     seen_modules = Set{Vector{Symbol}}()
-
     tainted_modules = Set{Vector{Symbol}}()
 
     for leaf in Leaves(cursor)
@@ -252,41 +308,76 @@ function analyze_all_names(file; debug=false)
         # We want to figure this out on a per-module basis, since each module has a different global namespace.
 
         debug && println("-"^80)
-        debug && println("Leaf position: $(location_str(nodevalue(leaf)))")
+        location = location_str(nodevalue(leaf))
+        debug && println("Leaf position: $(location)")
         name = nodevalue(leaf).node.val
         debug && println("Leaf name: ", name)
         qualified = is_qualified(leaf)
-
-        if qualified
-            debug && println("$name's usage here is qualified; skipping")
-            # We will still do the analysis to mark the module as seen
-            mod_path = analyze_name(leaf; debug).module_path
-            push!(seen_modules, mod_path)
-            continue
-        end
         import_type = analyze_import_type(leaf)
         debug && println("Import type: ", import_type)
         debug && println("--")
         debug && println("val : kind")
         ret = analyze_name(leaf; debug)
         debug && println(ret)
-
         push!(seen_modules, ret.module_path)
+        push!(per_usage_info,
+              (; name, qualified, import_type, location, ret...,))
+    end
+    untainted_modules = setdiff!(seen_modules, tainted_modules)
+    return per_usage_info, untainted_modules
+end
 
-        if import_type == :import_RHS
-            push!(explicit_imports, (; name, ret.module_path))
-        elseif import_type == :not_import
-            # Only add it the first time
-            if (; name, ret.scope_path) ∉ seen
-                push!(per_scope_info,
-                      (; name, ret.global_scope, assigned_first=ret.is_assignment,
-                       ret.module_path, ret.scope_path))
-                push!(seen, (; name, ret.scope_path))
+function get_global_names(per_usage_info)
+    # For each scope, we want to understand if there are any global usages of the name in that scope
+    # First, throw away all qualified usages, they are irrelevant
+    # Next, if a name is only involved in an `import`, we don't care, so throw away imports as well
+    # Next, if the name is beign used at global scope, obviously it is a global
+    # Otherwise, we are in local scope:
+    #   1. Next, if the name is a function arg, then this is not a global name (essentially first usage is assignment)
+    #   2. Otherwise, if first usage is assignment, then it is local, otherwise it is global
+
+    names_used_for_global_bindings = Set{@NamedTuple{name::Symbol,
+                                                     module_path::Vector{Symbol},
+                                                     location::String}}()
+    seen = Set{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}}}()
+
+    for nt in per_usage_info
+        (; nt.name, nt.scope_path) in seen && continue
+        nt.qualified && continue
+        nt.import_type == :not_import || continue
+
+        # Ok, at this point it counts!
+        push!(seen, (; nt.name, nt.scope_path))
+
+        if nt.global_scope
+            push!(names_used_for_global_bindings, (; nt.name, nt.module_path, nt.location))
+        else
+            if !(nt.function_arg || nt.is_assignment)
+                push!(names_used_for_global_bindings,
+                      (; nt.name, nt.module_path, nt.location))
             end
         end
     end
-    untainted_modules = setdiff!(seen_modules, tainted_modules)
-    return per_scope_info, explicit_imports, untainted_modules
+    return names_used_for_global_bindings
+end
+
+function get_explicit_imports(per_usage_info)
+    explicit_imports = Set{@NamedTuple{name::Symbol,
+                                       module_path::Vector{Symbol},
+                                       location::String}}()
+    for nt in per_usage_info
+        nt.qualified && continue
+        if nt.import_type == :import_RHS
+            push!(explicit_imports, (; nt.name, nt.module_path, nt.location))
+        end
+    end
+    return explicit_imports
+end
+
+drop_metadata(nt) = (; nt.name, nt.module_path)
+function setdiff_no_metadata(set1, set2)
+    remove = Set(drop_metadata(nt) for nt in set2)
+    return Set(nt for nt in set1 if drop_metadata(nt) ∉ remove)
 end
 
 """
@@ -307,22 +398,18 @@ and a `Set{Vector{Symbol}}` of "untainted module paths", i.e. those which were a
 """
 function get_names_used(file)
     check_file(file)
-    # Here we get 1 row per name per scope
-    per_scope_info, explicit_imports, untainted_modules = analyze_all_names(file)
+    # Here we get 1 row per name per usage
+    per_usage_info, untainted_modules = analyze_all_names(file)
+    # per_scope_info, explicit_imports, untainted_modules
 
-    # if a name is used to refer to a global in any scope within a module,
-    # then we may want to explicitly import it.
-    # So we iterate through our scopes and see.
-    names_used_for_global_bindings = Set{@NamedTuple{name::Symbol,
-                                                     module_path::Vector{Symbol}}}()
-    for nt in per_scope_info
-        if nt.global_scope || !nt.assigned_first
-            push!(names_used_for_global_bindings, (; nt.name, nt.module_path))
-        end
-    end
+    names_used_for_global_bindings = get_global_names(per_usage_info)
+    explicit_imports = get_explicit_imports(per_usage_info)
+
     # name used to point to a global which was not explicitly imported
-    needs_explicit_import = setdiff(names_used_for_global_bindings, explicit_imports)
-    unnecessary_explicit_import = setdiff(explicit_imports, names_used_for_global_bindings)
+    needs_explicit_import = setdiff_no_metadata(names_used_for_global_bindings,
+                                                explicit_imports)
+    unnecessary_explicit_import = setdiff_no_metadata(explicit_imports,
+                                                      names_used_for_global_bindings)
 
     return FileAnalysis(; needs_explicit_import, unnecessary_explicit_import,
                         untainted_modules)
