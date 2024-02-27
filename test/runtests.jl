@@ -241,6 +241,12 @@ end
     @test_throws StaleImportsException check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
                                                                        "TestModC.jl")
 
+    # make sure ignored names don't show up in error
+    e = StaleImportsException(TestModA.SubModB.TestModA.TestModC, [(; name=:exported_c)])
+    @test_throws e check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
+                                                   "TestModC.jl",
+                                                   ignore=(:exported_d,))
+
     # ignore works:
     @test check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
                                           "TestModC.jl";
