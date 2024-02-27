@@ -98,8 +98,10 @@ js_children(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.children(js_no
 # which child are we of our parent
 function child_index(n::TreeCursor)
     p = parent(n)
-    isnothing(p) && return nothing
-    return findfirst(==(js_node(n)), js_children(p))
+    isnothing(p) && return error("No parent!")
+    index = findfirst(==(js_node(n)), js_children(p))
+    @assert !isnothing(index)
+    return index
 end
 
 parents_match(n::TreeCursor, kinds::Tuple{}) = true
