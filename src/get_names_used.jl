@@ -11,45 +11,27 @@ end
 
 function is_qualified(leaf)
     # is this name being used in a qualified context, like `X.y`?
-    # parents_match(leaf, (K"quote", K".")) || return false
-    # return child_index(parent(leaf)) == 2
-    if !isnothing(parent(leaf)) && !isnothing(parent(parent(leaf)))
-        p = nodevalue(parent(leaf)).node
-        p2 = nodevalue(parent(parent(leaf))).node
-        if kind(p) == K"quote" && kind(p2) == K"."
-            # ok but is the quote we are in the 2nd argument, not the first?
-            dot_kids = JuliaSyntax.children(p2)
-            if length(dot_kids) == 2 && dot_kids[2] == p
-                return true
-            end
-        end
-    end
-    return false
+    parents_match(leaf, (K"quote", K".")) || return false
+    return child_index(parent(leaf)) == 2
 end
 
 # figure out if `leaf` is part of an import or using statement
 # this seems to trigger for both `X` and `y` in `using X: y`, but that seems alright.
 function analyze_import_type(leaf)
-    isnothing(parent(leaf)) && return false
-    p = nodevalue(parent(leaf)).node
-    is_import = kind(p) == K"importpath"
-    if is_import && !isnothing(parent(parent(leaf)))
-        p2 = nodevalue(parent(parent(leaf))).node
-        if kind(p2) == K":"
-            kids = JuliaSyntax.children(p2)
-            if !isempty(kids)
-                if first(kids) != p
-                    # We aren't the first child, therefore we are on the RHS
-                    return :import_RHS
-                else
-                    return :import_LHS
-                end
-            end
+    is_import = parents_match(leaf, (K"importpath",))
+    is_import || return :not_import
+    is_conditional_import = parents_match(leaf, (K"importpath", K":"))
+    if is_conditional_import
+        # we are on the LHS if we are the first child
+        if child_index(parent(leaf)) == 1
+            return :import_LHS
+        else
+            return :import_RHS
         end
+    else
+        # Not part of `:` generally means it's a `using X` or `import Y` situation
+        return :blanket_import
     end
-    # Not part of `:` generally means it's a `using X` or `import Y` situation
-    is_import && return :blanket_import
-    return :not_import
 end
 
 function is_function_arg(leaf)
