@@ -1,7 +1,6 @@
 # In this file, we try to answer the question: what global bindings are being used in a particular module?
 # We will do this by parsing, then re-implementing scoping rules on top of the parse tree.
 
-
 Base.@kwdef struct FileAnalysis
     needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
                                            location::String}}
@@ -10,13 +9,14 @@ Base.@kwdef struct FileAnalysis
     untainted_modules::Set{Vector{Symbol}}
 end
 
-
 function is_qualified(leaf)
     # is this name being used in a qualified context, like `X.y`?
+    # parents_match(leaf, (K"quote", K".")) || return false
+    # return child_index(parent(leaf)) == 2
     if !isnothing(parent(leaf)) && !isnothing(parent(parent(leaf)))
         p = nodevalue(parent(leaf)).node
         p2 = nodevalue(parent(parent(leaf))).node
-        if JuliaSyntax.kind(p) == K"quote" && JuliaSyntax.kind(p2) == K"."
+        if kind(p) == K"quote" && kind(p2) == K"."
             # ok but is the quote we are in the 2nd argument, not the first?
             dot_kids = JuliaSyntax.children(p2)
             if length(dot_kids) == 2 && dot_kids[2] == p
@@ -32,10 +32,10 @@ end
 function analyze_import_type(leaf)
     isnothing(parent(leaf)) && return false
     p = nodevalue(parent(leaf)).node
-    is_import = JuliaSyntax.kind(p) == K"importpath"
+    is_import = kind(p) == K"importpath"
     if is_import && !isnothing(parent(parent(leaf)))
         p2 = nodevalue(parent(parent(leaf))).node
-        if JuliaSyntax.kind(p2) == K":"
+        if kind(p2) == K":"
             kids = JuliaSyntax.children(p2)
             if !isempty(kids)
                 if first(kids) != p
@@ -58,18 +58,18 @@ function is_function_arg(leaf)
     # or a function argument (I think)
     if parent(leaf) !== nothing
         p = nodevalue(parent(leaf)).node
-        if JuliaSyntax.kind(p) == K"call"
+        if kind(p) == K"call"
             infix = JuliaSyntax.has_flags(p, JuliaSyntax.INFIX_FLAG)
             fn_name_pos = infix ? 2 : 1
             our_pos = findfirst(==(nodevalue(leaf).node), JuliaSyntax.children(p))
             @assert our_pos !== nothing
             # We are a function arg if we're a child of `call` who is not the function name itself
             return our_pos != fn_name_pos
-        elseif JuliaSyntax.kind(p) == K"parameters"
+        elseif kind(p) == K"parameters"
             # Perhaps we are instead a keyword arg
             if parent(parent(leaf)) !== nothing
                 pp = nodevalue(parent(parent(leaf))).node
-                if JuliaSyntax.kind(pp) == K"call"
+                if kind(pp) == K"call"
                     return true
                 else
                     # This can happen in a NamedTuple or such
@@ -79,7 +79,7 @@ function is_function_arg(leaf)
                 @info "parameters has no parent" p
                 return false
             end
-        elseif JuliaSyntax.kind(p) == K"="
+        elseif kind(p) == K"="
             # perhaps we are the LHS of a positional arg that has a default
             # first, let's verify we are on the LHS of this `=`
             our_pos = findfirst(==(nodevalue(leaf).node), JuliaSyntax.children(p))
@@ -87,13 +87,13 @@ function is_function_arg(leaf)
             # now let's check if we are directly in a call - we'd be a positional arg
             if parent(parent(leaf)) !== nothing
                 pp = nodevalue(parent(parent(leaf))).node
-                if JuliaSyntax.kind(pp) == K"call"
+                if kind(pp) == K"call"
                     return true
-                elseif JuliaSyntax.kind(pp) == K"parameters"
+                elseif kind(pp) == K"parameters"
                     # Ok, we may be a kwarg. Verify next parent is a call.
                     if parent(parent(parent(leaf))) !== nothing
                         ppp = nodevalue(parent(parent(parent(leaf)))).node
-                        return JuliaSyntax.kind(ppp) == K"call"
+                        return kind(ppp) == K"call"
                     else
                         # not sure how this would happen
                         @info "parameters has no parent" pp
@@ -125,24 +125,24 @@ function analyze_name(leaf; debug=false)
         # update our state
         val = nodevalue(node).node.val
         head = nodevalue(node).node.raw.head
-        kind = JuliaSyntax.kind(head)
+        k = kind(head)
         args = nodevalue(node).node.raw.args
 
-        debug && println(val, ": ", kind)
-        if kind in (K"let", K"for", K"function")
+        debug && println(val, ": ", k)
+        if k in (K"let", K"for", K"function")
             global_scope = false
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
-        elseif idx > 3 && kind == K"=" && !isempty(args) &&
-               JuliaSyntax.kind(first(args)) == K"call"
+        elseif idx > 3 && k == K"=" && !isempty(args) &&
+               kind(first(args)) == K"call"
             global_scope = false
             push!(scope_path, nodevalue(node).node)
         end
 
         # track which modules we are in
-        if kind == K"module"
+        if k == K"module"
             ids = filter(children(nodevalue(node))) do arg
-                return JuliaSyntax.kind(arg.node) == K"Identifier"
+                return kind(arg.node) == K"Identifier"
             end
             if !isempty(ids)
                 push!(module_path, first(ids).node.val)
@@ -153,7 +153,7 @@ function analyze_name(leaf; debug=false)
         # figure out if our name (`nodevalue(leaf)`) is the LHS of an assignment
         # Note: this doesn't detect assignments to qualified variables (`X.y = rhs`)
         # but that's OK since we don't want to pick them up anyway.
-        if kind == K"="
+        if k == K"="
             kids = children(nodevalue(node))
             if !isempty(kids)
                 c = first(kids)
@@ -217,7 +217,7 @@ function analyze_all_names(file; debug=false)
         # if we don't find any identifiers in a module, I think it's OK to mark it as
         # "not-seen"? Otherwise we need to analyze every leaf, not just the identifiers
         # and that sounds slow. Seems like a very rare edge case to have no identifiers...
-        JuliaSyntax.kind(item.node) == K"Identifier" || continue
+        kind(item.node) == K"Identifier" || continue
 
         # Ok, we have a "name". We want to know if:
         # 1. it is being used in global scope

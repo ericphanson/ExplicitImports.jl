@@ -81,3 +81,32 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
     return map(n -> SyntaxNodeWrapper(n, wrapper.file, wrapper.bad_locations),
                JuliaSyntax.children(node))
 end
+
+js_node(n::SyntaxNodeWrapper) = n.node
+js_node(n::TreeCursor) = js_node(nodevalue(n))
+
+kind(n::JuliaSyntax.SyntaxNode) = JuliaSyntax.kind(n)
+kind(n::JuliaSyntax.GreenNode) = JuliaSyntax.kind(n)
+kind(n::JuliaSyntax.SyntaxHead) = JuliaSyntax.kind(n)
+kind(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.kind(js_node(n))
+
+head(n::JuliaSyntax.SyntaxNode) = JuliaSyntax.head(n)
+head(n::JuliaSyntax.GreenNode) = JuliaSyntax.head(n)
+head(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.head(js_node(n))
+js_children(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.children(js_node(n))
+
+# which child are we of our parent
+function child_index(n::TreeCursor)
+    p = parent(n)
+    isnothing(p) && return nothing
+    return findfirst(==(js_node(n)), js_children(p))
+end
+
+parents_match(n::TreeCursor, kinds::Tuple{}) = true
+function parents_match(n::TreeCursor, kinds::Tuple)
+    k = first(kinds)
+    p = parent(n)
+    isnothing(p) && return false
+    kind(p) == k || return false
+    return parents_match(p, Base.tail(kinds))
+end
