@@ -20,9 +20,13 @@ include("test_mods.jl")
 include("DynMod.jl")
 include("TestModArgs.jl")
 
-@testset "" begin
-    ret = ExplicitImports.get_names_used("TestModArgs.jl")
+@testset "TestModArgs" begin
+    # don't detect `a`!
+    statements = using_statement.(explicit_imports_nonrecursive(TestModArgs,
+                                                                "TestModArgs.jl"))
+    @test statements == ["using .Exporter4: Exporter4", "using .Exporter4: A"]
 end
+
 @testset "has_ancestor" begin
     @test has_ancestor(TestModA.SubModB, TestModA)
     @test !has_ancestor(TestModA, TestModA.SubModB)

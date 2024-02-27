@@ -330,7 +330,7 @@ end
 function get_global_names(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
     # First, throw away all qualified usages, they are irrelevant
-    # Next, if a name is only involved in an `import`, we don't care, so throw away imports as well
+    # Next, if a name is on the RHS of an import, we don't care, so throw away
     # Next, if the name is beign used at global scope, obviously it is a global
     # Otherwise, we are in local scope:
     #   1. Next, if the name is a function arg, then this is not a global name (essentially first usage is assignment)
@@ -344,7 +344,7 @@ function get_global_names(per_usage_info)
     for nt in per_usage_info
         (; nt.name, nt.scope_path) in seen && continue
         nt.qualified && continue
-        nt.import_type == :not_import || continue
+        nt.import_type == :import_RHS && continue
 
         # Ok, at this point it counts!
         push!(seen, (; nt.name, nt.scope_path))
@@ -400,7 +400,6 @@ function get_names_used(file)
     check_file(file)
     # Here we get 1 row per name per usage
     per_usage_info, untainted_modules = analyze_all_names(file)
-    # per_scope_info, explicit_imports, untainted_modules
 
     names_used_for_global_bindings = get_global_names(per_usage_info)
     explicit_imports = get_explicit_imports(per_usage_info)
