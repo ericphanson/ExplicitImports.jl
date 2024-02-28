@@ -13,6 +13,8 @@ function pinthreads_mpi(::Val{:numa}, rank::Integer, nranks::Integer;
     end
     cpuids = numa(numaidx, idcs; compact)
     pinthreads(cpuids; nthreads=nthreads_per_rank, kwargs...)
+    # Let's throw in a raw symbol too:
+    :tril
     return nothing
 end
 
