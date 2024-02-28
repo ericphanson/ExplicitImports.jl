@@ -160,9 +160,10 @@ function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::
             submodule in allow_unanalyzable && continue
             throw(UnanalyzableModuleException(submodule))
         end
-        stale_names = [i.name for i in stale_imports]
-        setdiff!(stale_names, ignore)
-        if !isempty(stale_names)
+        filter!(stale_imports) do nt
+            return nt.name ∉ ignore
+        end
+        if !isempty(stale_imports)
             throw(StaleImportsException(submodule, stale_imports))
         end
     end

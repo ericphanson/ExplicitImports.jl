@@ -1,11 +1,13 @@
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_nonrecursive, using_statement,
-                       inspect_session
+                       inspect_session, get_parent
 using Test
 using DataFrames
 using Aqua
 using Logging
+using AbstractTrees
+using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
 
 # DataFrames version of `filter_to_module`
 function restrict_to_module(df, mod)
@@ -18,12 +20,50 @@ include("Exporter.jl")
 include("TestModA.jl")
 include("test_mods.jl")
 include("DynMod.jl")
+include("TestModArgs.jl")
+include("examples.jl")
+
+@testset "TestModArgs" begin
+    # don't detect `a`!
+    statements = using_statement.(explicit_imports_nonrecursive(TestModArgs,
+                                                                "TestModArgs.jl"))
+    @test statements ==
+          ["using .Exporter4: Exporter4", "using .Exporter4: A", "using .Exporter4: Z"]
+
+    statements = using_statement.(explicit_imports_nonrecursive(ThreadPinning,
+                                                                "examples.jl"))
+
+    @test statements == ["using LinearAlgebra: LinearAlgebra"]
+end
+
+@testset "is_function_definition_arg" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("TestModArgs.jl"))
+    leaves = collect(Leaves(cursor))
+    purported_function_args = filter(is_function_definition_arg, leaves)
+    # we have 9*4  functions with one argument `a`:
+
+    # written this way to get clearer test failure messages
+    vals = unique(get_val.(purported_function_args))
+    @test vals == [:a]
+
+    @test length(purported_function_args) == 9 * 4
+    non_function_args = filter(!is_function_definition_arg, leaves)
+    missed = filter(x -> get_val(x) === :a, non_function_args)
+    @test isempty(missed)
+end
 
 @testset "has_ancestor" begin
     @test has_ancestor(TestModA.SubModB, TestModA)
     @test !has_ancestor(TestModA, TestModA.SubModB)
 
     @test should_skip(Base.Iterators; skip=(Base, Core))
+end
+
+function get_per_scope(per_usage_info)
+    per_usage_df = DataFrame(per_usage_info)
+    subset!(per_usage_df, :qualified => ByRow(!), :import_type => ByRow(==(:not_import)))
+    return combine(groupby(per_usage_df, [:name, :scope_path, :module_path, :global_scope]),
+                   :is_assignment => first => :assigned_first)
 end
 
 # TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
@@ -41,10 +81,11 @@ end
 
 @testset "ExplicitImports.jl" begin
     @test using_statement.(explicit_imports_nonrecursive(TestModA, "TestModA.jl")) ==
-          ["using .Exporter: exported_a"]
+          ["using .Exporter: Exporter", "using .Exporter: exported_a",
+           "using .Exporter2: Exporter2", "using .Exporter3: Exporter3"]
 
-    per_scope_info, imports = analyze_all_names("TestModA.jl")
-    df = DataFrame(per_scope_info)
+    per_usage_info, _ = analyze_all_names("TestModA.jl")
+    df = get_per_scope(per_usage_info)
     locals = contains.(string.(df.name), Ref("local"))
     @test all(!, df.global_scope[locals])
 
@@ -62,7 +103,8 @@ end
 
     # Test submodules
     @test using_statement.(explicit_imports_nonrecursive(TestModA.SubModB, "TestModA.jl")) ==
-          ["using .Exporter3: exported_b", "using .TestModA: f"]
+          ["using .Exporter3: Exporter3", "using .Exporter3: exported_b",
+           "using .TestModA: f"]
 
     mod_path = module_path(TestModA.SubModB)
     @test mod_path == [:SubModB, :TestModA]
@@ -75,7 +117,7 @@ end
     # Nested submodule with same name as outer module...
     @test using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA,
                                                          "TestModA.jl")) ==
-          ["using .Exporter3: exported_b"]
+          ["using .Exporter3: Exporter3", "using .Exporter3: exported_b"]
 
     # Check we are getting innermost names and not outer ones
     subsub_df = restrict_to_module(df, TestModA.SubModB.TestModA)
@@ -85,8 +127,6 @@ end
     @test_broken :f ∉ subsub_df.name
     @test_broken :func ∉ subsub_df.name
 
-    per_scope_info, imports = analyze_all_names("TestModC.jl")
-    df = DataFrame(per_scope_info)
     # starts from innermost
     @test module_path(TestModA.SubModB.TestModA.TestModC) ==
           [:TestModC, :TestModA, :SubModB, :TestModA]
@@ -108,7 +148,7 @@ end
     # because by importing it, we have the name in the file, so we used to detect it.
     @test "using .Exporter: exported_c" ∉ from_inner_file
 
-    @test from_inner_file == ["using .TestModA: f"]
+    @test from_inner_file == ["using .TestModA: TestModA", "using .TestModA: f"]
 
     # No logs when `warn_stale=false`
     @test_logs explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
@@ -220,6 +260,12 @@ end
 
     @test_throws StaleImportsException check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
                                                                        "TestModC.jl")
+
+    # make sure ignored names don't show up in error
+    e = StaleImportsException(TestModA.SubModB.TestModA.TestModC, [(; name=:exported_c)])
+    @test_throws e check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
+                                                   "TestModC.jl",
+                                                   ignore=(:exported_d,))
 
     # ignore works:
     @test check_no_stale_explicit_imports(TestModA.SubModB.TestModA.TestModC,
