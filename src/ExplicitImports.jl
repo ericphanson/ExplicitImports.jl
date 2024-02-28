@@ -55,7 +55,7 @@ end
 """
     explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true, strict=true)
 
-Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself), and the values are `NamedTuple`s, with at least the keys `name` and `source`, showing which names are being used implicitly and which modules they came from. Additional keys may be added to the `NamedTuple`'s in the future in non-breaking releases of ExplicitImports.jl.
+Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself), and the values are `NamedTuple`s, with at least the keys `name`, `source`, and `location`, showing which names are being used implicitly, which modules they came from, and the location of those usages. Additional keys may be added to the `NamedTuple`'s in the future in non-breaking releases of ExplicitImports.jl.
 
 ## Arguments
 
@@ -97,11 +97,13 @@ Runs [`explicit_imports`](@ref) and prints the results, along with those of [`st
 $SKIPS_KWARG
 * `warn_stale=true`: if set, this function will also print information about stale explicit imports.
 $STRICT_PRINTING_KWARG
+* `show_locations=false`: whether or not to print locations of where the names are being used (and, if `warn_stale=true`, where the stale explicit imports are).
 
 See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
-                                skip=(mod, Base, Core), warn_stale=true, strict=true)
+                                skip=(mod, Base, Core), warn_stale=true, strict=true,
+                                show_locations=false)
     file_analysis = get_names_used(file)
     ee = explicit_imports(mod, file; warn_stale=false, skip, strict, file_analysis)
     for (i, (mod, imports)) in enumerate(ee)
@@ -118,7 +120,12 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
             println(io)
             println(io, "```julia")
             for nt in imports
-                println(io, using_statement(nt))
+                if show_locations
+                    proof = " # used at $(nt.location)"
+                else
+                    proof = ""
+                end
+                println(io, using_statement(nt), proof)
             end
             println(io, "```")
         end
@@ -129,18 +136,23 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 println(io)
                 println(io,
                         "$word, $mod has stale explicit imports for these unused names:")
-                for (; name) in stale
-                    println(io, "- $name")
+                for (; name, location) in stale
+                    if show_locations
+                        proof = " (imported at $(location))"
+                    else
+                        proof = ""
+                    end
+                    println(io, "- $name", proof)
                 end
             end
         end
     end
 end
 
-function using_statement((k, v_mod))
+function using_statement((; name, source))
     # skip `Main.X`, just do `.X`
-    v = replace(string(v_mod), "Main" => "")
-    return "using $v: $k"
+    v = replace(string(source), "Main" => "")
+    return "using $v: $name"
 end
 
 function is_prefix(x, y)
@@ -181,7 +193,10 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
         return true
     end
 
-    to_make_explicit = [(; name=k, source=v) for (k, v) in all_implicit_imports]
+    location_lookup = Dict(nt.name => nt.location for nt in needs_explicit_import)
+
+    to_make_explicit = [(; name=k, source=v, location=location_lookup[k])
+                        for (k, v) in all_implicit_imports]
 
     function lt((k1, v1), (k2, v2))
         p1 = reverse(module_path(v1))
@@ -215,13 +230,14 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
 end
 
 """
-    print_stale_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); strict=true)
+    print_stale_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); strict=true, show_locations=false)
 
 Runs [`stale_explicit_imports`](@ref) and prints the results.
 
 ## Keyword arguments
 
 $STRICT_PRINTING_KWARG
+* `show_locations=false`: whether or not to print where the explicit imports were made. If the same name was explicitly imported more than once, it will only show one such import.
 
 See also [`print_explicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
@@ -230,7 +246,8 @@ print_stale_explicit_imports
 function print_stale_explicit_imports(mod::Module, file=pathof(mod); kw...)
     return print_stale_explicit_imports(stdout, mod, file; kw...)
 end
-function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); strict=true)
+function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); strict=true,
+                                      show_locations=false)
     check_file(file)
     for (i, (mod, stale_imports)) in enumerate(stale_explicit_imports(mod, file; strict))
         i == 1 || println(io)
@@ -242,8 +259,13 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
         else
             println(io,
                     "Module $mod has stale explicit imports for these unused names:")
-            for name in stale_imports
-                println(io, "- $name")
+            for (; name, location) in stale_imports
+                if show_locations
+                    proof = " (imported at $(location))"
+                else
+                    proof = ""
+                end
+                println(io, "- $name", proof)
             end
         end
     end
@@ -252,7 +274,7 @@ end
 """
     stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
 
-Returns a collection of pairs, where the keys are submodules of `mod` (including `mod` itself), and the values are either `nothing` if `strict=true` and the module couldn't analyzed, or else a vector of `NamedTuple`s with at least the keys `name`, consisting of names that are explicitly imported in that submodule, but which either are not used, or are only used in a qualified fashion, making the explicit import a priori unnecessary.
+Returns a collection of pairs, where the keys are submodules of `mod` (including `mod` itself), and the values are either `nothing` if `strict=true` and the module couldn't analyzed, or else a vector of `NamedTuple`s with at least the keys `name` and `location`, consisting of names that are explicitly imported in that submodule, but which either are not used, or are only used in a qualified fashion, making the explicit import a priori unnecessary.
 
 More keys may be added to the NamedTuples in the future in non-breaking releases of ExplicitImports.jl.
 
@@ -283,7 +305,7 @@ end
 
 A non-recursive version of [`stale_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules.
 
-If `mod` was unanalyzable and `strict=true`, returns `nothing`. Otherwise, returns a collection of `NamedTuple`'s, with at least the key `name`, corresponding to the names of stale explicit imports. More keys may be added in the future in non-breaking releases of ExplicitImports.jl.
+If `mod` was unanalyzable and `strict=true`, returns `nothing`. Otherwise, returns a collection of `NamedTuple`'s, with at least the keys `name` and `location`, corresponding to the names of stale explicit imports. More keys may be added in the future in non-breaking releases of ExplicitImports.jl.
 
 ## Keyword arguments
 
@@ -298,7 +320,8 @@ function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     check_file(file)
     (; unnecessary_explicit_import, tainted) = filter_to_module(file_analysis, mod)
     tainted && strict && return nothing
-    return unique!(sort!([(; nt.name) for nt in unnecessary_explicit_import]))
+    ret = [(; nt.name, nt.location) for nt in unnecessary_explicit_import]
+    return unique!(nt -> nt.name, sort!(ret))
 end
 
 function has_ancestor(query, target)

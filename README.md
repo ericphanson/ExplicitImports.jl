@@ -57,6 +57,26 @@ using JuliaSyntax: JuliaSyntax
 
 Note: the `WARNING` is more or less harmless; the way this package is written, it will happen any time there is a clash, even if that clash is not realized in your code. I cannot figure out how to suppress it.
 
+You can also pass `show_locations=true` for more details:
+
+````julia
+julia> print_explicit_imports(ExplicitImports; show_locations=true)
+Module ExplicitImports is relying on implicit imports for 6 names. These could be explicitly imported as follows:
+
+```julia
+using AbstractTrees: AbstractTrees # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:51:10
+using AbstractTrees: Leaves # used at /Users/eph/ExplicitImports/src/get_names_used.jl:225:17
+using AbstractTrees: TreeCursor # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:107:18
+using AbstractTrees: children # used at /Users/eph/ExplicitImports/src/get_names_used.jl:161:26
+using AbstractTrees: nodevalue # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:96:34
+using JuliaSyntax: JuliaSyntax # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:103:15
+```
+````
+
+Note the paths of course will differ depending on the location of the code on your system.
+
+This can be handy for debugging; if you find that in fact ExplicitImports thinks a local variable is a global from another module, please file an issue and include the code snippet!
+
 ## Limitations
 
 ### Some tricky scoping situations are not handled correctly
