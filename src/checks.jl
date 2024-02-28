@@ -1,6 +1,6 @@
 struct ImplicitImportsException <: Exception
     mod::Module
-    names::Vector{@NamedTuple{name::Symbol,source::Module}}
+    names::Vector{@NamedTuple{name::Symbol,source::Module,location::String}}
 end
 
 function Base.showerror(io::IO, e::ImplicitImportsException)
@@ -13,7 +13,7 @@ end
 
 struct StaleImportsException <: Exception
     mod::Module
-    names::Vector{@NamedTuple{name::Symbol}}
+    names::Vector{@NamedTuple{name::Symbol,location::String}}
 end
 
 function Base.showerror(io::IO, e::StaleImportsException)
