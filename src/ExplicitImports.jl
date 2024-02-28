@@ -97,11 +97,13 @@ Runs [`explicit_imports`](@ref) and prints the results, along with those of [`st
 $SKIPS_KWARG
 * `warn_stale=true`: if set, this function will also print information about stale explicit imports.
 $STRICT_PRINTING_KWARG
+* `show_locations=false`: whether or not to print locations of where the names are being used (and, if `warn_stale=true`, where the stale explicit imports are).
 
 See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
-                                skip=(mod, Base, Core), warn_stale=true, strict=true)
+                                skip=(mod, Base, Core), warn_stale=true, strict=true,
+                                show_locations=false)
     file_analysis = get_names_used(file)
     ee = explicit_imports(mod, file; warn_stale=false, skip, strict, file_analysis)
     for (i, (mod, imports)) in enumerate(ee)
@@ -118,7 +120,12 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
             println(io)
             println(io, "```julia")
             for nt in imports
-                println(io, using_statement(nt))
+                if show_locations
+                    proof = " # used at $(nt.location)"
+                else
+                    proof = ""
+                end
+                println(io, using_statement(nt), proof)
             end
             println(io, "```")
         end
@@ -129,8 +136,13 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 println(io)
                 println(io,
                         "$word, $mod has stale explicit imports for these unused names:")
-                for (; name) in stale
-                    println(io, "- $name")
+                for (; name, location) in stale
+                    if show_locations
+                        proof = " (imported at $(location))"
+                    else
+                        proof = ""
+                    end
+                    println(io, "- $name", proof)
                 end
             end
         end
@@ -218,13 +230,14 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
 end
 
 """
-    print_stale_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); strict=true)
+    print_stale_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); strict=true, show_locations=false)
 
 Runs [`stale_explicit_imports`](@ref) and prints the results.
 
 ## Keyword arguments
 
 $STRICT_PRINTING_KWARG
+* `show_locations=false`: whether or not to print where the explicit imports were made. If the same name was explicitly imported more than once, it will only show one such import.
 
 See also [`print_explicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
@@ -233,7 +246,8 @@ print_stale_explicit_imports
 function print_stale_explicit_imports(mod::Module, file=pathof(mod); kw...)
     return print_stale_explicit_imports(stdout, mod, file; kw...)
 end
-function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); strict=true)
+function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); strict=true,
+                                      show_locations=false)
     check_file(file)
     for (i, (mod, stale_imports)) in enumerate(stale_explicit_imports(mod, file; strict))
         i == 1 || println(io)
@@ -245,8 +259,13 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
         else
             println(io,
                     "Module $mod has stale explicit imports for these unused names:")
-            for name in stale_imports
-                println(io, "- $name")
+            for (; name, location) in stale_imports
+                if show_locations
+                    proof = " (imported at $(location))"
+                else
+                    proof = ""
+                end
+                println(io, "- $name", proof)
             end
         end
     end

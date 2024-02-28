@@ -203,6 +203,12 @@ end
     @test contains(str,
                    "However, Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
 
+    # test `show_locations=true`
+    str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
+                                                         show_locations=true))
+    @test contains(str, "using .Exporter3: Exporter3 # used at TestModA.jl:")
+    @test contains(str, "(imported at TestModC.jl:")
+
     # `warn_stale=false` does something (also still no logs)
     str_no_warn = @test_logs sprint(io -> print_explicit_imports(io, TestModA,
                                                                  "TestModA.jl";
