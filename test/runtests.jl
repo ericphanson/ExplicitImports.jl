@@ -1,13 +1,13 @@
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_nonrecursive, using_statement,
-                       inspect_session
+                       inspect_session, get_parent
 using Test
 using DataFrames
 using Aqua
 using Logging
 using AbstractTrees
-using ExplicitImports: is_function_arg, SyntaxNodeWrapper, get_val
+using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
 
 # DataFrames version of `filter_to_module`
 function restrict_to_module(df, mod)
@@ -27,26 +27,29 @@ include("examples.jl")
     # don't detect `a`!
     statements = using_statement.(explicit_imports_nonrecursive(TestModArgs,
                                                                 "TestModArgs.jl"))
-    @test statements == ["using .Exporter4: Exporter4", "using .Exporter4: A"]
+    @test statements ==
+          ["using .Exporter4: Exporter4", "using .Exporter4: A", "using .Exporter4: Z"]
 
     statements = using_statement.(explicit_imports_nonrecursive(ThreadPinning,
                                                                 "examples.jl"))
 
-    # TODO... handle type parameters in function args!
-    @test_broken statements == ["using LinearAlgebra: LinearAlgebra"]
+    @test statements == ["using LinearAlgebra: LinearAlgebra"]
 end
 
-@testset "is_function_arg" begin
+@testset "is_function_definition_arg" begin
     cursor = TreeCursor(SyntaxNodeWrapper("TestModArgs.jl"))
     leaves = collect(Leaves(cursor))
-    purported_function_args = filter(is_function_arg, leaves)
-    # we have 6*4 = 24 functions with one argument `a`:
+    purported_function_args = filter(is_function_definition_arg, leaves)
+    # we have 9*4  functions with one argument `a`:
 
     # written this way to get clearer test failure messages
     vals = unique(get_val.(purported_function_args))
     @test vals == [:a]
 
-    @test length(purported_function_args) == 24
+    @test length(purported_function_args) == 9 * 4
+    non_function_args = filter(!is_function_definition_arg, leaves)
+    missed = filter(x -> get_val(x) === :a, non_function_args)
+    @test isempty(missed)
 end
 
 @testset "has_ancestor" begin

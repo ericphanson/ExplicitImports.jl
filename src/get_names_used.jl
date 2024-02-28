@@ -35,45 +35,92 @@ function analyze_import_type(leaf)
     end
 end
 
-# check if `leaf` is a function argument (or kwarg), but not a default value etc
-# We want to distinguish from function *calls* in default args and things like that
-# Those can be arbitrarily nested!
-# What we need to do is identify the top-most function signature we are a part of
-# and then figure out if that one is a definition or not.
-# The following is only capable of finding out if a node is a variable
-# being function-called, but not if that call is a definition
-function is_function_arg(leaf)
-    if get_val(leaf) == :A
-        t = js_node(parent(parent(parent(parent(leaf)))))
-        @show t
+function is_function_definition_arg(leaf)
+    return is_anonymous_function_definition_arg(leaf) ||
+           is_non_anonymous_function_definition_arg(leaf)
+end
+
+function is_anonymous_function_definition_arg(leaf)
+    if parents_match(leaf, (K"->",))
+        # lhs of a `->`
+        return child_index(leaf) == 1
+    elseif parents_match(leaf, (K"tuple", K"->"))
+        # lhs of a multi-argument `->`
+        return child_index(parent(leaf)) == 1
+    elseif parents_match(leaf, (K"parameters", K"tuple", K"->"))
+        return child_index(get_parent(leaf, 2)) == 1
+    elseif parents_match(leaf, (K"function", K"="))
+        # `function` is RHS of `=`
+        return child_index(parent(leaf)) == 2
+    elseif parents_match(leaf, (K"tuple", K"function", K"="))
+        # `function` is RHS of `=`
+        return child_index(get_parent(leaf, 2)) == 2
+    elseif parents_match(leaf, (K"parameters", K"tuple", K"function", K"="))
+        # `function` is RHS of `=`
+        return child_index(get_parent(leaf, 3)) == 2
+    elseif parents_match(leaf, (K"::",))
+        # we must be on the LHS, otherwise we're a type
+        child_index(leaf) == 1 || return false
+        # Ok, let's just step up one level and see again
+        return is_anonymous_function_definition_arg(parent(leaf))
+    elseif parents_match(leaf, (K"=",))
+        # we must be on the LHS, otherwise we're a default value
+        child_index(leaf) == 1 || return false
+        # Ok, let's just step up one level and see again
+        return is_anonymous_function_definition_arg(parent(leaf))
+    else
+        return false
     end
-    if parents_match(leaf, (K"call",))
-        infix = has_flags(parent(leaf), JuliaSyntax.INFIX_FLAG)
-        fn_name_pos = infix ? 2 : 1
+end
+
+# given a `call`-kind node, is it a function invocation or a function definition?
+function call_is_func_def(node)
+    kind(node) == K"call" || error("Not a call")
+    p = parent(node)
+    p === nothing && return false
+    kind(p) == K"function" && return true
+    if kind(p) == K"="
+        # call should be the first arg in an inline function def
+        return child_index(node) == 1
+    end
+    return false
+end
+
+# check if `leaf` is a function argument (or kwarg), but not a default value etc,
+# which is part of a function definition (not just any function call)
+function is_non_anonymous_function_definition_arg(leaf)
+    # a call who is a child of `function` or `=` is a function def
+    # (I think!)
+    if parents_match(leaf, (K"call",)) && call_is_func_def(parent(leaf))
         # We are a function arg if we're a child of `call` who is not the function name itself
-        return child_index(leaf) != fn_name_pos
-    elseif parents_match(leaf, (K"parameters", K"call"))
+        return child_index(leaf) != 1
+    elseif parents_match(leaf, (K"parameters", K"call")) &&
+           call_is_func_def(get_parent(leaf, 2))
         # we're a kwarg without default value in a call
         return true
     elseif parents_match(leaf, (K"=",))
         # we must be on the LHS, otherwise we aren't a function arg
         child_index(leaf) == 1 || return false
+        # Ok, let's just step up one level and see again
+        return is_non_anonymous_function_definition_arg(parent(leaf))
+
         # Ok, let's check if we're in a function at all
-        if parents_match(leaf, (K"=", K"call"))
-            # yep, we must be a positional arg w/ default value
-            return true
-        elseif parents_match(leaf, (K"=", K"parameters", K"call"))
-            # yep, we must be a kwarg w/ default value
-            return true
-        else
-            # Nope, we're on the LHS of an `=` but not a function arg
-            return false
-        end
+        # if parents_match(leaf, (K"=", K"call")) && call_is_func_def(get_parent(leaf, 2))
+        #     # yep, we must be a positional arg w/ default value
+        #     return true
+        # elseif parents_match(leaf, (K"=", K"parameters", K"call")) &&
+        #        call_is_func_def(get_parent(leaf, 3))
+        #     # yep, we must be a kwarg w/ default value
+        #     return true
+        # else
+        #     # Nope, we're on the LHS of an `=` but not a function arg
+        #     return false
+        # end
     elseif parents_match(leaf, (K"::",))
         # we must be on the LHS, otherwise we're a type
         child_index(leaf) == 1 || return false
         # Ok, let's just step up one level and see again
-        return is_function_arg(parent(leaf))
+        return is_non_anonymous_function_definition_arg(parent(leaf))
     else
         return false
     end
@@ -84,7 +131,7 @@ end
 # TODO- cleanup with parsing utilities (?)
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
-    function_arg = is_function_arg(leaf)
+    function_arg = is_function_definition_arg(leaf)
     global_scope = !function_arg
     module_path = Symbol[]
     scope_path = JuliaSyntax.SyntaxNode[]

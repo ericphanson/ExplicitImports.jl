@@ -120,11 +120,27 @@ function child_index(n::TreeCursor)
     return index
 end
 
+struct Or{T<:Tuple}
+    args::T
+end
+Or(args...) = Or(args)
+
+kind_match(k1::JuliaSyntax.Kind, k2::JuliaSyntax.Kind) = k1 == k2
+kind_match(k1::JuliaSyntax.Kind, or::Or) = any(k2 -> kind_match(k1, k2), or.args)
+
 parents_match(n::TreeCursor, kinds::Tuple{}) = true
 function parents_match(n::TreeCursor, kinds::Tuple)
     k = first(kinds)
     p = parent(n)
     isnothing(p) && return false
-    kind(p) == k || return false
+    kind_match(kind(p), k) || return false
     return parents_match(p, Base.tail(kinds))
+end
+
+function get_parent(n, i=1)
+    for _ in i:-1:1
+        n = parent(n)
+        n === nothing && error("No parent")
+    end
+    return n
 end
