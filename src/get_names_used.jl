@@ -223,8 +223,7 @@ function analyze_all_names(file; debug=false)
     tainted_modules = Set{Vector{Symbol}}()
 
     for leaf in Leaves(cursor)
-        item = nodevalue(leaf)
-        if item isa SkippedFile
+        if nodevalue(leaf) isa SkippedFile
             # we start from the parent
             mod_path = analyze_name(parent(leaf); debug).module_path
             push!(tainted_modules, mod_path)
@@ -234,7 +233,12 @@ function analyze_all_names(file; debug=false)
         # if we don't find any identifiers in a module, I think it's OK to mark it as
         # "not-seen"? Otherwise we need to analyze every leaf, not just the identifiers
         # and that sounds slow. Seems like a very rare edge case to have no identifiers...
-        kind(item.node) == K"Identifier" || continue
+        kind(leaf) == K"Identifier" || continue
+
+        # Skip quoted identifiers
+        # This won't necessarily catch if they are part of a big quoted block,
+        # but it will at least catch symbols
+        parents_match(leaf, (K"quote",)) && continue
 
         # Ok, we have a "name". We want to know if:
         # 1. it is being used in global scope
@@ -246,7 +250,7 @@ function analyze_all_names(file; debug=false)
         debug && println("-"^80)
         location = location_str(nodevalue(leaf))
         debug && println("Leaf position: $(location)")
-        name = nodevalue(leaf).node.val
+        name = get_val(leaf)
         debug && println("Leaf name: ", name)
         qualified = is_qualified(leaf)
         import_type = analyze_import_type(leaf)
