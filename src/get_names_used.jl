@@ -190,11 +190,10 @@ end
 """
     analyze_all_names(file)
 
-Returns a tuple of three items:
+Returns a tuple of two items:
 
-* a table with one row per name per scope, with information about whether or not it is within global scope, what modules it is in, and whether or not it was assigned before ever being used in that scope.
-* a table with one row per name per module path, consisting of names that have been explicitly imported in that module.
-* a set of "untainted" module paths, which were analyzed and no `include`s were skipped
+* `per_usage_info`: a table containing information about each name each time it was used
+* `untainted_modules`: a set containing modules found and analyzed successfully
 """
 function analyze_all_names(file; debug=false)
     # we don't use `try_parse_wrapper` here, since there's no recovery possible
