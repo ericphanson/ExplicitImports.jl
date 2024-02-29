@@ -5,7 +5,7 @@ CurrentModule = ExplicitImports
 ```@eval
 using ExplicitImports, Markdown
 contents = read(joinpath(pkgdir(ExplicitImports), "README.md"), String)
-contents = replace(contents, "[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://ericphanson.github.io/ExplicitImports.jl/dev/)" => "")
+contents = replace(contents, "[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ericphanson.github.io/ExplicitImports.jl/stable/)" => "")
 Markdown.parse(contents)
 ```
 
