@@ -373,6 +373,10 @@ function filter_to_module(file_analysis::FileAnalysis, mod::Module)
     return (; needs_explicit_import, unnecessary_explicit_import, tainted)
 end
 
+if VERSION < v"1.9-"
+    getglobal(mod, name) = getfield(mod, name)
+end
+
 # recurse through to find all submodules of `mod`
 function _find_submodules(mod)
     sub_modules = Set{Module}([mod])
@@ -381,8 +385,12 @@ function _find_submodules(mod)
         is_submodule = try
             value = getglobal(mod, name)
             value isa Module && parentmodule(value) == mod
-        catch
-            false
+        catch e
+            if e isa UndefVarError
+                false
+            else
+                rethrow()
+            end
         end
         if is_submodule
             submod = getglobal(mod, name)
