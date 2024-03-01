@@ -1,3 +1,6 @@
+using Pkg
+Pkg.develop(; path=joinpath(@__DIR__, "TestPkg"))
+Pkg.precompile()
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_nonrecursive, using_statement,
@@ -8,6 +11,7 @@ using Aqua
 using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
+using TestPkg
 
 # DataFrames version of `filter_to_module`
 function restrict_to_module(df, mod)
@@ -32,6 +36,20 @@ include("test_mods.jl")
 include("DynMod.jl")
 include("TestModArgs.jl")
 include("examples.jl")
+
+# package extension support needs Julia 1.9+
+if VERSION > v"1.9-"
+    @testset "Extensions" begin
+        submods = ExplicitImports.find_submodules(TestPkg)
+        @test length(submods) == 2
+        DataFramesExt = Base.get_extension(TestPkg, :DataFramesExt)
+        @test haskey(Dict(submods), DataFramesExt)
+
+        ext_imports = Dict(drop_location(explicit_imports(TestPkg)))[DataFramesExt]
+        @test ext_imports == [(; name=:DataFrames, source=DataFrames),
+                              (; name=:DataFrame, source=DataFrames)]
+    end
+end
 
 @testset "TestModArgs" begin
     # don't detect `a`!
