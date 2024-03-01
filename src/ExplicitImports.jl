@@ -71,6 +71,26 @@ $SKIPS_KWARG
 $WARN_STALE_KWARG
 $STRICT_KWARG
 
+!!! note
+
+    If `mod` is a package, we can detect the explicit_imports in the package extensions if those extensions are explicitly loaded before calling this function.
+
+    For example, consider `PackageA` has a weak-dependency on `PackageB` and `PackageC` in the module `PkgBPkgCExt`
+
+    ```julia-repl
+    julia> using ExplicitImports, PackageA
+
+    julia> explicit_imports(PackageA) # Only checks for explicit imports in PackageA and its submodules but not in `PkgBPkgCExt`
+    ```
+
+    To check for explicit imports in `PkgBPkgCExt`, you can do the following:
+
+    ```julia-repl
+    julia> using ExplicitImports, PackageA, PackageB, PackageC
+
+    julia> explicit_imports(PackageA) # Now checks for explicit imports in PackageA and its submodules and also in `PkgBPkgCExt`
+    ```
+
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_no_implicit_imports`](@ref) for a version that throws errors, for regression testing.
 """
 function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
