@@ -96,12 +96,17 @@ See also [`print_explicit_imports`](@ref) to easily compute and print these resu
 function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                           warn_stale=true, strict=true,
                           # private undocumented kwarg for hoisting this analysis
-                          file_analysis=get_names_used(file))
+                          file_analysis=Dict())
     check_file(file)
     submodules = find_submodules(mod)
-    return [submodule => explicit_imports_nonrecursive(submodule, file; skip, warn_stale,
-                                                       file_analysis, strict)
-            for submodule in submodules]
+    files = unique(last.(submodules))
+    for _file in files
+        haskey(file_analysis, _file) || (file_analysis[_file] = get_names_used(_file))
+    end
+    return [submodule => explicit_imports_nonrecursive(submodule, path; skip, warn_stale,
+                                                       file_analysis=file_analysis[path],
+                                                       strict)
+            for (submodule, path) in submodules]
 end
 
 function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
@@ -125,7 +130,7 @@ See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_impor
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core), warn_stale=true, strict=true,
                                 show_locations=false)
-    file_analysis = get_names_used(file)
+    file_analysis = Dict{String,FileAnalysis}()
     ee = explicit_imports(mod, file; warn_stale=false, skip, strict, file_analysis)
     for (i, (mod, imports)) in enumerate(ee)
         i == 1 || println(io)
@@ -151,7 +156,8 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
             println(io, "```")
         end
         if warn_stale
-            stale = stale_explicit_imports_nonrecursive(mod, file; strict, file_analysis)
+            stale = stale_explicit_imports_nonrecursive(mod, file; strict,
+                                                        file_analysis=file_analysis[file])
             if !isnothing(stale) && !isempty(stale)
                 word = isempty(imports) ? "However" : "Additionally"
                 println(io)
@@ -315,10 +321,12 @@ See also [`print_explicit_imports`](@ref) which prints this information.
 function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
     check_file(file)
     submodules = find_submodules(mod)
-    file_analysis = get_names_used(file) # only do this once
-    return [submodule => stale_explicit_imports_nonrecursive(submodule, file; file_analysis,
+    files = unique(last.(submodules))
+    file_analysis = Dict(file => get_names_used(file) for file in files) # only do this once
+    return [submodule => stale_explicit_imports_nonrecursive(submodule, path;
+                                                             file_analysis=file_analysis[path],
                                                              strict)
-            for submodule in submodules]
+            for (submodule, path) in submodules]
 end
 
 """
@@ -435,8 +443,16 @@ function _find_submodules(mod)
 end
 
 function find_submodules(mod::Module)
-    return sort!(collect(_find_submodules(mod)); by=reverse ∘ module_path,
-                 lt=is_prefix)
+    submodules = sort!(collect(_find_submodules(mod)); by=reverse ∘ module_path,
+                       lt=is_prefix)
+    paths = find_submodule_path.((mod,), submodules)
+    return [submod => path for (submod, path) in zip(submodules, paths)]
+end
+
+function find_submodule_path(mod, submodule)
+    path = pathof(submodule)
+    path === nothing && return pathof(mod)
+    return path
 end
 
 inspect_session(; kw...) = inspect_session(stdout; kw...)
