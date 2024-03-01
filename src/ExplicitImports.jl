@@ -386,8 +386,11 @@ function _find_submodules(mod)
             value = getglobal(mod, name)
             value isa Module && parentmodule(value) == mod
         catch e
-            e isa UndefVarError && return false
-            rethrow()
+            if e isa UndefVarError
+                false
+            else
+                rethrow()
+            end
         end
         if is_submodule
             submod = getglobal(mod, name)
