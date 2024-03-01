@@ -2,6 +2,7 @@ module ExplicitImports
 
 using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
+using TOML: parsefile
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
@@ -388,6 +389,25 @@ function _find_submodules(mod)
             submod = getglobal(mod, name)
             if submod ∉ sub_modules
                 union!(sub_modules, _find_submodules(submod))
+            end
+        end
+    end
+    pathof(mod) === nothing && return sub_modules
+    # Add extensions to the set of submodules if present
+    project_file = nothing
+    for pfile in
+        joinpath.((dirname(pathof(mod)),), ("..",), ("Project.toml", "JuliaProject.toml"))
+        isfile(pfile) && (project_file = pfile; break)
+    end
+    project_file === nothing && return sub_modules
+    project_toml = parsefile(project_file)
+    if haskey(project_toml, "extensions")
+        extensions = project_toml["extensions"]
+        for ext in keys(extensions)
+            ext_mod = Base.get_extension(mod, Symbol(ext))
+            ext_mod === nothing && continue
+            if ext_mod ∉ sub_modules
+                union!(sub_modules, _find_submodules(ext_mod))
             end
         end
     end
