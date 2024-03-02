@@ -417,6 +417,9 @@ function _find_submodules(mod)
             end
         end
     end
+    # pre-1.9, there are not package extensions
+    VERSION < v"1.9-" && return sub_modules
+    
     # Add extensions to the set of submodules if present
     project_file = get_project_file(mod)
     project_file === nothing && return sub_modules
