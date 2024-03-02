@@ -229,10 +229,10 @@ function analyze_all_names(file; debug=false)
             continue
         end
 
-        # if we don't find any identifiers in a module, I think it's OK to mark it as
+        # if we don't find any identifiers (or macro names) in a module, I think it's OK to mark it as
         # "not-seen"? Otherwise we need to analyze every leaf, not just the identifiers
         # and that sounds slow. Seems like a very rare edge case to have no identifiers...
-        kind(leaf) == K"Identifier" || continue
+        kind(leaf) in (K"Identifier", K"MacroName") || continue
 
         # Skip quoted identifiers
         # This won't necessarily catch if they are part of a big quoted block,
