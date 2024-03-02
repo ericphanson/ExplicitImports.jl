@@ -6,6 +6,7 @@ version = "1.1.0"
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
 AbstractTrees = "0.4.5"
@@ -14,6 +15,8 @@ DataFrames = "1.6"
 JuliaSyntax = "0.4.8"
 LinearAlgebra = "<0.0.1, 1"
 Logging = "<0.0.1, 1"
+Pkg = "<0.0.1, 1"
+TOML = "<0.0.1, 1"
 Test = "<0.0.1, 1"
 julia = "1.7"
 
@@ -22,7 +25,8 @@ Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "DataFrames", "LinearAlgebra", "Logging", "Test"]
+test = ["Aqua", "DataFrames", "LinearAlgebra", "Logging", "Pkg", "Test"]

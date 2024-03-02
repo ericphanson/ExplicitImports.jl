@@ -2,6 +2,7 @@ module ExplicitImports
 
 using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
+using TOML: parsefile
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
@@ -70,17 +71,39 @@ $SKIPS_KWARG
 $WARN_STALE_KWARG
 $STRICT_KWARG
 
+!!! note
+
+    If `mod` is a package, we can detect the explicit_imports in the package extensions if those extensions are explicitly loaded before calling this function.
+
+    For example, consider `PackageA` has a weak-dependency on `PackageB` and `PackageC` in the module `PkgBPkgCExt`
+
+    ```julia-repl
+    julia> using ExplicitImports, PackageA
+
+    julia> explicit_imports(PackageA) # Only checks for explicit imports in PackageA and its submodules but not in `PkgBPkgCExt`
+    ```
+
+    To check for explicit imports in `PkgBPkgCExt`, you can do the following:
+
+    ```julia-repl
+    julia> using ExplicitImports, PackageA, PackageB, PackageC
+
+    julia> explicit_imports(PackageA) # Now checks for explicit imports in PackageA and its submodules and also in `PkgBPkgCExt`
+    ```
+
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_no_implicit_imports`](@ref) for a version that throws errors, for regression testing.
 """
 function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                           warn_stale=true, strict=true,
                           # private undocumented kwarg for hoisting this analysis
-                          file_analysis=get_names_used(file))
+                          file_analysis=Dict())
     check_file(file)
-    submodules = find_submodules(mod)
-    return [submodule => explicit_imports_nonrecursive(submodule, file; skip, warn_stale,
-                                                       file_analysis, strict)
-            for submodule in submodules]
+    submodules = find_submodules(mod, file)
+    fill_cache!(file_analysis, last.(submodules))
+    return [submodule => explicit_imports_nonrecursive(submodule, path; skip, warn_stale,
+                                                       file_analysis=file_analysis[path],
+                                                       strict)
+            for (submodule, path) in submodules]
 end
 
 function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
@@ -104,7 +127,7 @@ See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_impor
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core), warn_stale=true, strict=true,
                                 show_locations=false)
-    file_analysis = get_names_used(file)
+    file_analysis = Dict{String,FileAnalysis}()
     ee = explicit_imports(mod, file; warn_stale=false, skip, strict, file_analysis)
     for (i, (mod, imports)) in enumerate(ee)
         i == 1 || println(io)
@@ -130,7 +153,8 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
             println(io, "```")
         end
         if warn_stale
-            stale = stale_explicit_imports_nonrecursive(mod, file; strict, file_analysis)
+            stale = stale_explicit_imports_nonrecursive(mod, file; strict,
+                                                        file_analysis=file_analysis[file])
             if !isnothing(stale) && !isempty(stale)
                 word = isempty(imports) ? "However" : "Additionally"
                 println(io)
@@ -293,11 +317,13 @@ See also [`print_explicit_imports`](@ref) which prints this information.
 """
 function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
     check_file(file)
-    submodules = find_submodules(mod)
-    file_analysis = get_names_used(file) # only do this once
-    return [submodule => stale_explicit_imports_nonrecursive(submodule, file; file_analysis,
+    submodules = find_submodules(mod, file)
+    file_analysis = Dict{String,FileAnalysis}()
+    fill_cache!(file_analysis, last.(submodules))
+    return [submodule => stale_explicit_imports_nonrecursive(submodule, path;
+                                                             file_analysis=file_analysis[path],
                                                              strict)
-            for submodule in submodules]
+            for (submodule, path) in submodules]
 end
 
 """
@@ -399,12 +425,55 @@ function _find_submodules(mod)
             end
         end
     end
+    # pre-1.9, there are not package extensions
+    VERSION < v"1.9-" && return sub_modules
+
+    # Add extensions to the set of submodules if present
+    project_file = get_project_file(mod)
+    project_file === nothing && return sub_modules
+    project_toml = parsefile(project_file)
+    if haskey(project_toml, "extensions")
+        extensions = project_toml["extensions"]
+        for ext in keys(extensions)
+            ext_mod = Base.get_extension(mod, Symbol(ext))
+            ext_mod === nothing && continue
+            if ext_mod ∉ sub_modules
+                union!(sub_modules, _find_submodules(ext_mod))
+            end
+        end
+    end
     return sub_modules
 end
 
-function find_submodules(mod::Module)
-    return sort!(collect(_find_submodules(mod)); by=reverse ∘ module_path,
-                 lt=is_prefix)
+function get_project_file(mod)
+    pkgdir(mod) === nothing && return nothing
+    for filename in ("Project.toml", "JuliaProject.toml")
+        pfile = joinpath(pkgdir(mod), filename)
+        isfile(pfile) && return pfile
+    end
+    return nothing
+end
+
+function find_submodules(mod::Module, file=pathof(mod))
+    submodules = sort!(collect(_find_submodules(mod)); by=reverse ∘ module_path,
+                       lt=is_prefix)
+    paths = find_submodule_path.((file,), submodules)
+    return [submod => path for (submod, path) in zip(submodules, paths)]
+end
+
+function find_submodule_path(file, submodule)
+    path = pathof(submodule)
+    path === nothing && return file
+    return path
+end
+
+function fill_cache!(file_analysis::Dict, files)
+    for _file in files
+        if !haskey(file_analysis, _file)
+            file_analysis[_file] = get_names_used(_file)
+        end
+    end
+    return file_analysis
 end
 
 inspect_session(; kw...) = inspect_session(stdout; kw...)

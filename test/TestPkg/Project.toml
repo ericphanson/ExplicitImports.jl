@@ -1,0 +1,10 @@
+name = "TestPkg"
+uuid = "2546e945-adb7-4322-82ee-f75412f38725"
+authors = ["Eric Hanson <5846501+ericphanson@users.noreply.github.com>"]
+version = "0.1.0"
+
+[weakdeps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+
+[extensions]
+DataFramesExt = "DataFrames"
