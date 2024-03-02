@@ -98,7 +98,7 @@ function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                           # private undocumented kwarg for hoisting this analysis
                           file_analysis=Dict())
     check_file(file)
-    submodules = find_submodules(mod)
+    submodules = find_submodules(mod, file)
     files = unique(last.(submodules))
     for _file in files
         haskey(file_analysis, _file) || (file_analysis[_file] = get_names_used(_file))
@@ -320,7 +320,7 @@ See also [`print_explicit_imports`](@ref) which prints this information.
 """
 function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
     check_file(file)
-    submodules = find_submodules(mod)
+    submodules = find_submodules(mod, file)
     files = unique(last.(submodules))
     file_analysis = Dict(file => get_names_used(file) for file in files) # only do this once
     return [submodule => stale_explicit_imports_nonrecursive(submodule, path;
@@ -442,16 +442,16 @@ function _find_submodules(mod)
     return sub_modules
 end
 
-function find_submodules(mod::Module)
+function find_submodules(mod::Module, file=pathof(mod))
     submodules = sort!(collect(_find_submodules(mod)); by=reverse ∘ module_path,
                        lt=is_prefix)
-    paths = find_submodule_path.((mod,), submodules)
+    paths = find_submodule_path.((file,), submodules)
     return [submod => path for (submod, path) in zip(submodules, paths)]
 end
 
-function find_submodule_path(mod, submodule)
+function find_submodule_path(file, submodule)
     path = pathof(submodule)
-    path === nothing && return pathof(mod)
+    path === nothing && return file
     return path
 end
 
