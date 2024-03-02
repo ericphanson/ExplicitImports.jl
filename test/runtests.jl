@@ -47,7 +47,8 @@ if VERSION > v"1.9-"
 
         ext_imports = Dict(drop_location(explicit_imports(TestPkg)))[DataFramesExt]
         @test ext_imports == [(; name=:DataFrames, source=DataFrames),
-                              (; name=:DataFrame, source=DataFrames)]
+                              (; name=:DataFrame, source=DataFrames),
+                              (; name=:groupby, source=DataFrames)]
     end
 end
 
