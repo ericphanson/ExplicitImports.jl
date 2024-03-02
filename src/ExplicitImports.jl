@@ -417,13 +417,8 @@ function _find_submodules(mod)
             end
         end
     end
-    pathof(mod) === nothing && return sub_modules
     # Add extensions to the set of submodules if present
-    project_file = nothing
-    for pfile in
-        joinpath.((dirname(pathof(mod)),), ("..",), ("Project.toml", "JuliaProject.toml"))
-        isfile(pfile) && (project_file = pfile; break)
-    end
+    project_file = get_project_file(mod)
     project_file === nothing && return sub_modules
     project_toml = parsefile(project_file)
     if haskey(project_toml, "extensions")
@@ -437,6 +432,15 @@ function _find_submodules(mod)
         end
     end
     return sub_modules
+end
+
+function get_project_file(mod)
+    pkgdir(mod) === nothing && return nothing
+    for filename in ("Project.toml", "JuliaProject.toml")
+        pfile = joinpath(pkgdir(mod), filename)
+        isfile(pfile) && return pfile
+    end
+    return nothing
 end
 
 function find_submodules(mod::Module, file=pathof(mod))
