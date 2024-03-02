@@ -91,7 +91,8 @@ end
 
 @testset "ExplicitImports.jl" begin
     @test using_statement.(explicit_imports_nonrecursive(TestModA, "TestModA.jl")) ==
-          ["using .Exporter: Exporter", "using .Exporter: exported_a",
+          ["using .Exporter: Exporter", "using .Exporter: @mac",
+           "using .Exporter: exported_a",
            "using .Exporter2: Exporter2", "using .Exporter3: Exporter3"]
 
     per_usage_info, _ = analyze_all_names("TestModA.jl")

@@ -16,6 +16,8 @@ g() = exported_a()
 
 g2() = un_exported()
 
+@mac
+
 x = 1
 
 function func()
