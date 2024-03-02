@@ -1,6 +1,6 @@
 module Exporter
 
-export exported_a, exported_b, exported_c, x, exported_d
+export exported_a, exported_b, exported_c, x, exported_d, @mac
 
 exported_a() = "hi"
 exported_b() = "hi-b"
@@ -10,6 +10,9 @@ exported_d() = "hi-d"
 un_exported() = "bye"
 
 x = 2
+
+macro mac(args...)
+end
 
 end # Exporter
 

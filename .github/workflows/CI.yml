@@ -19,7 +19,8 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.10'
+          - '1.7' # earliest supported version
+          - '1' # current release
           - 'nightly'
         os:
           - ubuntu-latest
