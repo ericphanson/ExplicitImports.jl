@@ -99,10 +99,7 @@ function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                           file_analysis=Dict())
     check_file(file)
     submodules = find_submodules(mod, file)
-    files = unique(last.(submodules))
-    for _file in files
-        haskey(file_analysis, _file) || (file_analysis[_file] = get_names_used(_file))
-    end
+    fill_cache!(file_analysis, last.(submodules))
     return [submodule => explicit_imports_nonrecursive(submodule, path; skip, warn_stale,
                                                        file_analysis=file_analysis[path],
                                                        strict)
@@ -321,8 +318,8 @@ See also [`print_explicit_imports`](@ref) which prints this information.
 function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
     check_file(file)
     submodules = find_submodules(mod, file)
-    files = unique(last.(submodules))
-    file_analysis = Dict(file => get_names_used(file) for file in files) # only do this once
+    file_analysis = Dict{String,FileAnalysis}()
+    fill_cache!(file_analysis, last.(submodules))
     return [submodule => stale_explicit_imports_nonrecursive(submodule, path;
                                                              file_analysis=file_analysis[path],
                                                              strict)
@@ -453,6 +450,15 @@ function find_submodule_path(file, submodule)
     path = pathof(submodule)
     path === nothing && return file
     return path
+end
+
+function fill_cache!(file_analysis::Dict, files)
+    for _file in files
+        if !haskey(file_analysis, _file)
+            file_analysis[_file] = get_names_used(_file)
+        end
+    end
+    return file_analysis
 end
 
 inspect_session(; kw...) = inspect_session(stdout; kw...)
