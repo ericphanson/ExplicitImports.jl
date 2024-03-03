@@ -11,7 +11,7 @@ using Aqua
 using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
-using TestPkg
+using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
 function restrict_to_module(df, mod)
@@ -50,6 +50,14 @@ if VERSION > v"1.9-"
                               (; name=:DataFrame, source=DataFrames),
                               (; name=:groupby, source=DataFrames)]
     end
+end
+
+@testset "string macros (#20)" begin
+    foo = drop_location(explicit_imports_nonrecursive(Foo20, "examples.jl"))
+    @test foo == [(; name=:Markdown, source=Markdown),
+                  (; name=Symbol("@doc_str"), source=Markdown)]
+    bar = explicit_imports_nonrecursive(Bar20, "examples.jl")
+    @test isempty(bar)
 end
 
 @testset "TestModArgs" begin
