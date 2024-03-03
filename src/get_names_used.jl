@@ -78,7 +78,9 @@ function call_is_func_def(node)
     kind(node) == K"call" || error("Not a call")
     p = parent(node)
     p === nothing && return false
-    kind(p) == K"function" && return true
+    # note: macros only support full-form function definitions
+    # (not inline)
+    kind(p) in (K"function", K"macro") && return true
     if kind(p) == K"="
         # call should be the first arg in an inline function def
         return child_index(node) == 1
@@ -103,19 +105,6 @@ function is_non_anonymous_function_definition_arg(leaf)
         child_index(leaf) == 1 || return false
         # Ok, let's just step up one level and see again
         return is_non_anonymous_function_definition_arg(parent(leaf))
-
-        # Ok, let's check if we're in a function at all
-        # if parents_match(leaf, (K"=", K"call")) && call_is_func_def(get_parent(leaf, 2))
-        #     # yep, we must be a positional arg w/ default value
-        #     return true
-        # elseif parents_match(leaf, (K"=", K"parameters", K"call")) &&
-        #        call_is_func_def(get_parent(leaf, 3))
-        #     # yep, we must be a kwarg w/ default value
-        #     return true
-        # else
-        #     # Nope, we're on the LHS of an `=` but not a function arg
-        #     return false
-        # end
     elseif parents_match(leaf, (K"::",))
         # we must be on the LHS, otherwise we're a type
         child_index(leaf) == 1 || return false
