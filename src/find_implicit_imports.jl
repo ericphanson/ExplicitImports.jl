@@ -2,21 +2,24 @@
 modules_from_using(m::Module) = ccall(:jl_module_usings, Any, (Any,), m)
 
 function get_implicit_names(mod; skip=(mod, Base, Core))
-    implicit_names = Symbol[]
+    implicit_names = Dict{Symbol,Vector{Module}}()
     for mod in modules_from_using(mod)
         should_skip(mod; skip) && continue
-        append!(implicit_names, names(mod))
+        for name in names(mod)
+            v = get!(Vector{Module}, implicit_names, name)
+            push!(v, mod)
+        end
     end
-    return unique!(implicit_names)
+    return implicit_names
 end
 
 """
     find_implicit_imports(mod::Module; skip=(mod, Base, Core))
 
-Given a module `mod`, returns a `Dict{Symbol, Module}` showing
+Given a module `mod`, returns a `Dict{Symbol, @NamedTuple{source::Module,exporters::Vector{Module}}}` showing
 names exist in `mod`'s namespace which are available due to implicit
 exports by other modules. The dict's keys are those names, and the values
-are the module that the name comes from.
+are the source module that the name comes from, along with the modules which export the same binding that are available in `mod` due to implicit imports.
 
 In the case of ambiguities (two modules exporting the same name), the name
 is unavailable in the module, and hence the name will not be present in the dict.
@@ -28,9 +31,9 @@ function find_implicit_imports(mod::Module; skip=(mod, Base, Core))
 
     # Build a dictionary to lookup modules from names
     # we use `which` to figure out what the name resolves to in `mod`
-    mod_lookup = Dict{Symbol,Module}()
-    for name in implicit_names
-        resolved_module = try
+    mod_lookup = Dict{Symbol,@NamedTuple{source::Module,exporters::Vector{Module}}}()
+    for (name, exporters) in implicit_names
+        source_module = try
             # I would like to suppress this warning:
             # WARNING: both X and Y export "parse"; uses of it in module Z must be qualified
             # However, `redirect_stdio` does not help!
@@ -47,12 +50,37 @@ function find_implicit_imports(mod::Module; skip=(mod, Base, Core))
             missing
         end
         # for unambiguous names, we can figure them out
-        # note `resolved_module` can equal `mod` if both `mod` and some other module
+        # note `source_module` can equal `mod` if both `mod` and some other module
         # define the same name. If it resolves to `mod` though, we don't want to
         # explicitly import anything!
-        if !ismissing(resolved_module) && resolved_module !== mod
-            mod_lookup[name] = resolved_module
+        if !ismissing(source_module) && source_module !== mod
+            source = source_module
+
+            es = Module[]
+            # Now figure out what names it was exported from
+            binding = getglobal(source_module, name)
+            # which one to use if more than 1?
+            # currently we will use the last one...
+            for e in exporters
+                exported_binding = try_getglobal(e, name)
+                if exported_binding === binding
+                    push!(es, e)
+                end
+            end
+            mod_lookup[name] = (; source, exporters=es)
         end
     end
     return mod_lookup
+end
+
+function try_getglobal(mod, name)
+    try
+        getglobal(mod, name)
+    catch e
+        if e isa UndefVarError
+            nothing
+        else
+            rethrow()
+        end
+    end
 end

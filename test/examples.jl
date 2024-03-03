@@ -1,3 +1,4 @@
+# https://github.com/ericphanson/ExplicitImports.jl/issues/1
 module ThreadPinning
 
 using LinearAlgebra
@@ -20,6 +21,7 @@ end
 
 end
 
+# https://github.com/ericphanson/ExplicitImports.jl/issues/20
 module Foo20
 
 using Markdown
@@ -41,7 +43,6 @@ testing docs
 function testing_docstr end
 
 end
-
 
 # https://github.com/ericphanson/ExplicitImports.jl/issues/24
 module Mod24

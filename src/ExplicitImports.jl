@@ -179,9 +179,17 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
     end
 end
 
-function using_statement((; name, source))
+# TODO; there may be a better way to make this choice
+function choose_exporter(name, exporters)
+    by = mod -> reverse(module_path(mod))
+    sorted = sort(exporters; by, lt=is_prefix)
+    return first(sorted)
+end
+
+function using_statement((; name, exporters))
     # skip `Main.X`, just do `.X`
-    v = replace(string(source), "Main" => "")
+    e = choose_exporter(name, exporters)
+    v = replace(string(e), "Main" => "")
     return "using $v: $name"
 end
 
@@ -219,13 +227,14 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     needed_names = Set(nt.name for nt in needs_explicit_import)
     filter!(all_implicit_imports) do (k, v)
         k in needed_names || return false
-        should_skip(v; skip) && return false
+        should_skip(v.source; skip) && return false
+        any(mod -> should_skip(mod; skip), v.exporters) && return false
         return true
     end
 
     location_lookup = Dict(nt.name => nt.location for nt in needs_explicit_import)
 
-    to_make_explicit = [(; name=k, source=v, location=location_lookup[k])
+    to_make_explicit = [(; name=k, v..., location=location_lookup[k])
                         for (k, v) in all_implicit_imports]
 
     function lt((k1, v1), (k2, v2))
