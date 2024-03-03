@@ -41,3 +41,11 @@ testing docs
 function testing_docstr end
 
 end
+
+
+# https://github.com/ericphanson/ExplicitImports.jl/issues/24
+module Mod24
+using ..Exporter2
+
+exported_a
+end
