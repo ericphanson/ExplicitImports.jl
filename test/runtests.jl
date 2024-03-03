@@ -85,13 +85,13 @@ end
     cursor = TreeCursor(SyntaxNodeWrapper("TestModArgs.jl"))
     leaves = collect(Leaves(cursor))
     purported_function_args = filter(is_function_definition_arg, leaves)
-    # we have 9*4  functions with one argument `a`:
 
     # written this way to get clearer test failure messages
     vals = unique(get_val.(purported_function_args))
     @test vals == [:a]
 
-    @test length(purported_function_args) == 9 * 4
+    # we have 9*4  functions with one argument `a`, plus 2 macros
+    @test length(purported_function_args) == 9 * 4 + 2
     non_function_args = filter(!is_function_definition_arg, leaves)
     missed = filter(x -> get_val(x) === :a, non_function_args)
     @test isempty(missed)
