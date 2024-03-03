@@ -19,3 +19,25 @@ function pinthreads_mpi(::Val{:numa}, rank::Integer, nranks::Integer;
 end
 
 end
+
+module Foo20
+
+using Markdown
+
+@doc doc"""
+testing docs
+"""
+function testing_docstr end
+
+end
+
+module Bar20
+
+using Markdown: @doc_str
+
+@doc doc"""
+testing docs
+"""
+function testing_docstr end
+
+end
