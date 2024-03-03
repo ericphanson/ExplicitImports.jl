@@ -36,6 +36,7 @@ include("test_mods.jl")
 include("DynMod.jl")
 include("TestModArgs.jl")
 include("examples.jl")
+include("script.jl")
 
 # package extension support needs Julia 1.9+
 if VERSION > v"1.9-"
@@ -50,6 +51,15 @@ if VERSION > v"1.9-"
                               (; name=:DataFrame, source=DataFrames),
                               (; name=:groupby, source=DataFrames)]
     end
+end
+
+@testset "scripts" begin
+    str = sprint(print_explicit_imports_script, "script.jl")
+    @test contains(str, "Script `script.jl`")
+    @test contains(str, "relying on implicit imports for 1 name")
+    @test contains(str, "using LinearAlgebra: norm")
+    @test contains(str, "stale explicit imports for these unused names")
+    @test contains(str, "- qr")
 end
 
 @testset "string macros (#20)" begin
@@ -145,7 +155,7 @@ end
            "using .TestModA: f"]
 
     mod_path = module_path(TestModA.SubModB)
-    @test mod_path == [:SubModB, :TestModA]
+    @test mod_path == [:SubModB, :TestModA, :Main]
     sub_df = restrict_to_module(df, TestModA.SubModB)
 
     h = only(subset(sub_df, :name => ByRow(==(:h))))
@@ -167,7 +177,7 @@ end
 
     # starts from innermost
     @test module_path(TestModA.SubModB.TestModA.TestModC) ==
-          [:TestModC, :TestModA, :SubModB, :TestModA]
+          [:TestModC, :TestModA, :SubModB, :TestModA, :Main]
 
     from_outer_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
                                                                                                   "TestModA.jl"))
@@ -229,7 +239,7 @@ end
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
     @test contains(str, "using .Exporter: exported_a")
     @test contains(str,
-                   "However, Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
+                   "However, module Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
 
     # test `show_locations=true`
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";

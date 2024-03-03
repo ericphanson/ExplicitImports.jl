@@ -6,6 +6,7 @@ using TOML: parsefile
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
+export print_explicit_imports_script
 export print_stale_explicit_imports, stale_explicit_imports,
        check_no_stale_explicit_imports, stale_explicit_imports_nonrecursive
 export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException,
@@ -126,19 +127,24 @@ See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_impor
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core), warn_stale=true, strict=true,
-                                show_locations=false)
+                                show_locations=false,
+                                # internal kwargs
+                                recursive=true,
+                                name_fn=mod -> "module $mod")
     file_analysis = Dict{String,FileAnalysis}()
     ee = explicit_imports(mod, file; warn_stale=false, skip, strict, file_analysis)
     for (i, (mod, imports)) in enumerate(ee)
+        !recursive && i > 1 && break
         i == 1 || println(io)
         if isnothing(imports)
             println(io,
-                    "Module $mod could not be accurately analyzed, likely due to dynamic `include` statements. You can pass `strict=false` to attempt to get (possibly inaccurate) results anyway.")
+                    "$(uppercasefirst(name_fn(mod))) could not be accurately analyzed, likely due to dynamic `include` statements. You can pass `strict=false` to attempt to get (possibly inaccurate) results anyway.")
         elseif isempty(imports)
-            println(io, "Module $mod is not relying on any implicit imports.")
+            println(io,
+                    "$(uppercasefirst(name_fn(mod))) is not relying on any implicit imports.")
         else
             println(io,
-                    "Module $mod is relying on implicit imports for $(length(imports)) names. ",
+                    "$(uppercasefirst(name_fn(mod))) is relying on implicit imports for $(length(imports)) names. ",
                     "These could be explicitly imported as follows:")
             println(io)
             println(io, "```julia")
@@ -159,7 +165,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 word = isempty(imports) ? "However" : "Additionally"
                 println(io)
                 println(io,
-                        "$word, $mod has stale explicit imports for these unused names:")
+                        "$word, $(name_fn(mod)) has stale explicit imports for these unused names:")
                 for (; name, location) in stale
                     if show_locations
                         proof = " (imported at $(location))"
@@ -371,7 +377,7 @@ function module_path(mod)
     path = Symbol[nameof(mod)]
     while true
         next = parentmodule(mod)
-        (next == mod || nameof(next) == :Main) && return path
+        (next == mod || nameof(mod) == :Main) && return path
         push!(path, nameof(next))
         mod = next
     end
@@ -395,12 +401,19 @@ function filter_to_module(file_analysis::FileAnalysis, mod::Module)
     unnecessary_explicit_import = filter(file_analysis.unnecessary_explicit_import) do nt
         return match(nt.module_path)
     end
-    tainted = !any(match, file_analysis.untainted_modules)
+    mods_found = filter(!isempty, file_analysis.untainted_modules)
+    tainted = !any(match, mods_found)
     return (; needs_explicit_import, unnecessary_explicit_import, tainted)
 end
 
 if VERSION < v"1.9-"
     getglobal(mod, name) = getfield(mod, name)
+end
+
+# https://github.com/JuliaLang/julia/issues/53574
+function _parentmodule(mod)
+    mod === Base && return Base
+    return parentmodule(mod)
 end
 
 # recurse through to find all submodules of `mod`
@@ -410,7 +423,7 @@ function _find_submodules(mod)
         name == nameof(mod) && continue
         is_submodule = try
             value = getglobal(mod, name)
-            value isa Module && parentmodule(value) == mod
+            value isa Module && _parentmodule(value) == mod
         catch e
             if e isa UndefVarError
                 false
@@ -491,6 +504,31 @@ function inspect_session(io::IO; skip=(Base, Core), inner=print_explicit_imports
         inner(io, mod)
         println(io)
     end
+end
+
+function print_explicit_imports_script(path; kw...)
+    return print_explicit_imports_script(stdout, path; kw...)
+end
+"""
+    print_explicit_imports_script([io::IO=stdout,] path; skip=(Base, Core), warn_stale=true)
+
+Analyzes the script located at `path` and prints information about reliance on implicit exports as well as any stale explicit imports (if `warn_stale=true`).
+
+!!! warning
+  The script (or at least, all imports in the script) must be run before this function can give reliable results, since it relies on introspecting what names are present in `Main`.
+
+## Keyword arguments
+
+$SKIPS_KWARG
+* `warn_stale=true`: if set, this function will also print information about stale explicit imports.
+"""
+function print_explicit_imports_script(io::IO, path; skip=(Base, Core), warn_stale=true,
+                                       show_locations=false)
+    return print_explicit_imports(io, Main, path;
+                                  skip, warn_stale, show_locations,
+                                  strict=false,
+                                  recursive=false,
+                                  name_fn=_ -> "script `$path`")
 end
 
 end

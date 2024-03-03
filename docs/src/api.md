@@ -18,13 +18,25 @@ print_stale_explicit_imports
 stale_explicit_imports
 ```
 
-## Usage in testing
+## Checks to use in testing
 
 ExplicitImports.jl provides two functions which can be used to regression test that there is no reliance on implicit imports or stale explicit imports:
 
 ```@docs
 check_no_implicit_imports
 check_no_stale_explicit_imports
+```
+
+## Usage with scripts (such as `runtests.jl`)
+
+We also provide a helper function to analyze scripts (rather than modules).
+If you are using a module in your script (e.g. if your script starts with `module`),
+then use the ordinary `print_explicit_imports` function instead.
+This functionality is somewhat experimental and attempts to filter the relevant names in `Main`
+to those used in your script.
+
+```@docs
+print_explicit_imports_script
 ```
 
 ## Non-recursive variants
