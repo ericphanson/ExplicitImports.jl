@@ -120,4 +120,12 @@ n2 = function (; a)
     return Z
 end
 
+macro o1(a)
+    return Z
+end
+
+macro o1_str(a)
+    return Z
+end
+
 end # TestModArgs
