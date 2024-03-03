@@ -1,6 +1,7 @@
 struct ImplicitImportsException <: Exception
     mod::Module
-    names::Vector{@NamedTuple{name::Symbol,source::Module,location::String}}
+    names::Vector{@NamedTuple{name::Symbol,source::Module,exporters::Vector{Module},
+                              location::String}}
 end
 
 function Base.showerror(io::IO, e::ImplicitImportsException)

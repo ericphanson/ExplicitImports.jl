@@ -20,15 +20,18 @@ function restrict_to_module(df, mod)
                   :module_path => ByRow(ms -> all(Base.splat(isequal), zip(ms, mod_path))))
 end
 
-function drop_location(nt::@NamedTuple{name::Symbol,source::Module,location::String})
+function only_name_source(nt::@NamedTuple{name::Symbol,source::Module,
+                                          exporters::Vector{Module},location::String})
+    @test !isempty(nt.exporters)
     return (; nt.name, nt.source)
 end
-function drop_location(nt::@NamedTuple{name::Symbol,location::String})
+
+function only_name_source(nt::@NamedTuple{name::Symbol,location::String})
     return (; nt.name)
 end
-drop_location(::Nothing) = nothing
-drop_location(v::Vector) = drop_location.(v)
-drop_location(p::Pair) = first(p) => drop_location(last(p))
+only_name_source(::Nothing) = nothing
+only_name_source(v::Vector) = only_name_source.(v)
+only_name_source(p::Pair) = first(p) => only_name_source(last(p))
 
 include("Exporter.jl")
 include("TestModA.jl")
@@ -46,7 +49,7 @@ if VERSION > v"1.9-"
         DataFramesExt = Base.get_extension(TestPkg, :DataFramesExt)
         @test haskey(Dict(submods), DataFramesExt)
 
-        ext_imports = Dict(drop_location(explicit_imports(TestPkg)))[DataFramesExt]
+        ext_imports = Dict(only_name_source(explicit_imports(TestPkg)))[DataFramesExt]
         @test ext_imports == [(; name=:DataFrames, source=DataFrames),
                               (; name=:DataFrame, source=DataFrames),
                               (; name=:groupby, source=DataFrames)]
@@ -62,8 +65,15 @@ end
     @test contains(str, "- qr")
 end
 
+@testset "Exported module (#24)" begin
+    statements = using_statement.(explicit_imports_nonrecursive(Mod24, "examples.jl"))
+    # The key thing here is we do not have `using .Exporter: exported_a`,
+    # since we haven't done `using .Exporter` in `Mod24`, only `using .Exporter2`
+    @test statements == ["using .Exporter2: exported_a", "using .Exporter2: Exporter2"]
+end
+
 @testset "string macros (#20)" begin
-    foo = drop_location(explicit_imports_nonrecursive(Foo20, "examples.jl"))
+    foo = only_name_source(explicit_imports_nonrecursive(Foo20, "examples.jl"))
     @test foo == [(; name=:Markdown, source=Markdown),
                   (; name=Symbol("@doc_str"), source=Markdown)]
     bar = explicit_imports_nonrecursive(Bar20, "examples.jl")
@@ -129,7 +139,7 @@ end
 @testset "ExplicitImports.jl" begin
     @test using_statement.(explicit_imports_nonrecursive(TestModA, "TestModA.jl")) ==
           ["using .Exporter: Exporter", "using .Exporter: @mac",
-           "using .Exporter: exported_a",
+           "using .Exporter2: exported_a",
            "using .Exporter2: Exporter2", "using .Exporter3: Exporter3"]
 
     per_usage_info, _ = analyze_all_names("TestModA.jl")
@@ -202,12 +212,12 @@ end
     @test_logs explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
                                              "TestModC.jl"; warn_stale=false)
 
-    @test drop_location(stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                                            "TestModC.jl")) ==
+    @test only_name_source(stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                               "TestModC.jl")) ==
           [(; name=:exported_c), (; name=:exported_d)]
 
     # Recursive version
-    lookup = Dict(drop_location(stale_explicit_imports(TestModA, "TestModA.jl")))
+    lookup = Dict(only_name_source(stale_explicit_imports(TestModA, "TestModA.jl")))
     @test lookup[TestModA.SubModB.TestModA.TestModC] ==
           [(; name=:exported_c), (; name=:exported_d)]
     @test isempty(lookup[TestModA])
@@ -224,7 +234,8 @@ end
     # Recursion
     nested = @test_logs (:warn, r"stale") explicit_imports(TestModA, "TestModA.jl")
     @test nested isa Vector{Pair{Module,
-                                 Vector{@NamedTuple{name::Symbol,source::Module,location::String}}}}
+                                 Vector{@NamedTuple{name::Symbol,source::Module,
+                                                    exporters::Vector{Module},location::String}}}}
     @test TestModA in first.(nested)
     @test TestModA.SubModB in first.(nested)
     @test TestModA.SubModB.TestModA in first.(nested)
@@ -237,7 +248,7 @@ end
     # should be no logs
     str = @test_logs sprint(print_explicit_imports, TestModA, "TestModA.jl")
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
-    @test contains(str, "using .Exporter: exported_a")
+    @test contains(str, "using .Exporter2: exported_a")
     @test contains(str,
                    "However, module Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
 
@@ -350,10 +361,10 @@ end
     @testset "Tainted modules" begin
         log = (:warn, r"Dynamic")
 
-        @test_logs log @test drop_location(explicit_imports(DynMod, "DynMod.jl")) ==
+        @test_logs log @test only_name_source(explicit_imports(DynMod, "DynMod.jl")) ==
                              [DynMod => nothing, DynMod.Hidden => nothing]
-        @test_logs log @test drop_location(explicit_imports(DynMod, "DynMod.jl";
-                                                            strict=false)) ==
+        @test_logs log @test only_name_source(explicit_imports(DynMod, "DynMod.jl";
+                                                               strict=false)) ==
                              [DynMod => [(; name=:print_explicit_imports,
                                           source=ExplicitImports)],
                               # Wrong! Missing explicit export
@@ -361,9 +372,9 @@ end
 
         @test_logs log @test explicit_imports_nonrecursive(DynMod, "DynMod.jl") === nothing
 
-        @test_logs log @test drop_location(explicit_imports_nonrecursive(DynMod,
-                                                                         "DynMod.jl";
-                                                                         strict=false)) ==
+        @test_logs log @test only_name_source(explicit_imports_nonrecursive(DynMod,
+                                                                            "DynMod.jl";
+                                                                            strict=false)) ==
                              [(; name=:print_explicit_imports, source=ExplicitImports)]
         @test_logs log @test stale_explicit_imports(DynMod, "DynMod.jl") ==
                              [DynMod => nothing,
