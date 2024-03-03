@@ -36,6 +36,7 @@ include("test_mods.jl")
 include("DynMod.jl")
 include("TestModArgs.jl")
 include("examples.jl")
+include("script.jl")
 
 # package extension support needs Julia 1.9+
 if VERSION > v"1.9-"
@@ -60,6 +61,7 @@ end
     @test contains(str, "stale explicit imports for these unused names")
     @test contains(str, "- qr")
 end
+
 @testset "string macros (#20)" begin
     foo = drop_location(explicit_imports_nonrecursive(Foo20, "examples.jl"))
     @test foo == [(; name=:Markdown, source=Markdown),
