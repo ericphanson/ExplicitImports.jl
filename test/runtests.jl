@@ -3,8 +3,8 @@ Pkg.develop(; path=joinpath(@__DIR__, "TestPkg"))
 Pkg.precompile()
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
-                       module_path, explicit_imports_nonrecursive, using_statement,
-                       inspect_session, get_parent
+                       module_path, explicit_imports_nonrecursive,
+                       inspect_session, get_parent, choose_exporter
 using Test
 using DataFrames
 using Aqua
@@ -18,6 +18,15 @@ function restrict_to_module(df, mod)
     mod_path = module_path(mod)
     return subset(df,
                   :module_path => ByRow(ms -> all(Base.splat(isequal), zip(ms, mod_path))))
+end
+
+# old definition for simple 1-line using statement
+# (now we do linelength aware printing)
+function using_statement((; name, exporters))
+    # skip `Main.X`, just do `.X`
+    e = choose_exporter(name, exporters)
+    v = replace(string(e), "Main" => "")
+    return "using $v: $name"
 end
 
 function only_name_source(nt::@NamedTuple{name::Symbol,source::Module,
@@ -69,7 +78,7 @@ end
     statements = using_statement.(explicit_imports_nonrecursive(Mod24, "examples.jl"))
     # The key thing here is we do not have `using .Exporter: exported_a`,
     # since we haven't done `using .Exporter` in `Mod24`, only `using .Exporter2`
-    @test statements == ["using .Exporter2: exported_a", "using .Exporter2: Exporter2"]
+    @test statements == ["using .Exporter2: Exporter2", "using .Exporter2: exported_a"]
 end
 
 @testset "string macros (#20)" begin
@@ -139,8 +148,8 @@ end
 @testset "ExplicitImports.jl" begin
     @test using_statement.(explicit_imports_nonrecursive(TestModA, "TestModA.jl")) ==
           ["using .Exporter: Exporter", "using .Exporter: @mac",
-           "using .Exporter2: exported_a",
-           "using .Exporter2: Exporter2", "using .Exporter3: Exporter3"]
+           "using .Exporter2: Exporter2",
+           "using .Exporter2: exported_a", "using .Exporter3: Exporter3"]
 
     per_usage_info, _ = analyze_all_names("TestModA.jl")
     df = get_per_scope(per_usage_info)
@@ -248,9 +257,18 @@ end
     # should be no logs
     str = @test_logs sprint(print_explicit_imports, TestModA, "TestModA.jl")
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
-    @test contains(str, "using .Exporter2: exported_a")
+    @test contains(str, "using .Exporter2: Exporter2, exported_a")
     @test contains(str,
                    "However, module Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
+
+    # should be no logs
+    # try with linewidth tiny - should put one name per line
+    str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
+                                                         linewidth=0))
+    @test contains(str,
+                   """
+                   using .Exporter2: Exporter2,
+                                     exported_a""")
 
     # test `show_locations=true`
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
