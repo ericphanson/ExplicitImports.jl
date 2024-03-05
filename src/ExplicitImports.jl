@@ -122,12 +122,14 @@ $SKIPS_KWARG
 * `warn_stale=true`: if set, this function will also print information about stale explicit imports.
 $STRICT_PRINTING_KWARG
 * `show_locations=false`: whether or not to print locations of where the names are being used (and, if `warn_stale=true`, where the stale explicit imports are).
+* `linewidth=80`: format into lines of up to this length. Set to 0 to indicate one name should be printed per line.
 
 See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core), warn_stale=true, strict=true,
                                 show_locations=false,
+                                linewidth=80,
                                 # internal kwargs
                                 recursive=true,
                                 name_fn=mod -> "module $mod")
@@ -148,14 +150,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                     "These could be explicitly imported as follows:")
             println(io)
             println(io, "```julia")
-            for nt in imports
-                if show_locations
-                    proof = " # used at $(nt.location)"
-                else
-                    proof = ""
-                end
-                println(io, using_statement(nt), proof)
-            end
+            using_statements(io, imports; linewidth, show_locations)
             println(io, "```")
         end
         if warn_stale
@@ -186,11 +181,35 @@ function choose_exporter(name, exporters)
     return first(sorted)
 end
 
-function using_statement((; name, exporters))
-    # skip `Main.X`, just do `.X`
-    e = choose_exporter(name, exporters)
-    v = replace(string(e), "Main" => "")
-    return "using $v: $name"
+function using_statements(io::IO, rows; linewidth=80, show_locations=false)
+    chosen = (choose_exporter(row.name, row.exporters) for row in rows)
+    prev_mod = nothing
+    cur_line_width = 0
+    indent = 0
+    first = true
+    for (mod, row) in zip(chosen, rows)
+        (; name, location) = row
+        if show_locations || mod !== prev_mod
+            cur_line_width = 0
+            loc = show_locations ? " # used at $(location)" : ""
+            # skip `Main.X`, just do `.X`
+            v = replace(string(mod), "Main" => "")
+            use = "using $v: "
+            indent = textwidth(use)
+            prev_mod = mod
+            to_print = string(first ? "" : "\n", use, name, loc)
+        elseif cur_line_width + textwidth(", $name") >= linewidth
+            to_print = string(",\n", " "^indent, name)
+            cur_line_width = 0
+        else
+            to_print = string(", $name")
+        end
+        first = false
+        cur_line_width += textwidth(to_print)
+        print(io, to_print)
+    end
+    println(io)
+    return nothing
 end
 
 function is_prefix(x, y)
@@ -256,7 +275,8 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
         return is_lt
     end
 
-    sort!(to_make_explicit; lt)
+    by = nt -> (nt.name, choose_exporter(nt.name, nt.exporters))
+    sort!(to_make_explicit; by, lt)
 
     if warn_stale
         unnecessary = unique!(sort!([nt.name for nt in unnecessary_explicit_import]))
