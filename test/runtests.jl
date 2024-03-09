@@ -4,7 +4,8 @@ Pkg.precompile()
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_nonrecursive,
-                       inspect_session, get_parent, choose_exporter
+                       inspect_session, get_parent, choose_exporter,
+                       get_import_lhs, analyze_import_type
 using Test
 using DataFrames
 using Aqua
@@ -65,6 +66,17 @@ if VERSION > v"1.9-"
     end
 end
 
+@testset "imports" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("imports.jl"))
+    leaves = collect(Leaves(cursor))
+    import_type_pairs = get_val.(leaves) .=> analyze_import_type.(leaves)
+    # TODO- test `import_type_pairs`
+
+    inds = findall(==(:import_RHS), analyze_import_type.(leaves))
+    lhs_rhs_pairs = get_import_lhs.(leaves[inds]) .=> get_val.(leaves[inds])
+    # TODO- test `lhs_rhs_pairs`
+    
+end
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
     @test contains(str, "Script `script.jl`")

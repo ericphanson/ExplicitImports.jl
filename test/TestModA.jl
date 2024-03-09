@@ -53,6 +53,8 @@ h() = (local8 = 1; f())
 
 h2() = exported_b()
 
+h3() = 1
+
 module TestModA # again
 
 inner_f() = 1
