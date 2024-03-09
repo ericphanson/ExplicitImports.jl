@@ -75,7 +75,7 @@ end
     inds = findall(==(:import_RHS), analyze_import_type.(leaves))
     lhs_rhs_pairs = get_import_lhs.(leaves[inds]) .=> get_val.(leaves[inds])
     # TODO- test `lhs_rhs_pairs`
-    
+
 end
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
