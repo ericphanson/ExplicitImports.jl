@@ -31,9 +31,13 @@ Personally, I don't think this is always a huge issue, and that it's basically f
 
 ## Implementation status
 
-This seems to be working! However it has not been extensively used or tested.
+ExplicitImports.jl has been used successfully on several codebases, but I would still not describe it as fully mature. That said, it should be ready for use; please file issues if problems arise.
 
-See the [API docs](https://ericphanson.github.io/ExplicitImports.jl/dev/api/) for the available functionality.
+See the [API docs](https://ericphanson.github.io/ExplicitImports.jl/dev/api/) for the available functionality, including:
+
+- functionality to help convert implicit imports to explicit exports
+- functionality to warn about "stale" (unused) explicit imports
+- functionality to add to package tests to ensure all imports continue to be explicit (and non-stale)
 
 ## Example
 
