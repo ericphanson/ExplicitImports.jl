@@ -132,7 +132,7 @@ Module MathOptInterface.Test is not relying on any implicit imports.
 Module MathOptInterface.Test._BaseTest is not relying on any implicit imports.
 ```
 
-However, we can't really be sure there is't a reliance on implicit imports present in the files that we weren't able to scan (or perhaps some stale explicit imports made in those files, or perhaps usages of names explicitly imported in the files we could scan, which would prove those explicit imports are in fact not stale).
+However, we can't really be sure there isn't a reliance on implicit imports present in the files that we weren't able to scan (or perhaps some stale explicit imports made in those files, or perhaps usages of names explicitly imported in the files we could scan, which would prove those explicit imports are in fact not stale).
 
 ### Need to load the package/module
 
