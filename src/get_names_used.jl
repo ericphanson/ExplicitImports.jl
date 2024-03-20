@@ -21,14 +21,29 @@ end
 function analyze_import_type(leaf)
     is_import = parents_match(leaf, (K"importpath",))
     is_import || return :not_import
-    is_conditional_import = parents_match(leaf, (K"importpath", K":"))
-    if is_conditional_import
+    if parents_match(leaf, (K"importpath", K":"))
         # we are on the LHS if we are the first child
         if child_index(parent(leaf)) == 1
             return :import_LHS
         else
             return :import_RHS
         end
+    elseif parents_match(leaf, (K"importpath", K"as", K":"))
+        # this name is either part of an `import X: a as b` statement
+        # since we are in an `importpath`, we are the `a` part, not the `b` part, I think
+        # do we also want to identify the `b` part as an `import_RHS`?
+        # For the purposes of stale explicit imports, we want to know about `b`,
+        # since if `b` is unused then it is stale.
+        # For the purposes of not suggesting an explicit import that already exists,
+        # it is weird since they have renamed it here, so if they are referring to
+        # both names in their code (`a` and `b`), that's kind of a different confusing
+        # issue.
+        # For the purposes of "are they importing a non-public name", we care more about
+        # `a`, since that's the name we need to check if it is public or not in the source
+        # module (although we could check if `b` is public in the module sourced via `which`?).
+        # hm..
+        # let's just leave it; for now `b` will be declared `:not_import`
+        return :import_RHS
     else
         # Not part of `:` generally means it's a `using X` or `import Y` situation
         return :blanket_import
@@ -112,6 +127,20 @@ function is_non_anonymous_function_definition_arg(leaf)
         return is_non_anonymous_function_definition_arg(parent(leaf))
     else
         return false
+    end
+end
+
+function get_import_lhs(import_rhs_leaf)
+    if parents_match(import_rhs_leaf, (K"importpath", K":"))
+        n = first(children(get_parent(import_rhs_leaf, 2)))
+        @assert kind(n) == K"importpath"
+        return get_val.(children(n))
+    elseif parents_match(import_rhs_leaf, (K"importpath", K"as", K":"))
+        n = first(children(get_parent(import_rhs_leaf, 3)))
+        @assert kind(n) == K"importpath"
+        return get_val.(children(n))
+    else
+        error("does not seem to be an import RHS")
     end
 end
 
