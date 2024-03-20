@@ -8,4 +8,9 @@ get_file() = "hi.jl"
 
 include(get_file())
 
+include("$(get_file())")
+
+hi = "hi"
+include("$(hi).jl")
+
 end # DynMod
