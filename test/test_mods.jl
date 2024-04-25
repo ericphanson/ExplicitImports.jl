@@ -32,12 +32,11 @@ module TestMod5
 
 using LinearAlgebra
 
-struct Unrelated{X <: AbstractArray}
-    x::Union{X, Vector}
+struct Unrelated{X<:AbstractArray}
+    x::Union{X,Vector}
 end
 
-
-struct Unrelated2{Y <: AbstractArray}
+struct Unrelated2{Y<:AbstractArray}
     x::Y
 end
 
