@@ -80,15 +80,23 @@ using LinearAlgebra
 # these are all local references to `I`, but you have to go up a scope to know that
 function foo(I)
     let
-        I+1
+        I + 1
     end
-    let k=I
-        k+I
+    let k = I
+        k + I
     end
     function bar(x)
-        I+1
+        return I + 1
     end
-    bar(I)
+    return bar(I)
 end
 
 end # TestMod7
+
+module TestMod8
+using LinearAlgebra
+
+# https://github.com/ericphanson/ExplicitImports.jl/issues/33
+foo(::QR) = ()
+
+end # TestMod8

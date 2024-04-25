@@ -109,6 +109,12 @@ end
           ["using LinearAlgebra: LinearAlgebra"]
 end
 
+@testset "types without values in function signatures" begin
+    # https://github.com/ericphanson/ExplicitImports.jl/issues/33
+    @test using_statement.(explicit_imports_nonrecursive(TestMod8, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra", "using LinearAlgebra: QR"]
+end
+
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
     @test contains(str, "Script `script.jl`")
