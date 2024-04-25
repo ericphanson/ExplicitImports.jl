@@ -88,6 +88,19 @@ function call_is_func_def(node)
     return false
 end
 
+function is_struct_field_name(leaf)
+    kind(leaf) == K"Identifier" || return false
+    if parents_match(leaf, (K"::", K"block", K"struct"))
+        # we want to be on the LHS of the `::`
+        return child_index(leaf) == 1
+    elseif parents_match(leaf, (K"::", K"=", K"block", K"struct"))
+        # if we are in a `Base.@kwdef`, we may be on the LHS of an `=`
+        return child_index(leaf) == 1 && child_index(parent(leaf)) == 1
+    else
+        return false
+    end
+end
+
 function is_struct_type_param(leaf)
     kind(leaf) == K"Identifier" || return false
     if parents_match(leaf, (K"curly", K"struct"))
@@ -134,7 +147,7 @@ end
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
     function_arg = is_function_definition_arg(leaf)
-    struct_arg = is_struct_type_param(leaf)
+    struct_arg = is_struct_type_param(leaf) || is_struct_field_name(leaf)
     global_scope = !function_arg && !struct_arg
     module_path = Symbol[]
     scope_path = JuliaSyntax.SyntaxNode[]

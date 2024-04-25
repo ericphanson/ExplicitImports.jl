@@ -11,7 +11,7 @@ using Aqua
 using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
-using ExplicitImports: is_struct_type_param
+using ExplicitImports: is_struct_type_param, is_struct_field_name
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -83,7 +83,10 @@ end
     cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
     leaves = collect(Leaves(cursor))
     @test map(get_val, filter(is_struct_type_param, leaves)) == [:X, :Y, :QR]
-    # https://github.com/ericphanson/ExplicitImports.jl/issues/34
+
+    @test map(get_val, filter(is_struct_field_name, leaves)) == [:x, :x, :x, :qr, :qr]
+
+    # Tests #34 and #36
     @test using_statement.(explicit_imports_nonrecursive(TestMod5, "test_mods.jl")) ==
           ["using LinearAlgebra: LinearAlgebra"]
 end

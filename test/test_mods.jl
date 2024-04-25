@@ -27,7 +27,6 @@ fz2() = Exporter4.z()
 
 end # TestMod4
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/34
 module TestMod5
 
 using LinearAlgebra
@@ -40,8 +39,18 @@ struct Unrelated2{Y<:AbstractArray}
     x::Y
 end
 
+# https://github.com/ericphanson/ExplicitImports.jl/issues/34
 struct Bar{QR}
     x::QR
+end
+
+# https://github.com/ericphanson/ExplicitImports.jl/issues/36
+struct Foo
+    qr::Int
+end
+
+Base.@kwdef struct Foo2
+    qr::Int = 1
 end
 
 end # TestMOd5
