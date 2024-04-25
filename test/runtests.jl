@@ -90,6 +90,16 @@ end
     @test using_statement.(explicit_imports_nonrecursive(TestMod5, "test_mods.jl")) ==
           ["using LinearAlgebra: LinearAlgebra"]
 end
+
+@testset "loops" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
+    leaves = collect(Leaves(cursor))
+
+    # Tests #35
+    @test using_statement.(explicit_imports_nonrecursive(TestMod6, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra"]
+end
+
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
     @test contains(str, "Script `script.jl`")

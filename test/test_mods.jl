@@ -54,3 +54,14 @@ Base.@kwdef struct Foo2
 end
 
 end # TestMOd5
+
+module TestMod6
+
+using LinearAlgebra
+
+function foo(x)
+    for (i, I) in pairs(x)
+    end
+end
+
+end # module
