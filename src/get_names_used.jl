@@ -60,7 +60,7 @@ function is_anonymous_function_definition_arg(leaf)
         return child_index(get_parent(leaf, 3)) == 2
     elseif parents_match(leaf, (K"::",))
         # we must be on the LHS, otherwise we're a type
-        child_index(leaf) == 1 || return false
+        is_hastype_LHS(leaf) || return false
         # Ok, let's just step up one level and see again
         return is_anonymous_function_definition_arg(parent(leaf))
     elseif parents_match(leaf, (K"=",))
@@ -92,10 +92,10 @@ function is_struct_field_name(leaf)
     kind(leaf) == K"Identifier" || return false
     if parents_match(leaf, (K"::", K"block", K"struct"))
         # we want to be on the LHS of the `::`
-        return child_index(leaf) == 1
+        return is_hastype_LHS(leaf)
     elseif parents_match(leaf, (K"::", K"=", K"block", K"struct"))
         # if we are in a `Base.@kwdef`, we may be on the LHS of an `=`
-        return child_index(leaf) == 1 && child_index(parent(leaf)) == 1
+        return is_hastype_LHS(leaf) && child_index(parent(leaf)) == 1
     else
         return false
     end
@@ -149,12 +149,21 @@ function is_non_anonymous_function_definition_arg(leaf)
         return is_non_anonymous_function_definition_arg(parent(leaf))
     elseif parents_match(leaf, (K"::",))
         # we must be on the LHS, otherwise we're a type
-        child_index(leaf) == 1 || return false
+        is_hastype_LHS(leaf) || return false
         # Ok, let's just step up one level and see again
         return is_non_anonymous_function_definition_arg(parent(leaf))
     else
         return false
     end
+end
+
+# matches `x` in `x::Y`, but not `Y`, nor `foo(::Y)`
+function is_hastype_LHS(leaf)
+    parents_match(leaf, (K"::",)) || return false
+    unary = has_flags(get_parent(leaf), JuliaSyntax.PREFIX_OP_FLAG)
+    unary && return false
+    # OK if not unary, then check we're in position 1 for LHS
+    return child_index(leaf) == 1
 end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
