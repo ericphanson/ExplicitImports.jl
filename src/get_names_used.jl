@@ -149,7 +149,7 @@ function analyze_name(leaf; debug=false)
         args = nodevalue(node).node.raw.args
 
         debug && println(val, ": ", k)
-        if k in (K"let", K"for", K"function",K"struct")
+        if k in (K"let", K"for", K"function", K"struct")
             global_scope = false
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
@@ -185,7 +185,8 @@ function analyze_name(leaf; debug=false)
 
         # finished climbing to the root
         node === nothing &&
-            return (; function_arg, global_scope, is_assignment, module_path, scope_path, struct_arg)
+            return (; function_arg, global_scope, is_assignment, module_path, scope_path,
+                    struct_arg)
         idx += 1
     end
 end
