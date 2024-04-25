@@ -32,6 +32,15 @@ module TestMod5
 
 using LinearAlgebra
 
+struct Unrelated{X <: AbstractArray}
+    x::Union{X, Vector}
+end
+
+
+struct Unrelated2{Y <: AbstractArray}
+    x::Y
+end
+
 struct Bar{QR}
     x::QR
 end

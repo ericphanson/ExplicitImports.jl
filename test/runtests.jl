@@ -11,6 +11,7 @@ using Aqua
 using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
+using ExplicitImports: is_struct_type_param
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -65,6 +66,27 @@ if VERSION > v"1.9-"
     end
 end
 
+#####
+##### To analyze a test case
+#####
+# using ExplicitImports: js_node, get_parent, kind, parents_match
+# using JuliaSyntax: @K_str
+
+# cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"));
+# leaves = collect(Leaves(cursor))
+# leaf = leaves[end - 2] # select a leaf
+# js_node(leaf) # inspect it
+# p = js_node(get_parent(leaf, 3)) # see the tree, etc
+# kind(p)
+
+@testset "structs" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
+    leaves = collect(Leaves(cursor))
+    @test map(get_val, filter(is_struct_type_param, leaves)) == [:X, :Y, :QR]
+    # https://github.com/ericphanson/ExplicitImports.jl/issues/34
+    @test using_statement.(explicit_imports_nonrecursive(TestMod5, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra"]
+end
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
     @test contains(str, "Script `script.jl`")
@@ -289,10 +311,6 @@ end
            "using .Exporter4: Z"
            "using .Exporter4: a"
            "using .Exporter4: z"]
-
-    #    https://github.com/ericphanson/ExplicitImports.jl/issues/34
-    @test using_statement.(explicit_imports_nonrecursive(TestMod5, "test_mods.jl")) ==
-          ["using LinearAlgebra: LinearAlgebra"]
 end
 
 function exception_string(f)
