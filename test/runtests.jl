@@ -101,6 +101,14 @@ end
           ["using LinearAlgebra: LinearAlgebra"]
 end
 
+@testset "nested local scope" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
+    leaves = collect(Leaves(cursor))
+    # Test nested local scope
+    @test using_statement.(explicit_imports_nonrecursive(TestMod7, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra"]
+end
+
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
     @test contains(str, "Script `script.jl`")

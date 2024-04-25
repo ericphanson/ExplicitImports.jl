@@ -72,3 +72,23 @@ function foo(x)
 end
 
 end # module
+
+module TestMod7
+
+using LinearAlgebra
+
+# these are all local references to `I`, but you have to go up a scope to know that
+function foo(I)
+    let
+        I+1
+    end
+    let k=I
+        k+I
+    end
+    function bar(x)
+        I+1
+    end
+    bar(I)
+end
+
+end # TestMod7
