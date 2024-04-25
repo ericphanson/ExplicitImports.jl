@@ -88,6 +88,32 @@ function call_is_func_def(node)
     return false
 end
 
+function is_struct_field_name(leaf)
+    kind(leaf) == K"Identifier" || return false
+    if parents_match(leaf, (K"::", K"block", K"struct"))
+        # we want to be on the LHS of the `::`
+        return child_index(leaf) == 1
+    elseif parents_match(leaf, (K"::", K"=", K"block", K"struct"))
+        # if we are in a `Base.@kwdef`, we may be on the LHS of an `=`
+        return child_index(leaf) == 1 && child_index(parent(leaf)) == 1
+    else
+        return false
+    end
+end
+
+function is_struct_type_param(leaf)
+    kind(leaf) == K"Identifier" || return false
+    if parents_match(leaf, (K"curly", K"struct"))
+        # Here we want the non-first argument of `curly`
+        return child_index(leaf) > 1
+    elseif parents_match(leaf, (K"<:", K"curly", K"struct"))
+        # Here we only want the LHS of the <:, AND the not-first argument of curly
+        return child_index(leaf) == 1 && child_index(get_parent(leaf)) > 1
+    else
+        return false
+    end
+end
+
 # check if `leaf` is a function argument (or kwarg), but not a default value etc,
 # which is part of a function definition (not just any function call)
 function is_non_anonymous_function_definition_arg(leaf)
@@ -121,7 +147,8 @@ end
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
     function_arg = is_function_definition_arg(leaf)
-    global_scope = !function_arg
+    struct_arg = is_struct_type_param(leaf) || is_struct_field_name(leaf)
+    global_scope = !function_arg && !struct_arg
     module_path = Symbol[]
     scope_path = JuliaSyntax.SyntaxNode[]
     is_assignment = false
@@ -135,7 +162,7 @@ function analyze_name(leaf; debug=false)
         args = nodevalue(node).node.raw.args
 
         debug && println(val, ": ", k)
-        if k in (K"let", K"for", K"function")
+        if k in (K"let", K"for", K"function", K"struct")
             global_scope = false
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
@@ -171,7 +198,8 @@ function analyze_name(leaf; debug=false)
 
         # finished climbing to the root
         node === nothing &&
-            return (; function_arg, global_scope, is_assignment, module_path, scope_path)
+            return (; function_arg, global_scope, is_assignment, module_path, scope_path,
+                    struct_arg)
         idx += 1
     end
 end
@@ -200,7 +228,8 @@ function analyze_all_names(file; debug=false)
                                  location::String,
                                  function_arg::Bool,global_scope::Bool,is_assignment::Bool,
                                  module_path::Vector{Symbol},
-                                 scope_path::Vector{JuliaSyntax.SyntaxNode}}[]
+                                 scope_path::Vector{JuliaSyntax.SyntaxNode},
+                                 struct_arg::Bool}[]
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.
@@ -280,7 +309,7 @@ function get_global_names(per_usage_info)
         if nt.global_scope
             push!(names_used_for_global_bindings, (; nt.name, nt.module_path, nt.location))
         else
-            if !(nt.function_arg || nt.is_assignment)
+            if !(nt.function_arg || nt.is_assignment || nt.struct_arg)
                 push!(names_used_for_global_bindings,
                       (; nt.name, nt.module_path, nt.location))
             end
