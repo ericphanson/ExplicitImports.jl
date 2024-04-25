@@ -148,3 +148,11 @@ function get_parent(n, i=1)
     end
     return n
 end
+
+function has_parent(n, i=1)
+    for _ in i:-1:1
+        n = parent(n)
+        n === nothing && return false
+    end
+    return true
+end

@@ -114,6 +114,22 @@ function is_struct_type_param(leaf)
     end
 end
 
+function in_for_argument_position(node)
+    # We must be on the LHS of a `for` `equal`.
+    if !has_parent(node, 2)
+        return false
+    elseif parents_match(node, (K"=", K"for"))
+        return child_index(node) == 1
+    else
+        return in_for_argument_position(get_parent(node))
+    end
+end
+
+function is_for_arg(leaf)
+    kind(leaf) == K"Identifier" || return false
+    return in_for_argument_position(leaf)
+end
+
 # check if `leaf` is a function argument (or kwarg), but not a default value etc,
 # which is part of a function definition (not just any function call)
 function is_non_anonymous_function_definition_arg(leaf)
@@ -148,7 +164,8 @@ function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
     function_arg = is_function_definition_arg(leaf)
     struct_arg = is_struct_type_param(leaf) || is_struct_field_name(leaf)
-    global_scope = !function_arg && !struct_arg
+    for_arg = is_for_arg(leaf)
+    global_scope = !function_arg && !struct_arg && !for_arg
     module_path = Symbol[]
     scope_path = JuliaSyntax.SyntaxNode[]
     is_assignment = false
@@ -199,7 +216,7 @@ function analyze_name(leaf; debug=false)
         # finished climbing to the root
         node === nothing &&
             return (; function_arg, global_scope, is_assignment, module_path, scope_path,
-                    struct_arg)
+                    struct_arg, for_arg)
         idx += 1
     end
 end
@@ -229,7 +246,7 @@ function analyze_all_names(file; debug=false)
                                  function_arg::Bool,global_scope::Bool,is_assignment::Bool,
                                  module_path::Vector{Symbol},
                                  scope_path::Vector{JuliaSyntax.SyntaxNode},
-                                 struct_arg::Bool}[]
+                                 struct_arg::Bool,for_arg::Bool}[]
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.
@@ -296,24 +313,48 @@ function get_global_names(per_usage_info)
     names_used_for_global_bindings = Set{@NamedTuple{name::Symbol,
                                                      module_path::Vector{Symbol},
                                                      location::String}}()
-    seen = Set{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}}}()
+    seen = Dict{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}},Bool}()
 
     for nt in per_usage_info
-        (; nt.name, nt.scope_path) in seen && continue
+        (; nt.name, nt.scope_path) in keys(seen) && continue
         nt.qualified && continue
         nt.import_type == :import_RHS && continue
 
         # Ok, at this point it counts!
-        push!(seen, (; nt.name, nt.scope_path))
+        push!(seen, (; nt.name, nt.scope_path) => nt.global_scope)
 
         if nt.global_scope
             push!(names_used_for_global_bindings, (; nt.name, nt.module_path, nt.location))
         else
-            if !(nt.function_arg || nt.is_assignment || nt.struct_arg)
+            # we are in local scope.
+            # If we were e.g. an assignment in a higher local scope though, it could still be a local name, as opposed to a global one.
+            # We will recurse up the `scope_path`. Note the order is "reversed",
+            # so the first entry of `scope_path` is deepest.
+            scope_path = nt.scope_path
+            while !isempty(scope_path)
+                # First, if we are directly in a module, then we don't want to recurse further.
+                # We will just end up in a different module.
+                if kind(first(scope_path)) == K"module"
+                    @goto inner
+                end
+                # Ok, now pop off the first scope and check.
+                scope_path = scope_path[2:end]
+                ret = get(seen, (; nt.name, scope_path), nothing)
+                if ret === false # local usage found earlier
+                    @goto outer
+                elseif ret === true
+                    # We hit global scope, time to bail
+                    @goto inner
+                end
+                # else, continue recursing
+            end
+            @label inner
+            if !(nt.function_arg || nt.is_assignment || nt.struct_arg || nt.for_arg)
                 push!(names_used_for_global_bindings,
                       (; nt.name, nt.module_path, nt.location))
             end
         end
+        @label outer
     end
     return names_used_for_global_bindings
 end

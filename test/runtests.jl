@@ -11,7 +11,7 @@ using Aqua
 using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
-using ExplicitImports: is_struct_type_param, is_struct_field_name
+using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -94,6 +94,7 @@ end
 @testset "loops" begin
     cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
     leaves = collect(Leaves(cursor))
+    @test map(get_val, filter(is_for_arg, leaves)) == [:i, :I, :j, :k]
 
     # Tests #35
     @test using_statement.(explicit_imports_nonrecursive(TestMod6, "test_mods.jl")) ==

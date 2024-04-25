@@ -61,6 +61,13 @@ using LinearAlgebra
 
 function foo(x)
     for (i, I) in pairs(x)
+        # this next one is very tricky, since we need to both identify `j`
+        # as a for "argument", and note that `I` is a local variable from
+        # one scope up.
+        for j in I
+        end
+    end
+    for (; k) in x
     end
 end
 
