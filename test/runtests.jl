@@ -289,6 +289,10 @@ end
            "using .Exporter4: Z"
            "using .Exporter4: a"
            "using .Exporter4: z"]
+
+    #    https://github.com/ericphanson/ExplicitImports.jl/issues/34
+    @test using_statement.(explicit_imports_nonrecursive(TestMod5, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra"]
 end
 
 function exception_string(f)

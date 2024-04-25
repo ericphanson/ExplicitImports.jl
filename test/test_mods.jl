@@ -26,3 +26,14 @@ fa2() = Exporter4.a()
 fz2() = Exporter4.z()
 
 end # TestMod4
+
+# https://github.com/ericphanson/ExplicitImports.jl/issues/34
+module TestMod5
+
+using LinearAlgebra
+
+struct Bar{QR}
+    x::QR
+end
+
+end # TestMOd5
