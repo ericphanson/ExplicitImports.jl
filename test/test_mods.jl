@@ -54,3 +54,41 @@ Base.@kwdef struct Foo2
 end
 
 end # TestMOd5
+
+module TestMod6
+
+using LinearAlgebra
+
+function foo(x)
+    for (i, I) in pairs(x)
+        # this next one is very tricky, since we need to both identify `j`
+        # as a for "argument", and note that `I` is a local variable from
+        # one scope up.
+        for j in I
+        end
+    end
+    for (; k) in x
+    end
+end
+
+end # module
+
+module TestMod7
+
+using LinearAlgebra
+
+# these are all local references to `I`, but you have to go up a scope to know that
+function foo(I)
+    let
+        I+1
+    end
+    let k=I
+        k+I
+    end
+    function bar(x)
+        I+1
+    end
+    bar(I)
+end
+
+end # TestMod7

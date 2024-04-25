@@ -11,7 +11,7 @@ using Aqua
 using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
-using ExplicitImports: is_struct_type_param, is_struct_field_name
+using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -90,6 +90,25 @@ end
     @test using_statement.(explicit_imports_nonrecursive(TestMod5, "test_mods.jl")) ==
           ["using LinearAlgebra: LinearAlgebra"]
 end
+
+@testset "loops" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
+    leaves = collect(Leaves(cursor))
+    @test map(get_val, filter(is_for_arg, leaves)) == [:i, :I, :j, :k]
+
+    # Tests #35
+    @test using_statement.(explicit_imports_nonrecursive(TestMod6, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra"]
+end
+
+@testset "nested local scope" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
+    leaves = collect(Leaves(cursor))
+    # Test nested local scope
+    @test using_statement.(explicit_imports_nonrecursive(TestMod7, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra"]
+end
+
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
     @test contains(str, "Script `script.jl`")
