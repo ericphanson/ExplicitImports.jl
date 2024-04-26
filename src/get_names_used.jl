@@ -332,7 +332,7 @@ function is_name_local_in_higher_local_scope(name, scope_path, seen)
     return false
 end
 
-function get_global_names(per_usage_info)
+function analyze_per_usage_info(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
     # First, throw away all qualified usages, they are irrelevant
     # Next, if a name is on the RHS of an import, we don't care, so throw away
@@ -341,22 +341,27 @@ function get_global_names(per_usage_info)
     #   1. Next, if the name is a function arg, then this is not a global name (essentially first usage is assignment)
     #   2. Otherwise, if first usage is assignment, then it is local, otherwise it is global
 
-    names_used_for_global_bindings = Set{@NamedTuple{name::Symbol,
-                                                     module_path::Vector{Symbol},
-                                                     location::String}}()
-
     seen = Dict{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}},Bool}()
-
-    for nt in per_usage_info
-        (; nt.name, nt.scope_path) in keys(seen) && continue
-        nt.qualified && continue
-        nt.import_type == :import_RHS && continue
+    return map(per_usage_info) do nt
+        if (; nt.name, nt.scope_path) in keys(seen)
+            return (; nt..., first_usage_in_scope=false, global_name=missing,
+                    analysis_reason="Ignored as not-first usage")
+        end
+        if nt.qualified
+            return (; nt..., first_usage_in_scope=true, global_name=missing,
+                    analysis_reason="Ignored since qualified")
+        end
+        if nt.import_type == :import_RHS
+            return (; nt..., first_usage_in_scope=true, global_name=missing,
+                    analysis_reason="Ignored since `import_type` is `:import_RHS`")
+        end
 
         # Ok, at this point it counts!
         push!(seen, (; nt.name, nt.scope_path) => nt.global_scope)
 
         if nt.global_scope
-            push!(names_used_for_global_bindings, (; nt.name, nt.module_path, nt.location))
+            return (; nt..., first_usage_in_scope=true, global_name=true,
+                    analysis_reason="marked as `global_scope`, so global name.")
         else
             # we are in local scope.
             # If we were e.g. an assignment in a higher local scope though, it could still be a local name, as opposed to a global one.
@@ -364,11 +369,33 @@ function get_global_names(per_usage_info)
             # so the first entry of `scope_path` is deepest.
             is_local_name = is_name_local_in_higher_local_scope(nt.name, nt.scope_path,
                                                                 seen)
-            if !(is_local_name || nt.function_arg || nt.is_assignment ||
-                 nt.struct_field_or_type_param || nt.for_loop_index)
-                push!(names_used_for_global_bindings,
-                      (; nt.name, nt.module_path, nt.location))
+            for (is_local, reason) in
+                ((is_local_name, "local name introduced in higher local scope"),
+                 (nt.function_arg, "function argument"),
+                 (nt.is_assignment, "left-hand side of assignment"),
+                 (nt.struct_field_or_type_param, "struct field or type parameter"),
+                 (nt.for_loop_index, "for-loop index variable"))
+                if is_local
+                    return (; nt..., first_usage_in_scope=true, global_name=false,
+                            analysis_reason="local because $reason")
+                end
             end
+
+            return (; nt..., first_usage_in_scope=true, global_name=true,
+                    analysis_reason="global, since not found as local name")
+        end
+    end
+end
+
+function get_global_names(per_usage_info)
+    names_used_for_global_bindings = Set{@NamedTuple{name::Symbol,
+                                                     module_path::Vector{Symbol},
+                                                     location::String}}()
+
+    analyzed_info = analyze_per_usage_info(per_usage_info)
+    for nt in analyzed_info
+        if nt.global_name === true
+            push!(names_used_for_global_bindings, (; nt.name, nt.module_path, nt.location))
         end
     end
     return names_used_for_global_bindings
