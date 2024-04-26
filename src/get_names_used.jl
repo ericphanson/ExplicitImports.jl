@@ -174,7 +174,6 @@ function analyze_name(leaf; debug=false)
     function_arg = is_function_definition_arg(leaf)
     struct_field_or_type_param = is_struct_type_param(leaf) || is_struct_field_name(leaf)
     for_loop_index = is_for_arg(leaf)
-    global_scope = !function_arg && !struct_field_or_type_param && !for_loop_index
     module_path = Symbol[]
     scope_path = JuliaSyntax.SyntaxNode[]
     is_assignment = false
@@ -189,12 +188,10 @@ function analyze_name(leaf; debug=false)
 
         debug && println(val, ": ", k)
         if k in (K"let", K"for", K"function", K"struct")
-            global_scope = false
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
         elseif idx > 3 && k == K"=" && !isempty(args) &&
                kind(first(args)) == K"call"
-            global_scope = false
             push!(scope_path, nodevalue(node).node)
         end
 
@@ -216,7 +213,7 @@ function analyze_name(leaf; debug=false)
             kids = children(nodevalue(node))
             if !isempty(kids)
                 c = first(kids)
-                is_assignment = c == nodevalue(leaf)
+                is_assignment |= c == nodevalue(leaf)
             end
         end
 
@@ -224,7 +221,7 @@ function analyze_name(leaf; debug=false)
 
         # finished climbing to the root
         node === nothing &&
-            return (; function_arg, global_scope, is_assignment, module_path, scope_path,
+            return (; function_arg, is_assignment, module_path, scope_path,
                     struct_field_or_type_param, for_loop_index)
         idx += 1
     end
@@ -252,7 +249,7 @@ function analyze_all_names(file; debug=false)
 
     per_usage_info = @NamedTuple{name::Symbol,qualified::Bool,import_type::Symbol,
                                  location::String,
-                                 function_arg::Bool,global_scope::Bool,is_assignment::Bool,
+                                 function_arg::Bool,is_assignment::Bool,
                                  module_path::Vector{Symbol},
                                  scope_path::Vector{JuliaSyntax.SyntaxNode},
                                  struct_field_or_type_param::Bool,for_loop_index::Bool}[]
@@ -307,10 +304,13 @@ function analyze_all_names(file; debug=false)
               (; name, qualified, import_type, location, ret...,))
     end
     untainted_modules = setdiff!(seen_modules, tainted_modules)
-    return per_usage_info, untainted_modules
+    return analyze_per_usage_info(per_usage_info), untainted_modules
 end
 
-function is_name_local_in_higher_local_scope(name, scope_path, seen)
+function is_name_internal_in_higher_local_scope(name, scope_path, seen)
+    # We will recurse up the `scope_path`. Note the order is "reversed",
+    # so the first entry of `scope_path` is deepest.
+
     while !isempty(scope_path)
         # First, if we are directly in a module, then we don't want to recurse further.
         # We will just end up in a different module.
@@ -340,50 +340,47 @@ function analyze_per_usage_info(per_usage_info)
     # Otherwise, we are in local scope:
     #   1. Next, if the name is a function arg, then this is not a global name (essentially first usage is assignment)
     #   2. Otherwise, if first usage is assignment, then it is local, otherwise it is global
-
     seen = Dict{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}},Bool}()
     return map(per_usage_info) do nt
         if (; nt.name, nt.scope_path) in keys(seen)
-            return (; nt..., first_usage_in_scope=false, global_name=missing,
-                    analysis_reason="Ignored as not-first usage")
+            return (; nt..., first_usage_in_scope=false, external_global_name=missing,
+                    analysis_reason="Ignored as not-first usage in scope")
         end
         if nt.qualified
-            return (; nt..., first_usage_in_scope=true, global_name=missing,
+            return (; nt..., first_usage_in_scope=true, external_global_name=missing,
                     analysis_reason="Ignored since qualified")
         end
         if nt.import_type == :import_RHS
-            return (; nt..., first_usage_in_scope=true, global_name=missing,
+            return (; nt..., first_usage_in_scope=true, external_global_name=missing,
                     analysis_reason="Ignored since `import_type` is `:import_RHS`")
         end
 
-        # Ok, at this point it counts!
-        push!(seen, (; nt.name, nt.scope_path) => nt.global_scope)
-
-        if nt.global_scope
-            return (; nt..., first_usage_in_scope=true, global_name=true,
-                    analysis_reason="marked as `global_scope`, so global name.")
-        else
-            # we are in local scope.
-            # If we were e.g. an assignment in a higher local scope though, it could still be a local name, as opposed to a global one.
-            # We will recurse up the `scope_path`. Note the order is "reversed",
-            # so the first entry of `scope_path` is deepest.
-            is_local_name = is_name_local_in_higher_local_scope(nt.name, nt.scope_path,
-                                                                seen)
-            for (is_local, reason) in
-                ((is_local_name, "local name introduced in higher local scope"),
-                 (nt.function_arg, "function argument"),
-                 (nt.is_assignment, "left-hand side of assignment"),
-                 (nt.struct_field_or_type_param, "struct field or type parameter"),
-                 (nt.for_loop_index, "for-loop index variable"))
-                if is_local
-                    return (; nt..., first_usage_in_scope=true, global_name=false,
-                            analysis_reason="local because $reason")
-                end
+        # At this point, we have an unqualified name, which is not the RHS of an import, and it is the first time we have seen this name in this scope.
+        # Is it global or local?
+        # We will check a bunch of things:
+        # * this was the first usage in this scope, but it could already be used in a "higher" local scope. It is possible we have not yet processed that scope fully but we will assume we have (TODO). So we will recurse up and check if it is a local name there. If so, we will skip this.
+        # * this name could be local due to syntax: due to it being a function argument, LHS of an assignment, a struct field or type param, or due to a loop index.
+        internal_in_higher_local_scope = is_name_internal_in_higher_local_scope(nt.name,
+                                                                                nt.scope_path,
+                                                                                seen)
+        for (is_local, reason) in
+            ((internal_in_higher_local_scope, "name introduced in higher scope"),
+             (nt.function_arg, "function argument"),
+             (nt.is_assignment, "left-hand side of assignment"),
+             (nt.struct_field_or_type_param, "struct field or type parameter"),
+             (nt.for_loop_index, "for-loop index variable"))
+            if is_local
+                external_global_name = false
+                push!(seen, (; nt.name, nt.scope_path) => external_global_name)
+                return (; nt..., first_usage_in_scope=true, external_global_name,
+                        analysis_reason="local because $reason")
             end
-
-            return (; nt..., first_usage_in_scope=true, global_name=true,
-                    analysis_reason="global, since not found as local name")
         end
+
+        external_global_name = true
+        push!(seen, (; nt.name, nt.scope_path) => external_global_name)
+        return (; nt..., first_usage_in_scope=true, external_global_name,
+                analysis_reason="global, since not found as local name")
     end
 end
 
@@ -392,9 +389,8 @@ function get_global_names(per_usage_info)
                                                      module_path::Vector{Symbol},
                                                      location::String}}()
 
-    analyzed_info = analyze_per_usage_info(per_usage_info)
-    for nt in analyzed_info
-        if nt.global_name === true
+    for nt in per_usage_info
+        if nt.external_global_name === true
             push!(names_used_for_global_bindings, (; nt.name, nt.module_path, nt.location))
         end
     end
