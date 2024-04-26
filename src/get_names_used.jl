@@ -310,6 +310,28 @@ function analyze_all_names(file; debug=false)
     return per_usage_info, untainted_modules
 end
 
+function is_name_local_in_higher_local_scope(name, scope_path, seen)
+    while !isempty(scope_path)
+        # First, if we are directly in a module, then we don't want to recurse further.
+        # We will just end up in a different module.
+        if kind(first(scope_path)) == K"module"
+            return false
+        end
+        # Ok, now pop off the first scope and check.
+        scope_path = scope_path[2:end]
+        ret = get(seen, (; name, scope_path), nothing)
+        if ret === nothing
+            # Not introduced here yet, trying recursing further
+            continue
+        else
+            # return value is `is_global`, so negate it
+            return !ret
+        end
+    end
+    # Did not find a local introduction
+    return false
+end
+
 function get_global_names(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
     # First, throw away all qualified usages, they are irrelevant
@@ -340,7 +362,8 @@ function get_global_names(per_usage_info)
             # If we were e.g. an assignment in a higher local scope though, it could still be a local name, as opposed to a global one.
             # We will recurse up the `scope_path`. Note the order is "reversed",
             # so the first entry of `scope_path` is deepest.
-            is_local_name = is_name_local_in_higher_local_scope(nt.name, nt.scope_path, seen)
+            is_local_name = is_name_local_in_higher_local_scope(nt.name, nt.scope_path,
+                                                                seen)
             if !(is_local_name || nt.function_arg || nt.is_assignment ||
                  nt.struct_field_or_type_param || nt.for_loop_index)
                 push!(names_used_for_global_bindings,
@@ -349,28 +372,6 @@ function get_global_names(per_usage_info)
         end
     end
     return names_used_for_global_bindings
-end
-
-function is_name_local_in_higher_local_scope(name, scope_path, seen)
-    while !isempty(scope_path)
-        # First, if we are directly in a module, then we don't want to recurse further.
-        # We will just end up in a different module.
-        if kind(first(scope_path)) == K"module"
-            return false
-        end
-        # Ok, now pop off the first scope and check.
-        scope_path = scope_path[2:end]
-        ret = get(seen, (; name, scope_path), nothing)
-        if ret === nothing
-            # Not introduced here yet, trying recursing further
-            continue
-        else
-            # return value is `is_global`, so negate it
-            return !ret
-        end
-    end
-    # Did not find a local introduction
-    return false
 end
 
 function get_explicit_imports(per_usage_info)
