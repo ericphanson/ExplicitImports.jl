@@ -210,7 +210,7 @@ end
     xs = subset(df, :name => ByRow(==(:x)))
     @test !xs[1, :external_global_name]
     @test !xs[2, :external_global_name]
-    @test contains(xs[2, :analysis_reason], "higher scope")
+    @test xs[2, :analysis_code] == ExplicitImports.InternalAssignment
 
     # we use `exported_a` in two scopes; both times refer to the global name
     exported_as = subset(df, :name => ByRow(==(:exported_a)))

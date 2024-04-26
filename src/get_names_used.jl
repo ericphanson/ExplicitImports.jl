@@ -332,6 +332,8 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
     return false
 end
 
+@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop External
+
 function analyze_per_usage_info(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
     # First, throw away all qualified usages, they are irrelevant
@@ -344,43 +346,47 @@ function analyze_per_usage_info(per_usage_info)
     return map(per_usage_info) do nt
         if (; nt.name, nt.scope_path) in keys(seen)
             return (; nt..., first_usage_in_scope=false, external_global_name=missing,
-                    analysis_reason="Ignored as not-first usage in scope")
+                    analysis_code=IgnoredNonFirst)
         end
         if nt.qualified
             return (; nt..., first_usage_in_scope=true, external_global_name=missing,
-                    analysis_reason="Ignored since qualified")
+                    analysis_code=IgnoredQualified)
         end
         if nt.import_type == :import_RHS
             return (; nt..., first_usage_in_scope=true, external_global_name=missing,
-                    analysis_reason="Ignored since `import_type` is `:import_RHS`")
+                    analysis_code=IgnoredImportRHS)
         end
 
         # At this point, we have an unqualified name, which is not the RHS of an import, and it is the first time we have seen this name in this scope.
         # Is it global or local?
         # We will check a bunch of things:
-        # * this was the first usage in this scope, but it could already be used in a "higher" local scope. It is possible we have not yet processed that scope fully but we will assume we have (TODO). So we will recurse up and check if it is a local name there. If so, we will skip this.
         # * this name could be local due to syntax: due to it being a function argument, LHS of an assignment, a struct field or type param, or due to a loop index.
-        internal_in_higher_local_scope = is_name_internal_in_higher_local_scope(nt.name,
-                                                                                nt.scope_path,
-                                                                                seen)
         for (is_local, reason) in
-            ((internal_in_higher_local_scope, "name introduced in higher scope"),
-             (nt.function_arg, "function argument"),
-             (nt.is_assignment, "left-hand side of assignment"),
-             (nt.struct_field_or_type_param, "struct field or type parameter"),
-             (nt.for_loop_index, "for-loop index variable"))
+            ((nt.function_arg, InternalFunctionArg),
+             (nt.is_assignment, InternalAssignment),
+             (nt.struct_field_or_type_param, InternalStruct),
+             (nt.for_loop_index, InternalForLoop))
             if is_local
                 external_global_name = false
                 push!(seen, (; nt.name, nt.scope_path) => external_global_name)
                 return (; nt..., first_usage_in_scope=true, external_global_name,
-                        analysis_reason="local because $reason")
+                        analysis_code=reason)
             end
+        end
+        # * this was the first usage in this scope, but it could already be used in a "higher" local scope. It is possible we have not yet processed that scope fully but we will assume we have (TODO). So we will recurse up and check if it is a local name there.
+        if is_name_internal_in_higher_local_scope(nt.name,
+                                                  nt.scope_path,
+                                                  seen)
+            external_global_name = false
+            push!(seen, (; nt.name, nt.scope_path) => external_global_name)
+            return (; nt..., first_usage_in_scope=true, external_global_name,
+                    analysis_code=InternalHigherScope)
         end
 
         external_global_name = true
         push!(seen, (; nt.name, nt.scope_path) => external_global_name)
         return (; nt..., first_usage_in_scope=true, external_global_name,
-                analysis_reason="global, since not found as local name")
+                analysis_code=External)
     end
 end
 
