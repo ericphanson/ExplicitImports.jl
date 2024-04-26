@@ -168,7 +168,8 @@ end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
 # a leaf and follow the parents up to see what scopes our leaf is in.
-# TODO- cleanup with parsing utilities (?)
+# TODO- cleanup. This basically has two jobs: check is function arg etc, and figure out the scope/module path.
+# We could do these two things separately for more clarity.
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
     function_arg = is_function_definition_arg(leaf)
