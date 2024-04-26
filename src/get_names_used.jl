@@ -172,9 +172,9 @@ end
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
     function_arg = is_function_definition_arg(leaf)
-    struct_arg = is_struct_type_param(leaf) || is_struct_field_name(leaf)
-    for_arg = is_for_arg(leaf)
-    global_scope = !function_arg && !struct_arg && !for_arg
+    struct_field_or_type_param = is_struct_type_param(leaf) || is_struct_field_name(leaf)
+    for_loop_index = is_for_arg(leaf)
+    global_scope = !function_arg && !struct_field_or_type_param && !for_loop_index
     module_path = Symbol[]
     scope_path = JuliaSyntax.SyntaxNode[]
     is_assignment = false
@@ -225,7 +225,7 @@ function analyze_name(leaf; debug=false)
         # finished climbing to the root
         node === nothing &&
             return (; function_arg, global_scope, is_assignment, module_path, scope_path,
-                    struct_arg, for_arg)
+                    struct_field_or_type_param, for_loop_index)
         idx += 1
     end
 end
@@ -255,7 +255,7 @@ function analyze_all_names(file; debug=false)
                                  function_arg::Bool,global_scope::Bool,is_assignment::Bool,
                                  module_path::Vector{Symbol},
                                  scope_path::Vector{JuliaSyntax.SyntaxNode},
-                                 struct_arg::Bool,for_arg::Bool}[]
+                                 struct_field_or_type_param::Bool,for_loop_index::Bool}[]
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.
@@ -358,7 +358,7 @@ function get_global_names(per_usage_info)
                 # else, continue recursing
             end
             @label inner
-            if !(nt.function_arg || nt.is_assignment || nt.struct_arg || nt.for_arg)
+            if !(nt.function_arg || nt.is_assignment || nt.struct_field_or_type_param || nt.for_loop_index)
                 push!(names_used_for_global_bindings,
                       (; nt.name, nt.module_path, nt.location))
             end
