@@ -11,7 +11,8 @@ using Aqua
 using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
-using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg
+using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg,
+                       analyze_per_usage_info
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -177,9 +178,8 @@ end
 
 function get_per_scope(per_usage_info)
     per_usage_df = DataFrame(per_usage_info)
-    subset!(per_usage_df, :qualified => ByRow(!), :import_type => ByRow(==(:not_import)))
-    return combine(groupby(per_usage_df, [:name, :scope_path, :module_path, :global_scope]),
-                   :is_assignment => first => :assigned_first)
+    dropmissing!(per_usage_df, :external_global_name)
+    return per_usage_df
 end
 
 # TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
@@ -204,19 +204,19 @@ end
     per_usage_info, _ = analyze_all_names("TestModA.jl")
     df = get_per_scope(per_usage_info)
     locals = contains.(string.(df.name), Ref("local"))
-    @test all(!, df.global_scope[locals])
+    @test all(!, df.external_global_name[locals])
 
-    # we use `x` in two scopes; first time is global scope, second time is local
+    # we use `x` in two scopes
     xs = subset(df, :name => ByRow(==(:x)))
-    @test xs[1, :global_scope]
-    @test !xs[2, :global_scope]
-    @test xs[2, :assigned_first]
+    @test !xs[1, :external_global_name]
+    @test !xs[2, :external_global_name]
+    @test xs[2, :analysis_code] == ExplicitImports.InternalAssignment
 
     # we use `exported_a` in two scopes; both times refer to the global name
     exported_as = subset(df, :name => ByRow(==(:exported_a)))
-    @test exported_as[1, :global_scope]
-    @test !exported_as[2, :global_scope]
-    @test !exported_as[2, :assigned_first]
+    @test exported_as[1, :external_global_name]
+    @test exported_as[2, :external_global_name]
+    @test !exported_as[2, :is_assignment]
 
     # Test submodules
     @test using_statement.(explicit_imports_nonrecursive(TestModA.SubModB, "TestModA.jl")) ==
@@ -228,8 +228,8 @@ end
     sub_df = restrict_to_module(df, TestModA.SubModB)
 
     h = only(subset(sub_df, :name => ByRow(==(:h))))
-    @test h.global_scope
-    @test !h.assigned_first
+    @test h.external_global_name
+    @test !h.is_assignment
 
     # Nested submodule with same name as outer module...
     @test using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA,
