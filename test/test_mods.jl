@@ -134,7 +134,6 @@ end
 
 end # TestMod9
 
-
 module TestMod10
 
 using LinearAlgebra
@@ -150,37 +149,63 @@ end
 
 end # TestMod10
 
-
 module TestMod11
 
 using LinearAlgebra
 
-
 function foo(f)
     # This `I` is a local variable!
     f() do I
-        I + 1
+        return I + 1
     end
 
     # These are locals too, but in different scopes
     f() do I, svd
-        I + 1
+        return I + 1
     end
 
     # global, despite a local of the same name ocuring in a different scope above
     svd
 
     f() do (; I, z)
-        I + 1
+        return I + 1
     end
 
     # This name is external
     Hermitian() do I
-        I + 1
+        return I + 1
     end
 
     # Non-first invocation of `Hermitian`
-    Hermitian
+    return Hermitian
 end
 
 end # TestMod11
+
+module TestMod12
+
+using LinearAlgebra
+
+function foo(f)
+    try
+        I = 1 # local
+    catch
+        svd = 1 # local
+        I # this one is global!
+    finally
+        svd # global
+        I # this one is global too!
+    end
+
+    try
+        I = 1 # local
+    catch I
+        svd = 1 # local
+        I # this one is local
+    finally
+        svd # global
+        I # this one is global
+    end
+end
+
+end # TestMod12
