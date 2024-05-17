@@ -140,7 +140,8 @@ function is_generator_arg(leaf)
 end
 
 function in_generator_arg_position(node)
-    # We must be on the LHS of a `for` `equal`.
+    # We must be on the LHS of a `=` inside a generator
+    # (possibly inside a filter, possibly inside a `cartesian_iterator`)
     if !has_parent(node, 2)
         return false
     elseif parents_match(node, (K"=", K"generator")) ||
