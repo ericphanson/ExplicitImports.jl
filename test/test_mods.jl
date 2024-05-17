@@ -77,7 +77,7 @@ function foo(x)
     end
 end
 
-end # module
+end # TestMod6
 
 module TestMod7
 
@@ -106,3 +106,30 @@ using LinearAlgebra
 foo(::QR) = ()
 
 end # TestMod8
+
+module TestMod9
+
+using LinearAlgebra
+
+function foo(x)
+    [x for (i1, I) in pairs(x)]
+    (x for (i2, I) in pairs(x))
+    [x for (i3, I) in pairs(x) if I == 1]
+    (x for (i4, I) in pairs(x) if I == 1)
+
+    [x for (; i1, I) in pairs(x)]
+    (x for (; i2, I) in pairs(x))
+    [x for (; i3, I) in pairs(x) if (I, 1) == 1]
+    (x for (; i4, I) in pairs(x) if (I, 1) == 1)
+
+    [x for i1 in x, I in x]
+    (x for i1 in x, I in x)
+
+    [x for i1 in x, I in x if I == 1]
+    (x for i1 in x, I in x if I == 1)
+
+    # Here we want to be sure that `y` does not match!
+    return (x for i1 in x, I in x if (y = 1) == 1)
+end
+
+end # TestMod9
