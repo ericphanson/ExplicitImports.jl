@@ -37,7 +37,20 @@ end
 
 function is_function_definition_arg(leaf)
     return is_anonymous_function_definition_arg(leaf) ||
-           is_non_anonymous_function_definition_arg(leaf)
+           is_non_anonymous_function_definition_arg(leaf) ||
+           is_anonymous_do_function_definition_arg(leaf)
+end
+
+function is_anonymous_do_function_definition_arg(leaf)
+    if parents_match(leaf, (K"tuple", K"do"))
+        # second argument of `do`-block
+        return child_index(parent(leaf)) == 2
+    elseif parent(leaf) === nothing
+        return false
+    else
+        # Ok, let's just step up one level and see again
+        return is_anonymous_do_function_definition_arg(parent(leaf))
+    end
 end
 
 function is_anonymous_function_definition_arg(leaf)
@@ -68,6 +81,33 @@ function is_anonymous_function_definition_arg(leaf)
         child_index(leaf) == 1 || return false
         # Ok, let's just step up one level and see again
         return is_anonymous_function_definition_arg(parent(leaf))
+    else
+        return false
+    end
+end
+
+# check if `leaf` is a function argument (or kwarg), but not a default value etc,
+# which is part of a function definition (not just any function call)
+function is_non_anonymous_function_definition_arg(leaf)
+    # a call who is a child of `function` or `=` is a function def
+    # (I think!)
+    if parents_match(leaf, (K"call",)) && call_is_func_def(parent(leaf))
+        # We are a function arg if we're a child of `call` who is not the function name itself
+        return child_index(leaf) != 1
+    elseif parents_match(leaf, (K"parameters", K"call")) &&
+           call_is_func_def(get_parent(leaf, 2))
+        # we're a kwarg without default value in a call
+        return true
+    elseif parents_match(leaf, (K"=",))
+        # we must be on the LHS, otherwise we aren't a function arg
+        child_index(leaf) == 1 || return false
+        # Ok, let's just step up one level and see again
+        return is_non_anonymous_function_definition_arg(parent(leaf))
+    elseif parents_match(leaf, (K"::",))
+        # we must be on the LHS, otherwise we're a type
+        is_double_colon_LHS(leaf) || return false
+        # Ok, let's just step up one level and see again
+        return is_non_anonymous_function_definition_arg(parent(leaf))
     else
         return false
     end
@@ -154,33 +194,6 @@ function in_generator_arg_position(node)
     end
 end
 
-# check if `leaf` is a function argument (or kwarg), but not a default value etc,
-# which is part of a function definition (not just any function call)
-function is_non_anonymous_function_definition_arg(leaf)
-    # a call who is a child of `function` or `=` is a function def
-    # (I think!)
-    if parents_match(leaf, (K"call",)) && call_is_func_def(parent(leaf))
-        # We are a function arg if we're a child of `call` who is not the function name itself
-        return child_index(leaf) != 1
-    elseif parents_match(leaf, (K"parameters", K"call")) &&
-           call_is_func_def(get_parent(leaf, 2))
-        # we're a kwarg without default value in a call
-        return true
-    elseif parents_match(leaf, (K"=",))
-        # we must be on the LHS, otherwise we aren't a function arg
-        child_index(leaf) == 1 || return false
-        # Ok, let's just step up one level and see again
-        return is_non_anonymous_function_definition_arg(parent(leaf))
-    elseif parents_match(leaf, (K"::",))
-        # we must be on the LHS, otherwise we're a type
-        is_double_colon_LHS(leaf) || return false
-        # Ok, let's just step up one level and see again
-        return is_non_anonymous_function_definition_arg(parent(leaf))
-    else
-        return false
-    end
-end
-
 # matches `x` in `x::Y`, but not `Y`, nor `foo(::Y)`
 function is_double_colon_LHS(leaf)
     parents_match(leaf, (K"::",)) || return false
@@ -206,6 +219,7 @@ function analyze_name(leaf; debug=false)
     node = leaf
     idx = 1
 
+    prev_node = nothing
     while true
         # update our state
         val = get_val(node)
@@ -214,7 +228,10 @@ function analyze_name(leaf; debug=false)
 
         debug && println(val, ": ", k)
         # Constructs that start a new local scope:
-        if k in (K"let", K"for", K"function", K"struct", K"generator", K"while")
+        if k in (K"let", K"for", K"function", K"struct", K"generator", K"while") ||
+           # Or do-block when we are considering a path that did not go through the first-arg
+           # (which is the function name, and NOT part of the local scope)
+           (k == K"do" && child_index(prev_node) > 1)
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
         elseif idx > 3 && k == K"=" && !isempty(args) &&
@@ -244,6 +261,7 @@ function analyze_name(leaf; debug=false)
             end
         end
 
+        prev_node = node
         node = parent(node)
 
         # finished climbing to the root

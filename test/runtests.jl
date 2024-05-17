@@ -145,6 +145,27 @@ end
     @test df.analysis_code == [ExplicitImports.InternalAssignment, ExplicitImports.External]
 end
 
+@testset "do- syntax" begin
+    @test using_statement.(explicit_imports_nonrecursive(TestMod11, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra",
+           "using LinearAlgebra: Hermitian",
+           "using LinearAlgebra: svd"]
+
+    per_usage_info, _ = analyze_all_names("test_mods.jl")
+    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    subset!(df, :module_path => ByRow(==([:TestMod11])))
+
+    I_codes = subset(df, :name => ByRow(==(:I))).analysis_code
+    @test I_codes == [ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
+                      ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
+                      ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
+                      ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst]
+    svd_codes = subset(df, :name => ByRow(==(:svd))).analysis_code
+    @test svd_codes == [ExplicitImports.InternalFunctionArg, ExplicitImports.External]
+    Hermitian_codes = subset(df, :name => ByRow(==(:Hermitian))).analysis_code
+    @test Hermitian_codes == [ExplicitImports.External, ExplicitImports.IgnoredNonFirst]
+end
+
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
     @test contains(str, "Script `script.jl`")

@@ -149,3 +149,38 @@ function foo(x)
 end
 
 end # TestMod10
+
+
+module TestMod11
+
+using LinearAlgebra
+
+
+function foo(f)
+    # This `I` is a local variable!
+    f() do I
+        I + 1
+    end
+
+    # These are locals too, but in different scopes
+    f() do I, svd
+        I + 1
+    end
+
+    # global, despite a local of the same name ocuring in a different scope above
+    svd
+
+    f() do (; I, z)
+        I + 1
+    end
+
+    # This name is external
+    Hermitian() do I
+        I + 1
+    end
+
+    # Non-first invocation of `Hermitian`
+    Hermitian
+end
+
+end # TestMod11
