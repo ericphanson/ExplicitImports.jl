@@ -127,6 +127,11 @@ end
 
     @test using_statement.(explicit_imports_nonrecursive(TestMod9, "test_mods.jl")) ==
           ["using LinearAlgebra: LinearAlgebra"]
+
+    per_usage_info, _ = analyze_all_names("test_mods.jl")
+    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    subset!(df, :module_path => ByRow(==([:TestMod9])), :name => ByRow(==(:i1)))
+    @test all(==(ExplicitImports.InternalGenerator), df.analysis_code)
 end
 
 @testset "scripts" begin

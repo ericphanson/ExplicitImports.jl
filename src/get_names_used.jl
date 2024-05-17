@@ -213,7 +213,8 @@ function analyze_name(leaf; debug=false)
         args = nodevalue(node).node.raw.args
 
         debug && println(val, ": ", k)
-        if k in (K"let", K"for", K"function", K"struct")
+        # Constructs that start a new local scope:
+        if k in (K"let", K"for", K"function", K"struct", K"generator")
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
         elseif idx > 3 && k == K"=" && !isempty(args) &&
@@ -390,10 +391,13 @@ function analyze_per_usage_info(per_usage_info)
         # * this name could be local due to syntax: due to it being a function argument, LHS of an assignment, a struct field or type param, or due to a loop index.
         for (is_local, reason) in
             ((nt.function_arg, InternalFunctionArg),
-             (nt.is_assignment, InternalAssignment),
              (nt.struct_field_or_type_param, InternalStruct),
              (nt.for_loop_index, InternalForLoop),
-             (nt.generator_index, InternalGenerator))
+             (nt.generator_index, InternalGenerator),
+             # We check this last, since it is less specific
+             # than e.g. `InternalForLoop` but can trigger in
+             # some of the same cases
+             (nt.is_assignment, InternalAssignment))
             if is_local
                 external_global_name = false
                 push!(seen, (; nt.name, nt.scope_path) => external_global_name)
