@@ -134,6 +134,26 @@ function is_for_arg(leaf)
     return in_for_argument_position(leaf)
 end
 
+function is_generator_arg(leaf)
+    kind(leaf) == K"Identifier" || return false
+    return in_generator_arg_position(leaf)
+end
+
+function in_generator_arg_position(node)
+    # We must be on the LHS of a `=` inside a generator
+    # (possibly inside a filter, possibly inside a `cartesian_iterator`)
+    if !has_parent(node, 2)
+        return false
+    elseif parents_match(node, (K"=", K"generator")) ||
+           parents_match(node, (K"=", K"cartesian_iterator", K"generator")) ||
+           parents_match(node, (K"=", K"filter")) ||
+           parents_match(node, (K"=", K"cartesian_iterator", K"filter"))
+        return child_index(node) == 1
+    else
+        return in_generator_arg_position(get_parent(node))
+    end
+end
+
 # check if `leaf` is a function argument (or kwarg), but not a default value etc,
 # which is part of a function definition (not just any function call)
 function is_non_anonymous_function_definition_arg(leaf)
@@ -179,6 +199,7 @@ function analyze_name(leaf; debug=false)
     function_arg = is_function_definition_arg(leaf)
     struct_field_or_type_param = is_struct_type_param(leaf) || is_struct_field_name(leaf)
     for_loop_index = is_for_arg(leaf)
+    generator_index = is_generator_arg(leaf)
     module_path = Symbol[]
     scope_path = JuliaSyntax.SyntaxNode[]
     is_assignment = false
@@ -192,7 +213,8 @@ function analyze_name(leaf; debug=false)
         args = nodevalue(node).node.raw.args
 
         debug && println(val, ": ", k)
-        if k in (K"let", K"for", K"function", K"struct")
+        # Constructs that start a new local scope:
+        if k in (K"let", K"for", K"function", K"struct", K"generator")
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
         elseif idx > 3 && k == K"=" && !isempty(args) &&
@@ -227,7 +249,7 @@ function analyze_name(leaf; debug=false)
         # finished climbing to the root
         node === nothing &&
             return (; function_arg, is_assignment, module_path, scope_path,
-                    struct_field_or_type_param, for_loop_index)
+                    struct_field_or_type_param, for_loop_index, generator_index)
         idx += 1
     end
 end
@@ -257,7 +279,8 @@ function analyze_all_names(file; debug=false)
                                  function_arg::Bool,is_assignment::Bool,
                                  module_path::Vector{Symbol},
                                  scope_path::Vector{JuliaSyntax.SyntaxNode},
-                                 struct_field_or_type_param::Bool,for_loop_index::Bool}[]
+                                 struct_field_or_type_param::Bool,for_loop_index::Bool,
+                                 generator_index::Bool}[]
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.
@@ -337,7 +360,7 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
     return false
 end
 
-@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop External
+@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop InternalGenerator External
 
 function analyze_per_usage_info(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
@@ -368,9 +391,13 @@ function analyze_per_usage_info(per_usage_info)
         # * this name could be local due to syntax: due to it being a function argument, LHS of an assignment, a struct field or type param, or due to a loop index.
         for (is_local, reason) in
             ((nt.function_arg, InternalFunctionArg),
-             (nt.is_assignment, InternalAssignment),
              (nt.struct_field_or_type_param, InternalStruct),
-             (nt.for_loop_index, InternalForLoop))
+             (nt.for_loop_index, InternalForLoop),
+             (nt.generator_index, InternalGenerator),
+             # We check this last, since it is less specific
+             # than e.g. `InternalForLoop` but can trigger in
+             # some of the same cases
+             (nt.is_assignment, InternalAssignment))
             if is_local
                 external_global_name = false
                 push!(seen, (; nt.name, nt.scope_path) => external_global_name)

@@ -12,7 +12,7 @@ using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
 using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg,
-                       analyze_per_usage_info
+                       is_generator_arg, analyze_per_usage_info
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -114,6 +114,24 @@ end
     # https://github.com/ericphanson/ExplicitImports.jl/issues/33
     @test using_statement.(explicit_imports_nonrecursive(TestMod8, "test_mods.jl")) ==
           ["using LinearAlgebra: LinearAlgebra", "using LinearAlgebra: QR"]
+end
+
+@testset "generators" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
+    leaves = collect(Leaves(cursor))
+
+    v = [:i1, :I, :i2, :I, :i3, :I, :i4, :I]
+    w = [:i1, :I]
+    @test map(get_val, filter(is_generator_arg, leaves)) ==
+          [v; v; w; w; w; w; w]
+
+    @test using_statement.(explicit_imports_nonrecursive(TestMod9, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra"]
+
+    per_usage_info, _ = analyze_all_names("test_mods.jl")
+    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    subset!(df, :module_path => ByRow(==([:TestMod9])), :name => ByRow(==(:i1)))
+    @test all(==(ExplicitImports.InternalGenerator), df.analysis_code)
 end
 
 @testset "scripts" begin
