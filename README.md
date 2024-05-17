@@ -86,6 +86,9 @@ These can likely all be fixed by improving the code in `src/get_names_used.jl`, 
 Known issues:
 
 - `global` and `local` keywords are currently ignored
+- `baremodule` is currently not handled
+- arguments in macro definitions are not handled (may be treated incorrectly as globals)
+- arguments to `let` blocks are not handled (may be treated incorrectly as globals)
 - multi-argument `include` calls are ignored
 - In Julia, `include` adds the included code at top-level in the module in which it is called. Here, when `include` is called within a local scope, all of the code being included is treated as being within that local scope.
 - quoted code (e.g. when building Julia expressions programmatically) may be analyzed incorrectly
