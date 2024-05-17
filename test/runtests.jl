@@ -95,7 +95,7 @@ end
 @testset "loops" begin
     cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
     leaves = collect(Leaves(cursor))
-    @test map(get_val, filter(is_for_arg, leaves)) == [:i, :I, :j, :k]
+    @test map(get_val, filter(is_for_arg, leaves)) == [:i, :I, :j, :k, :k, :j, :xi, :yi]
 
     # Tests #35
     @test using_statement.(explicit_imports_nonrecursive(TestMod6, "test_mods.jl")) ==
