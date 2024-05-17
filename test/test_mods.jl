@@ -133,3 +133,19 @@ function foo(x)
 end
 
 end # TestMod9
+
+
+module TestMod10
+
+using LinearAlgebra
+
+function foo(x)
+    while false
+        I = 1
+    end
+    # Here, if our scope detection is wrong, we will think this `I` is local,
+    # when in fact it is global. Therefore we must import it explicitly!
+    return I
+end
+
+end # TestMod10
