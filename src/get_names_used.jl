@@ -200,6 +200,23 @@ function in_generator_arg_position(node)
     end
 end
 
+function is_catch_arg(leaf)
+    kind(leaf) == K"Identifier" || return false
+    return in_catch_arg_position(leaf)
+end
+
+function in_catch_arg_position(node)
+    # We must be the first argument of a `catch` block
+    if !has_parent(node)
+        return false
+    elseif parents_match(node, (K"catch",))
+        return child_index(node) == 1
+    else
+        # catch doesn't support destructuring, type annotations, etc, so we're done!
+        return false
+    end
+end
+
 # matches `x` in `x::Y`, but not `Y`, nor `foo(::Y)`
 function is_double_colon_LHS(leaf)
     parents_match(leaf, (K"::",)) || return false
@@ -219,6 +236,7 @@ function analyze_name(leaf; debug=false)
     struct_field_or_type_param = is_struct_type_param(leaf) || is_struct_field_name(leaf)
     for_loop_index = is_for_arg(leaf)
     generator_index = is_generator_arg(leaf)
+    catch_arg = is_catch_arg(leaf)
     module_path = Symbol[]
     scope_path = JuliaSyntax.SyntaxNode[]
     is_assignment = false
@@ -233,11 +251,15 @@ function analyze_name(leaf; debug=false)
         args = nodevalue(node).node.raw.args
 
         debug && println(val, ": ", k)
-        # Constructs that start a new local scope:
-        if k in (K"let", K"for", K"function", K"struct", K"generator", K"while") ||
+        # Constructs that start a new local scope. Note `let` & `macro` *arguments* are not explicitly supported/tested yet,
+        # but we can at least keep track of scope properly.
+        if k in
+           (K"let", K"for", K"function", K"struct", K"generator", K"while", K"macro") ||
            # Or do-block when we are considering a path that did not go through the first-arg
            # (which is the function name, and NOT part of the local scope)
-           (k == K"do" && child_index(prev_node) > 1)
+           (k == K"do" && child_index(prev_node) > 1) ||
+           # any child of `try` gets it's own individual scope (I think)
+           (parents_match(node, (K"try",)))
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
         elseif idx > 3 && k == K"=" && !isempty(args) &&
@@ -246,7 +268,7 @@ function analyze_name(leaf; debug=false)
         end
 
         # track which modules we are in
-        if k == K"module"
+        if k == K"module" # baremodules?
             ids = filter(children(nodevalue(node))) do arg
                 return kind(arg.node) == K"Identifier"
             end
@@ -273,7 +295,7 @@ function analyze_name(leaf; debug=false)
         # finished climbing to the root
         node === nothing &&
             return (; function_arg, is_assignment, module_path, scope_path,
-                    struct_field_or_type_param, for_loop_index, generator_index)
+                    struct_field_or_type_param, for_loop_index, generator_index, catch_arg)
         idx += 1
     end
 end
@@ -304,7 +326,7 @@ function analyze_all_names(file; debug=false)
                                  module_path::Vector{Symbol},
                                  scope_path::Vector{JuliaSyntax.SyntaxNode},
                                  struct_field_or_type_param::Bool,for_loop_index::Bool,
-                                 generator_index::Bool}[]
+                                 generator_index::Bool,catch_arg::Bool}[]
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.
@@ -384,7 +406,7 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
     return false
 end
 
-@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop InternalGenerator External
+@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop InternalGenerator InternalCatchArgument External
 
 function analyze_per_usage_info(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
@@ -418,6 +440,7 @@ function analyze_per_usage_info(per_usage_info)
              (nt.struct_field_or_type_param, InternalStruct),
              (nt.for_loop_index, InternalForLoop),
              (nt.generator_index, InternalGenerator),
+             (nt.catch_arg, InternalCatchArgument),
              # We check this last, since it is less specific
              # than e.g. `InternalForLoop` but can trigger in
              # some of the same cases
