@@ -134,6 +134,17 @@ end
     @test all(==(ExplicitImports.InternalGenerator), df.analysis_code)
 end
 
+@testset "while loops" begin
+    @test using_statement.(explicit_imports_nonrecursive(TestMod10, "test_mods.jl")) ==
+          ["using LinearAlgebra: LinearAlgebra", "using LinearAlgebra: I"]
+
+    per_usage_info, _ = analyze_all_names("test_mods.jl")
+    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    subset!(df, :module_path => ByRow(==([:TestMod10])), :name => ByRow(==(:I)))
+    # First one is internal, second one external
+    @test df.analysis_code == [ExplicitImports.InternalAssignment, ExplicitImports.External]
+end
+
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
     @test contains(str, "Script `script.jl`")

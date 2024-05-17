@@ -214,7 +214,7 @@ function analyze_name(leaf; debug=false)
 
         debug && println(val, ": ", k)
         # Constructs that start a new local scope:
-        if k in (K"let", K"for", K"function", K"struct", K"generator")
+        if k in (K"let", K"for", K"function", K"struct", K"generator", K"while")
             push!(scope_path, nodevalue(node).node)
             # try to detect presence in RHS of inline function definition
         elseif idx > 3 && k == K"=" && !isempty(args) &&
