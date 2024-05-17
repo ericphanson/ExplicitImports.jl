@@ -42,14 +42,16 @@ function is_function_definition_arg(leaf)
 end
 
 function is_anonymous_do_function_definition_arg(leaf)
-    if parents_match(leaf, (K"tuple", K"do"))
+    if !has_parent(leaf, 2)
+        return false
+    elseif parents_match(leaf, (K"tuple", K"do"))
         # second argument of `do`-block
         return child_index(parent(leaf)) == 2
-    elseif parent(leaf) === nothing
-        return false
-    else
+    elseif kind(parent(leaf)) in (K"tuple", K"parameters")
         # Ok, let's just step up one level and see again
         return is_anonymous_do_function_definition_arg(parent(leaf))
+    else
+        return false
     end
 end
 
@@ -164,8 +166,10 @@ function in_for_argument_position(node)
         return child_index(node) == 1
     elseif parents_match(node, (K"=", K"cartesian_iterator", K"for"))
         return child_index(node) == 1
-    else
+    elseif kind(parent(node)) in (K"tuple", K"parameters")
         return in_for_argument_position(get_parent(node))
+    else
+        return false
     end
 end
 
@@ -189,8 +193,10 @@ function in_generator_arg_position(node)
            parents_match(node, (K"=", K"filter")) ||
            parents_match(node, (K"=", K"cartesian_iterator", K"filter"))
         return child_index(node) == 1
-    else
+    elseif kind(parent(node)) in (K"tuple", K"parameters")
         return in_generator_arg_position(get_parent(node))
+    else
+        return false
     end
 end
 
