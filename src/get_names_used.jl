@@ -114,11 +114,15 @@ function is_struct_type_param(leaf)
     end
 end
 
+# In the future, this may need an update for
+# https://github.com/JuliaLang/JuliaSyntax.jl/issues/432
 function in_for_argument_position(node)
     # We must be on the LHS of a `for` `equal`.
     if !has_parent(node, 2)
         return false
     elseif parents_match(node, (K"=", K"for"))
+        return child_index(node) == 1
+    elseif parents_match(node, (K"=", K"cartesian_iterator", K"for"))
         return child_index(node) == 1
     else
         return in_for_argument_position(get_parent(node))

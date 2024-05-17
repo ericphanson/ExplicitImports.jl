@@ -53,7 +53,7 @@ Base.@kwdef struct Foo2
     qr::Int = 1
 end
 
-end # TestMOd5
+end # TestMod5
 
 module TestMod6
 
@@ -68,6 +68,12 @@ function foo(x)
         end
     end
     for (; k) in x
+    end
+
+    for (; k) in x, (; j) in y
+    end
+
+    for xi in x, yi in y
     end
 end
 
