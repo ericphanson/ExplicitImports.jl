@@ -72,7 +72,7 @@ function improper_qualified_names_nonrecursive(io::IO, mod::Module, file=pathof(
         println(io, "$(length(d)) issues with qualified names were found:")
         for row in values(problematic)
             println(io,
-                    "- $(row.name) has `parentmodule` $(row.parentmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
+                    "- `$(row.name)` has parentmodule $(row.parentmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
         end
     end
     ExplicitImports.parent
