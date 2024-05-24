@@ -10,10 +10,33 @@ Base.@kwdef struct FileAnalysis
     untainted_modules::Set{Vector{Symbol}}
 end
 
-function is_qualified(leaf)
+# returns `nothing` for no qualifying module, otherwise a symbol
+function qualifying_module(leaf)
     # is this name being used in a qualified context, like `X.y`?
-    parents_match(leaf, (K"quote", K".")) || return false
-    return child_index(parent(leaf)) == 2
+    parents_match(leaf, (K"quote", K".")) || return nothing
+    # Are we on the right-hand side?
+    child_index(parent(leaf)) == 2 || return nothing
+    # Ok, now try to retrieve the child on the left-side
+    node = first(AbstractTrees.children(get_parent(leaf, 2)))
+    path = Symbol[]
+    retrieve_module_path!(path, node)
+    return path
+end
+
+function retrieve_module_path!(path, node)
+    kids = AbstractTrees.children(node)
+    if kind(node) == K"Identifier"
+        push!(path, get_val(node))
+    elseif kind(node) == K"."
+        k1, k2 = kids
+        if kind(k1) === K"Identifier"
+            push!(path, get_val(k1))
+        end
+        return retrieve_module_path!(path, k2)
+    elseif kind(node) == K"quote"
+        return retrieve_module_path!(path, first(kids))
+    end
+    return path
 end
 
 # figure out if `leaf` is part of an import or using statement
@@ -320,7 +343,8 @@ function analyze_all_names(file; debug=false)
     # we can call `parent` to climb up from a leaf.
     cursor = TreeCursor(tree)
 
-    per_usage_info = @NamedTuple{name::Symbol,qualified::Bool,import_type::Symbol,
+    per_usage_info = @NamedTuple{name::Symbol,qualified_by::Union{Nothing,Vector{Symbol}},
+                                 import_type::Symbol,
                                  location::String,
                                  function_arg::Bool,is_assignment::Bool,
                                  module_path::Vector{Symbol},
@@ -351,8 +375,9 @@ function analyze_all_names(file; debug=false)
 
         # Skip quoted identifiers
         # This won't necessarily catch if they are part of a big quoted block,
-        # but it will at least catch symbols
-        parents_match(leaf, (K"quote",)) && continue
+        # but it will at least catch symbols (however keep qualified names)
+        parents_match(leaf, (K"quote",)) && !parents_match(leaf, (K"quote", K".")) &&
+            continue
 
         # Ok, we have a "name". We want to know if:
         # 1. it is being used in global scope
@@ -366,7 +391,7 @@ function analyze_all_names(file; debug=false)
         debug && println("Leaf position: $(location)")
         name = get_val(leaf)
         debug && println("Leaf name: ", name)
-        qualified = is_qualified(leaf)
+        qualified_by = qualifying_module(leaf)
         import_type = analyze_import_type(leaf)
         debug && println("Import type: ", import_type)
         debug && println("--")
@@ -375,7 +400,7 @@ function analyze_all_names(file; debug=false)
         debug && println(ret)
         push!(seen_modules, ret.module_path)
         push!(per_usage_info,
-              (; name, qualified, import_type, location, ret...,))
+              (; name, qualified_by, import_type, location, ret...,))
     end
     untainted_modules = setdiff!(seen_modules, tainted_modules)
     return analyze_per_usage_info(per_usage_info), untainted_modules
@@ -422,7 +447,7 @@ function analyze_per_usage_info(per_usage_info)
             return (; nt..., first_usage_in_scope=false, external_global_name=missing,
                     analysis_code=IgnoredNonFirst)
         end
-        if nt.qualified
+        if nt.qualified_by !== nothing
             return (; nt..., first_usage_in_scope=true, external_global_name=missing,
                     analysis_code=IgnoredQualified)
         end
@@ -487,7 +512,8 @@ function get_explicit_imports(per_usage_info)
                                        module_path::Vector{Symbol},
                                        location::String}}()
     for nt in per_usage_info
-        nt.qualified && continue
+        # skip qualified names
+        (nt.qualified_by === nothing) || continue
         if nt.import_type == :import_RHS
             push!(explicit_imports, (; nt.name, nt.module_path, nt.location))
         end
