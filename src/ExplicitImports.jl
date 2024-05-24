@@ -15,6 +15,7 @@ export StaleImportsException, ImplicitImportsException, UnanalyzableModuleExcept
 include("parse_utilities.jl")
 include("find_implicit_imports.jl")
 include("get_names_used.jl")
+include("qualified_names.jl")
 include("checks.jl")
 
 const SKIPS_KWARG = """
