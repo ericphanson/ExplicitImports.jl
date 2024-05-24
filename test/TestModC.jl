@@ -14,6 +14,8 @@ func_c() = (local9 = 1; f())
 # fully qualified usage of implicitly available exported name
 y = Exporter.exported_a()
 
+TestModA.SubModB.h
+
 # explicitly imported name, which is also available implicitly
 z = exported_b()
 

@@ -356,6 +356,15 @@ end
           [(; name=:exported_c), (; name=:exported_d)]
     @test isempty(lookup[TestModA])
 
+    per_usage_info, _ = analyze_all_names("TestModC.jl")
+    testmodc = DataFrame(analyze_per_usage_info(per_usage_info))
+    qualified_row = only(subset(testmodc, :name => ByRow(==(:exported_a))))
+    @test qualified_row.analysis_code == ExplicitImports.IgnoredQualified
+    @test qualified_row.qualified_by == [:Exporter]
+
+    qualified_row2 = only(subset(testmodc, :name => ByRow(==(:h))))
+    @test qualified_row2.qualified_by == [:TestModA, :SubModB]
+
     # Printing
     str = sprint(print_stale_explicit_imports, TestModA, "TestModA.jl")
     @test contains(str, "TestModA has no stale explicit imports")
