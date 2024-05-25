@@ -118,7 +118,8 @@ function analyze_import_type(leaf)
         elseif parents_match(leaf, (K"importpath", K"import"))
             return last_child ? :blanket_using : :blanket_using_member
         else
-            error("Unhandled case $leaf")
+            # TODO: handle `import X as Y`
+            error("Unhandled case $(js_node(get_parent(leaf, 2)))")
         end
     end
 end
