@@ -8,7 +8,7 @@ using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
 using Test
 using DataFrames
 using Aqua
-using Logging
+using Logging, UUIDs
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
 using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg,
@@ -198,6 +198,17 @@ end
     @test contains(str, "using LinearAlgebra: norm")
     @test contains(str, "stale explicit imports for these unused names")
     @test contains(str, "- qr")
+end
+
+@testset "Don't skip source modules (#29)" begin
+    # In this case `UUID` is defined in Base but exported in UUIDs
+    ret = ExplicitImports.find_implicit_imports(Mod29)[:UUID]
+    @test ret.source == Base
+    @test ret.exporters == [UUIDs]
+    # We should NOT skip it, even though `skip` includes `Base`, since the exporters
+    # are not skipped.
+    statements = using_statement.(explicit_imports_nonrecursive(Mod29, "examples.jl"))
+    @test statements == ["using UUIDs: UUIDs", "using UUIDs: UUID"]
 end
 
 @testset "Exported module (#24)" begin
