@@ -9,6 +9,8 @@ export print_explicit_imports, explicit_imports, check_no_implicit_imports,
 export print_explicit_imports_script
 export print_stale_explicit_imports, stale_explicit_imports,
        check_no_stale_explicit_imports, stale_explicit_imports_nonrecursive
+export print_improper_qualified_accesses, improper_qualified_accesses,
+       improper_qualified_accesses_nonrecursive
 export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException,
        FileNotFoundException
 
@@ -113,14 +115,18 @@ function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
 end
 
 """
-    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true, strict=true)
+    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true,
+                           warn_improper_qualified_accesses=true, strict=true)
 
-Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref).
+Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref) and [`improper_qualified_accesses`](@ref).
+
+Note that the particular printing may change in future non-breaking releases of ExplicitImports.
 
 ## Keyword arguments
 
 $SKIPS_KWARG
 * `warn_stale=true`: if set, this function will also print information about stale explicit imports.
+* `warn_improper_qualified_accesses=true`: if set, this function will also print information about any "improper" qualified accesses to names from other modules.
 $STRICT_PRINTING_KWARG
 * `show_locations=false`: whether or not to print locations of where the names are being used (and, if `warn_stale=true`, where the stale explicit imports are).
 * `linewidth=80`: format into lines of up to this length. Set to 0 to indicate one name should be printed per line.
@@ -129,7 +135,7 @@ See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_impor
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core), warn_stale=true,
-                                warn_qualified_name_issues=true,
+                                warn_improper_qualified_accesses=true,
                                 strict=true,
                                 show_locations=false,
                                 linewidth=80,
@@ -176,9 +182,9 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
         else
             stale = ()
         end
-        if warn_qualified_name_issues
-            problematic = improper_qualified_names_nonrecursive(mod, file;
-                                                                file_analysis=file_analysis[file])
+        if warn_improper_qualified_accesses
+            problematic = improper_qualified_accesses_nonrecursive(mod, file;
+                                                                   file_analysis=file_analysis[file])
             if !isnothing(problematic) && !isempty(problematic)
                 word = !isnothing(imports) && isempty(imports) && isempty(stale) ?
                        "However" : "Additionally"
@@ -313,6 +319,8 @@ end
 
 Runs [`stale_explicit_imports`](@ref) and prints the results.
 
+Note that the particular printing may change in future non-breaking releases of ExplicitImports.
+
 ## Keyword arguments
 
 $STRICT_PRINTING_KWARG
@@ -361,6 +369,8 @@ More keys may be added to the NamedTuples in the future in non-breaking releases
     Note that it is possible for an import from a module (say `X`) into one module (say `A`) to be relied on from another unrelated module (say `B`). For example, if `A` contains the code `using X: x`, but either does not use `x` at all or only uses `x` in the form `X.x`, then `x` will be flagged as a stale explicit import by this function. However, it could be that the code in some unrelated module `B` uses `A.x` or `using A: x`, relying on the fact that `x` has been imported into `A`'s namespace.
 
     This is an unusual situation (generally `B` should just get `x` directly from `X`, rather than indirectly via `A`), but there are situations in which it arises, so one may need to be careful about naively removing all "stale" explicit imports flagged by this function.
+
+    Running [`improper_qualified_accesses`](@ref) on downstream code can help identify such "improper" accesses to names via modules other than their owner.
 
 ## Keyword arguments
 
@@ -565,6 +575,8 @@ end
     print_explicit_imports_script([io::IO=stdout,] path; skip=(Base, Core), warn_stale=true)
 
 Analyzes the script located at `path` and prints information about reliance on implicit exports as well as any stale explicit imports (if `warn_stale=true`).
+
+Note that the particular printing may change in future non-breaking releases of ExplicitImports.
 
 !!! warning
   The script (or at least, all imports in the script) must be run before this function can give reliable results, since it relies on introspecting what names are present in `Main`.

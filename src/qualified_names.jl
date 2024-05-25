@@ -71,36 +71,124 @@ function trygetproperty(x::Module, y)
     return isdefined(x, y) ? Some(getproperty(x, y)) : nothing
 end
 
-function improper_qualified_names_nonrecursive(mod::Module, file=pathof(mod);
-                                               # private undocumented kwarg for hoisting this analysis
-                                               file_analysis=get_names_used(file))
+"""
+    improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod); skip=(Base => Core,))
+
+
+A non-recursive version of [`improper_qualified_accesses`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details, including important caveats about stability (outputs may grow in future non-breaking releases of ExplicitImports!).
+
+## Example
+
+```jldoctest
+julia> using ExplicitImports
+
+julia> example_path = pkgdir(ExplicitImports, "examples", "qualified.jl");
+
+julia> print(read(example_path, String))
+module MyMod
+using LinearAlgebra
+# sum is in `Base`, so we shouldn't access it from LinearAlgebra:
+n = LinearAlgebra.sum([1, 2, 3])
+end
+
+julia> include(example_path);
+
+julia> row = improper_qualified_accesses_nonrecursive(MyMod, example_path)[1];
+
+julia> (; row.name, row.accessing_from, row.parentmodule)
+(name = :sum, accessing_from = LinearAlgebra, parentmodule = Base)
+```
+"""
+function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
+                                                  skip=(Base => Core,),
+                                                  # private undocumented kwarg for hoisting this analysis
+                                                  file_analysis=get_names_used(file))
     check_file(file)
-    qualified = analyze_qualified_names(mod, file; file_analysis)
-    # We allow `Base.x` for names that are owned by Core, like `NamedTuple`
-    problematic = [row
-                   for row in qualified
-                   if !row.accessing_from_matches_parent &&
-                      !(row.parentmodule == Core && row.accessing_from == Base)]
+    problematic = analyze_qualified_names(mod, file; file_analysis)
+
+    # Currently only care about mismatches between `accessing_from` and `parent`.
+    filter!(problematic) do row
+        return !row.accessing_from_matches_parent
+    end
+
+    for (from, parent) in skip
+        filter!(problematic) do row
+            return !(row.parentmodule == parent && row.accessing_from == from)
+        end
+    end
+
     return problematic
 end
 
-function improper_qualified_names(mod::Module, file=pathof(mod))
+"""
+    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,))
+
+Attempts do detect various kinds of "improper" qualified accesses taking place in `mod` and any submodules of `mod`.
+Currently, only detects cases in which the name is being accessed from a module which is not it's "owner" (as determined by `Base.parentmodule`).
+
+The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but whose parent is `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
+
+This functionality is still in development, so the exact results may change in future non-breaking releases. Read on for the current outputs, what may change, and what will not change (without a breaking release of ExplicitImports.jl).
+
+Returns a nested structure providing information about improper accesses to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are a `Vector` of `NamedTuple`s with the following keys:
+
+- `name::Symbol`: the name being accessed
+- `location::String`: the location the access takes place
+- `accessing_from::Module`: the module the name is being accessed from (e.g. `Module.name`)
+- `parentmodule::Module`: the `Base.parentmodule` of the object
+- `accessing_from_matches_parent::Bool`: whether or not `accessing_from == parentmodule`.
+
+Currently, all rows have `accessing_from_matches_parent=false`.
+
+In non-breaking releases of ExplicitImports:
+
+- more columns may be added to these rows
+- rows may be returned for which `accessing_from_matches_parent=true`, but have some other kind of issue (e.g. non-public)
+
+However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
+
+See also [`print_improper_qualified_accesses`](@ref) to easily compute and print these results, [`improper_qualified_accesses_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_no_XYZ`](@ref) for a version that throws errors, for regression testing.
+
+## Example
+
+```jldoctest
+julia> using ExplicitImports
+
+julia> example_path = pkgdir(ExplicitImports, "examples", "qualified.jl");
+
+julia> print(read(example_path, String))
+module MyMod
+using LinearAlgebra
+# sum is in `Base`, so we shouldn't access it from LinearAlgebra:
+n = LinearAlgebra.sum([1, 2, 3])
+end
+
+julia> include(example_path);
+
+julia> row = improper_qualified_accesses(MyMod, example_path)[MyMod][1];
+
+julia> (; row.name, row.accessing_from, row.parentmodule)
+(name = :sum, accessing_from = LinearAlgebra, parentmodule = Base)
+```
+"""
+function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,))
     check_file(file)
     submodules = find_submodules(mod, file)
     file_analysis = Dict{String,FileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
-    return [submodule => improper_qualified_names_nonrecursive(submodule, path;
-                                                               file_analysis=file_analysis[path])
+    return [submodule => improper_qualified_accesses_nonrecursive(submodule, path;
+                                                                  file_analysis=file_analysis[path],
+                                                                  skip)
             for (submodule, path) in submodules]
 end
 
-function print_improper_qualified_names(mod::Module, file=pathof(mod))
-    return print_improper_qualified_names(stdout, mod, file)
+function print_improper_qualified_accesses(mod::Module, file=pathof(mod))
+    return print_improper_qualified_accesses(stdout, mod, file)
 end
 
-function print_improper_qualified_names(io::IO, mod::Module, file=pathof(mod))
+function print_improper_qualified_accesses(io::IO, mod::Module, file=pathof(mod))
     check_file(file)
-    for (i, (mod, problematic)) in enumerate(improper_qualified_names(mod, file))
+    for (i, (mod, problematic)) in enumerate(improper_qualified_accesses(mod, file))
         i == 1 || println(io)
         if isempty(problematic)
             println(io, "Module $mod accesses names only from parent modules.")

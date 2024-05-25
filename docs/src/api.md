@@ -18,6 +18,14 @@ print_stale_explicit_imports
 stale_explicit_imports
 ```
 
+## Detecting "improper" access of names from other modules
+
+```@docs
+print_improper_qualified_accesses
+improper_qualified_accesses
+improper_qualified_accesses_nonrecursive
+```
+
 ## Checks to use in testing
 
 ExplicitImports.jl provides two functions which can be used to regression test that there is no reliance on implicit imports or stale explicit imports:
