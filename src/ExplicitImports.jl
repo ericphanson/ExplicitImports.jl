@@ -272,7 +272,6 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     needed_names = Set(nt.name for nt in needs_explicit_import)
     filter!(all_implicit_imports) do (k, v)
         k in needed_names || return false
-        should_skip(v.source; skip) && return false
         any(mod -> should_skip(mod; skip), v.exporters) && return false
         return true
     end
