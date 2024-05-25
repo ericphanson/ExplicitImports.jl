@@ -8,6 +8,7 @@ Base.@kwdef struct PerUsageInfo
     name::Symbol
     qualified_by::Union{Nothing,Vector{Symbol}}
     import_type::Symbol
+    explicitly_imported_by::Union{Nothing,Vector{Symbol}}
     location::String
     function_arg::Bool
     is_assignment::Bool
@@ -421,14 +422,19 @@ function analyze_all_names(file; debug=false)
     # we can call `parent` to climb up from a leaf.
     cursor = TreeCursor(tree)
 
-    per_usage_info = @NamedTuple{name::Symbol,qualified_by::Union{Nothing,Vector{Symbol}},
+    per_usage_info = @NamedTuple{name::Symbol,
+                                 qualified_by::Union{Nothing,Vector{Symbol}},
                                  import_type::Symbol,
+                                 explicitly_imported_by::Union{Nothing,Vector{Symbol}},
                                  location::String,
-                                 function_arg::Bool,is_assignment::Bool,
+                                 function_arg::Bool,
+                                 is_assignment::Bool,
                                  module_path::Vector{Symbol},
                                  scope_path::Vector{JuliaSyntax.SyntaxNode},
-                                 struct_field_or_type_param::Bool,for_loop_index::Bool,
-                                 generator_index::Bool,catch_arg::Bool}[]
+                                 struct_field_or_type_param::Bool,
+                                 for_loop_index::Bool,
+                                 generator_index::Bool,
+                                 catch_arg::Bool}[]
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.
@@ -471,6 +477,11 @@ function analyze_all_names(file; debug=false)
         debug && println("Leaf name: ", name)
         qualified_by = qualifying_module(leaf)
         import_type = analyze_import_type(leaf)
+        if import_type == :import_RHS
+            explicitly_imported_by = get_import_lhs(leaf)
+        else
+            explicitly_imported_by = nothing
+        end
         debug && println("Import type: ", import_type)
         debug && println("--")
         debug && println("val : kind")
@@ -478,7 +489,7 @@ function analyze_all_names(file; debug=false)
         debug && println(ret)
         push!(seen_modules, ret.module_path)
         push!(per_usage_info,
-              (; name, qualified_by, import_type, location, ret...))
+              (; name, qualified_by, import_type, explicitly_imported_by, location, ret...))
     end
     untainted_modules = setdiff!(seen_modules, tainted_modules)
     return analyze_per_usage_info(per_usage_info), untainted_modules
