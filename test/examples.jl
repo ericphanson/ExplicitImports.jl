@@ -50,3 +50,10 @@ using ..Exporter2
 
 exported_a
 end
+
+# https://github.com/ericphanson/ExplicitImports.jl/issues/29
+module Mod29
+using UUIDs
+
+v = UUID[]
+end
