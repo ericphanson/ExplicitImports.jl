@@ -74,13 +74,39 @@ end
     cursor = TreeCursor(SyntaxNodeWrapper("imports.jl"))
     leaves = collect(Leaves(cursor))
     import_type_pairs = get_val.(leaves) .=> analyze_import_type.(leaves)
-    # TODO- test `import_type_pairs`
+    filter!(import_type_pairs) do (k, v)
+        return v !== :not_import
+    end
+    @test import_type_pairs ==
+          [:Exporter => :import_LHS,
+           :exported_a => :import_RHS,
+           :exported_b => :import_RHS,
+           :Exporter => :import_LHS,
+           :exported_c => :import_RHS,
+           :TestModA => :blanket_using_member,
+           :SubModB => :blanket_using,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :h2 => :import_RHS,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :h3 => :import_RHS,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :h => :import_RHS,
+           :Exporter => :blanket_using,
+           :Exporter => :plain_import]
 
     inds = findall(==(:import_RHS), analyze_import_type.(leaves))
     lhs_rhs_pairs = get_import_lhs.(leaves[inds]) .=> get_val.(leaves[inds])
-    # TODO- test `lhs_rhs_pairs`
-
+    @test lhs_rhs_pairs == [[:., :Exporter] => :exported_a,
+                            [:., :Exporter] => :exported_b,
+                            [:., :Exporter] => :exported_c,
+                            [:., :TestModA, :SubModB] => :h2,
+                            [:., :TestModA, :SubModB] => :h3,
+                            [:., :TestModA, :SubModB] => :h]
 end
+
 #####
 ##### To analyze a test case
 #####
