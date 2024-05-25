@@ -410,7 +410,7 @@ Returns a tuple of two items:
 * `per_usage_info`: a table containing information about each name each time it was used
 * `untainted_modules`: a set containing modules found and analyzed successfully
 """
-function analyze_all_names(file; debug=false)
+function analyze_all_names(file)
     # we don't use `try_parse_wrapper` here, since there's no recovery possible
     # (no other files we know about to look at)
     tree = SyntaxNodeWrapper(file)
@@ -447,7 +447,7 @@ function analyze_all_names(file; debug=false)
     for leaf in Leaves(cursor)
         if nodevalue(leaf) isa SkippedFile
             # we start from the parent
-            mod_path = analyze_name(parent(leaf); debug).module_path
+            mod_path = analyze_name(parent(leaf)).module_path
             push!(tainted_modules, mod_path)
             continue
         end
@@ -470,11 +470,8 @@ function analyze_all_names(file; debug=false)
         #
         # We want to figure this out on a per-module basis, since each module has a different global namespace.
 
-        debug && println("-"^80)
         location = location_str(nodevalue(leaf))
-        debug && println("Leaf position: $(location)")
         name = get_val(leaf)
-        debug && println("Leaf name: ", name)
         qualified_by = qualifying_module(leaf)
         import_type = analyze_import_type(leaf)
         if import_type == :import_RHS
@@ -482,11 +479,7 @@ function analyze_all_names(file; debug=false)
         else
             explicitly_imported_by = nothing
         end
-        debug && println("Import type: ", import_type)
-        debug && println("--")
-        debug && println("val : kind")
-        ret = analyze_name(leaf; debug)
-        debug && println(ret)
+        ret = analyze_name(leaf)
         push!(seen_modules, ret.module_path)
         push!(per_usage_info,
               (; name, qualified_by, import_type, explicitly_imported_by, location, ret...))
