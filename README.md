@@ -29,6 +29,14 @@ There are various takes on _how problematic_ this issue is, to what extent this 
 
 Personally, I don't think this is always a huge issue, and that it's basically fine for packages to use implicit imports if that is their preferred style and they understand the risk. But I do think this issue is somewhat a "hole" in the semver system as it applies to Julia packages, and I wanted to create some tooling to make it easier to mitigate the issue for package authors who would prefer to not rely on implicit imports.
 
+## Ways ExplicitImports.jl can and cannot help
+
+As mentioned, there are two ways to avoid implicit imports: by using explicit imports such as `using X: foo`, or by qualifying names (`X.foo`).
+
+ExplicitImports.jl was initially designed to help make explicit imports more ergonomic, by providing functionality to convert implicit imports into explicit ones (e.g. `print_explicit_imports`), and by providing testing tools to keep a codebase free of implicit imports and without stale explicit imports. There are two missing features here still: checking the explicitly imported names are public in the module they are being imported from (e.g. avoid `using X: _internal_foo`), and a weaker condition, checking that they are owned by the module they are being imported from (e.g. avoid `using LinearAlgebra: map`, since `map` comes from Base).
+
+Since v1.5, ExplicitImports.jl has also gained functionality to make using qualifying names more ergonomic. One pitfall of qualified accesses like `X.foo` is that `foo` may be internal to `X` or may be owned by another module (the same issues faced by explicit imports). The function `improper_qualified_accesses` can detect the latter case.
+
 ## Implementation status
 
 ExplicitImports.jl has been used successfully on several codebases, but I would still not describe it as fully mature. That said, it should be ready for use; please file issues if problems arise.
