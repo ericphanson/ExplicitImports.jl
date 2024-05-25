@@ -22,7 +22,7 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
     end
 
     table = @NamedTuple{name::Symbol,location::String,value::Any,accessing_from::Module,
-                        parentmodule::Module,
+                        parentmodule::Module,public_access::Bool,
                         accessing_from_matches_parent::Bool}[]
     # Now check:
     for row in qualified
@@ -30,8 +30,9 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
         output === nothing && continue
         push!(table, output)
     end
-    unique!(nt -> (; nt.name, nt.accessing_from), table)
+    # Sort first, so we get the "first" time each is used
     sort!(table; by=nt -> (; nt.name, nt.location))
+    unique!(nt -> (; nt.name, nt.accessing_from), table)
     return table
 end
 
@@ -62,7 +63,13 @@ function process_qualified_row(row, mod)
             value,
             accessing_from=current_mod,
             parentmodule=parentmod,
+            public_access=public_or_exported(current_mod, row.name),
             accessing_from_matches_parent=current_mod == parentmod,)
+end
+
+function public_or_exported(mod::Module, name::Symbol)
+    return isdefined(Base, :ispublic) ? Base.ispublic(mod, name) :
+           Base.isexported(mod, name)
 end
 
 # We can't just trust `hasproperty` since e.g. `hasproperty(Base, :Core) == false`:
@@ -106,9 +113,10 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
     check_file(file)
     problematic = analyze_qualified_names(mod, file; file_analysis)
 
-    # Currently only care about mismatches between `accessing_from` and `parent`.
+    # Currently only care about mismatches between `accessing_from` and `parent` in which
+    # the name is not publicly available in `accessing_from`.
     filter!(problematic) do row
-        return !row.accessing_from_matches_parent
+        return !row.accessing_from_matches_parent && !row.public_access
     end
 
     for (from, parent) in skip
@@ -136,9 +144,10 @@ Returns a nested structure providing information about improper accesses to name
 - `location::String`: the location the access takes place
 - `accessing_from::Module`: the module the name is being accessed from (e.g. `Module.name`)
 - `parentmodule::Module`: the `Base.parentmodule` of the object
+- `public_access::Bool`: whether or not `name` is public or exported in `accessing_from`. Checking if a name is marked `public` requires Julia v1.11+.
 - `accessing_from_matches_parent::Bool`: whether or not `accessing_from == parentmodule`.
 
-Currently, all rows have `accessing_from_matches_parent=false`.
+Currently, all rows have `accessing_from_matches_parent=false` and `public_access=false`.
 
 In non-breaking releases of ExplicitImports:
 

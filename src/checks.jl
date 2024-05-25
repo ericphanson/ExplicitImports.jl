@@ -191,7 +191,7 @@ end
 """
     check_all_qualified_accesses_via_parents(mod::Module, file=pathof(mod); ignore::Tuple=())
 
-Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their `Base.parentmodule`,
+Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their `Base.parentmodule` (unless the name is public or exported in that module),
 throwing an `QualifiedAccessesFromNonParentException` if so, and returning `nothing` otherwise.
 
 This can be used in a package's tests, e.g.
@@ -218,14 +218,14 @@ for the particular kind of improper access of a name being accessed via a module
 function check_all_qualified_accesses_via_parents(mod::Module, file=pathof(mod);
                                                   ignore::Tuple=())
     check_file(file)
-    for (submodule, problematic) in improper_qualified_accesses(mod, file)
+    for (submodule, problematic) in improper_qualified_accesses(mod, file; skip=ignore)
         filter!(problematic) do row
             return !row.accessing_from_matches_parent
         end
-        # drop unnecessary column
+        # drop unnecessary columns
         problematic = [(;
-                        (k => v for (k, v) in pairs(row) if k !==
-                                                            :accessing_from_matches_parent)...)
+                        (k => v for (k, v) in pairs(row) if k ∉ (:public_access,
+                                                                 :accessing_from_matches_parent))...)
                        for row in problematic]
         filter!(problematic) do nt
             return nt.name ∉ ignore

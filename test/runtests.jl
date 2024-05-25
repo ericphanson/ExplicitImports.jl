@@ -12,7 +12,7 @@ using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
 using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg,
-                       is_generator_arg
+                       is_generator_arg, analyze_qualified_names
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -44,6 +44,7 @@ only_name_source(::Nothing) = nothing
 only_name_source(v::Vector) = only_name_source.(v)
 only_name_source(p::Pair) = first(p) => only_name_source(last(p))
 
+include("public_compat.jl")
 include("Exporter.jl")
 include("TestModA.jl")
 include("test_mods.jl")
@@ -51,6 +52,7 @@ include("DynMod.jl")
 include("TestModArgs.jl")
 include("examples.jl")
 include("script.jl")
+include("test_qualified_access.jl")
 
 # package extension support needs Julia 1.9+
 if VERSION > v"1.9-"
@@ -79,6 +81,51 @@ end
 # js_node(leaf) # inspect it
 # p = js_node(get_parent(leaf, 3)) # see the tree, etc
 # kind(p)
+
+@testset "qualified access" begin
+    # analyze_qualified_names
+    qualified = analyze_qualified_names(TestQualifiedAccess, "test_qualified_access.jl")
+    @test length(qualified) == 3
+    ABC, DEF, HIJ = qualified
+    @test ABC.name == :ABC
+    @test DEF.public_access
+    @test HIJ.public_access
+    @test DEF.name == :DEF
+    @test HIJ.name == :HIJ
+
+    # improper_qualified_accesses
+    ret = Dict(improper_qualified_accesses(TestQualifiedAccess,
+                                           "test_qualified_access.jl")...)
+    @test isempty(ret[TestQualifiedAccess.Bar])
+    @test isempty(ret[TestQualifiedAccess.FooModule])
+    @test !isempty(ret[TestQualifiedAccess])
+    row = only(ret[TestQualifiedAccess])
+    @test row.name == :ABC
+    @test row.parentmodule == TestQualifiedAccess.Bar
+    @test row.accessing_from == TestQualifiedAccess.FooModule
+    @test row.accessing_from_matches_parent == false
+
+    # check_all_qualified_accesses_via_parents
+    ex = QualifiedAccessesFromNonParentException
+    @test_throws ex check_all_qualified_accesses_via_parents(TestQualifiedAccess,
+                                                             "test_qualified_access.jl")
+
+    ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
+    @test check_all_qualified_accesses_via_parents(TestQualifiedAccess,
+                                                   "test_qualified_access.jl";
+                                                   ignore) === nothing
+
+    # Printing via `print_improper_qualified_accesses`
+    str = sprint(print_improper_qualified_accesses, TestQualifiedAccess,
+                 "test_qualified_access.jl")
+    @test contains(str, "accesses names from non-parent modules")
+    @test contains(str, "`ABC` has parentmodule")
+
+    # Printing via `print_explicit_imports`
+    str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
+    @test contains(str, "accesses names from non-parent modules")
+    @test contains(str, "`ABC` has parentmodule")
+end
 
 @testset "structs" begin
     cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))

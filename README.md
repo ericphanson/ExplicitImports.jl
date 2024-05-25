@@ -38,6 +38,7 @@ See the [API docs](https://ericphanson.github.io/ExplicitImports.jl/dev/api/) fo
 - functionality to help convert implicit imports to explicit exports
 - functionality to warn about "stale" (unused) explicit imports
 - functionality to add to package tests to ensure all imports continue to be explicit (and non-stale)
+- functionality to detect "improper" qualified access to names, such as accessing `LinearAlgebra.map` instead of `Base.map` (since `map` is owned by Base, and just happens to be available in the `LinearAlgebra` namespace)
 
 ## Example
 
