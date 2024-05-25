@@ -129,6 +129,7 @@ end
                                                             "test_qualified_access.jl";
                                                             ignore,
                                                             require_submodule_access=true)
+                                                
     ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,
               TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,

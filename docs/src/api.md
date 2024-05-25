@@ -21,8 +21,8 @@ stale_explicit_imports
 ## Detecting "improper" access of names from other modules
 
 ```@docs
-print_improper_qualified_accesses
 improper_qualified_accesses
+print_improper_qualified_accesses
 improper_qualified_accesses_nonrecursive
 ```
 
