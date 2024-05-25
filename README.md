@@ -55,7 +55,7 @@ using JuliaSyntax: JuliaSyntax, @K_str
 ```
 
 Additionally, module ExplicitImports accesses names from non-parent modules:
-- `parent` has parentmodule AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
+- `parent` has owner AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
 
 ````
 
@@ -77,7 +77,7 @@ using JuliaSyntax: JuliaSyntax # used at /Users/eph/ExplicitImports/src/parse_ut
 ```
 
 Additionally, module ExplicitImports accesses names from non-parent modules:
-- `parent` has parentmodule AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
+- `parent` has owner AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
 ````
 
 Note the paths of course will differ depending on the location of the code on your system.

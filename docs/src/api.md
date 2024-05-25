@@ -28,7 +28,7 @@ improper_qualified_accesses_nonrecursive
 
 ## Checks to use in testing
 
-ExplicitImports.jl provides three functions which can be used to regression test that there is no reliance on implicit imports, no stale explicit imports, and no qualified accesses to names from modules other than their `Base.parentmodule`:
+ExplicitImports.jl provides three functions which can be used to regression test that there is no reliance on implicit imports, no stale explicit imports, and no qualified accesses to names from modules other than their owner as determined by `Base.which`:
 
 ```@docs
 check_no_implicit_imports

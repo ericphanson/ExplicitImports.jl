@@ -22,8 +22,8 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
     end
 
     table = @NamedTuple{name::Symbol,location::String,value::Any,accessing_from::Module,
-                        parentmodule::Module,public_access::Bool,
-                        accessing_from_matches_parent::Bool}[]
+                        whichmodule::Module,public_access::Bool,
+                        accessing_from_matches_which::Bool}[]
     # Now check:
     for row in qualified
         output = process_qualified_row(row, mod)
@@ -37,6 +37,7 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
 end
 
 function process_qualified_row(row, mod)
+    isempty(row.qualified_by) && return nothing
     current_mod = mod
     for submod in row.qualified_by
         current_mod = something(trygetproperty(current_mod, submod), Some(nothing))
@@ -48,23 +49,15 @@ function process_qualified_row(row, mod)
     value === nothing && return nothing
     value = something(value) # unwrap
 
-    # Skip things which do not have a parent module
-    applicable(parentmodule, value) || return nothing
-    # We still need a try-catch since `applicable` doesn't seem to catch everything, e.g.
-    # `MethodError: no method matching parentmodule(::Type{Union{Adjoint{T, S}, Transpose{T, S}}})`
-    parentmod = try
-        parentmodule(value)
-    catch
-        return nothing
-    end
+    whichmodule = Base.which(current_mod, row.name)
 
     return (; row.name,
             row.location,
             value,
             accessing_from=current_mod,
-            parentmodule=parentmod,
+            whichmodule,
             public_access=public_or_exported(current_mod, row.name),
-            accessing_from_matches_parent=current_mod == parentmod,)
+            accessing_from_matches_which=current_mod == whichmodule,)
 end
 
 function public_or_exported(mod::Module, name::Symbol)
@@ -102,8 +95,8 @@ julia> include(example_path);
 
 julia> row = improper_qualified_accesses_nonrecursive(MyMod, example_path)[1];
 
-julia> (; row.name, row.accessing_from, row.parentmodule)
-(name = :sum, accessing_from = LinearAlgebra, parentmodule = Base)
+julia> (; row.name, row.accessing_from, row.whichmodule)
+(name = :sum, accessing_from = LinearAlgebra, whichmodule = Base)
 ```
 """
 function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
@@ -116,12 +109,12 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
     # Currently only care about mismatches between `accessing_from` and `parent` in which
     # the name is not publicly available in `accessing_from`.
     filter!(problematic) do row
-        return !row.accessing_from_matches_parent && !row.public_access
+        return !row.accessing_from_matches_which && !row.public_access
     end
 
     for (from, parent) in skip
         filter!(problematic) do row
-            return !(row.parentmodule == parent && row.accessing_from == from)
+            return !(row.whichmodule == parent && row.accessing_from == from)
         end
     end
 
@@ -132,7 +125,7 @@ end
     improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,))
 
 Attempts do detect various kinds of "improper" qualified accesses taking place in `mod` and any submodules of `mod`.
-Currently, only detects cases in which the name is being accessed from a module which is not it's "owner" (as determined by `Base.parentmodule`).
+Currently, only detects cases in which the name is being accessed from a module which is not it's "owner" (as determined by `Base.which`).
 
 The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but whose parent is `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
 
@@ -143,16 +136,16 @@ Returns a nested structure providing information about improper accesses to name
 - `name::Symbol`: the name being accessed
 - `location::String`: the location the access takes place
 - `accessing_from::Module`: the module the name is being accessed from (e.g. `Module.name`)
-- `parentmodule::Module`: the `Base.parentmodule` of the object
+- `whichmodule::Module`: the `Base.which` of the object
 - `public_access::Bool`: whether or not `name` is public or exported in `accessing_from`. Checking if a name is marked `public` requires Julia v1.11+.
-- `accessing_from_matches_parent::Bool`: whether or not `accessing_from == parentmodule`.
+- `accessing_from_matches_which::Bool`: whether or not `accessing_from == whichmodule`.
 
-Currently, all rows have `accessing_from_matches_parent=false` and `public_access=false`.
+Currently, all rows have `accessing_from_matches_which=false` and `public_access=false`.
 
 In non-breaking releases of ExplicitImports:
 
 - more columns may be added to these rows
-- rows may be returned for which `accessing_from_matches_parent=true`, but have some other kind of issue (e.g. non-public)
+- rows may be returned for which `accessing_from_matches_which=true`, but have some other kind of issue (e.g. non-public)
 
 However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
 
@@ -176,8 +169,8 @@ julia> include(example_path);
 
 julia> row = improper_qualified_accesses(MyMod, example_path)[1][2][1];
 
-julia> (; row.name, row.accessing_from, row.parentmodule)
-(name = :sum, accessing_from = LinearAlgebra, parentmodule = Base)
+julia> (; row.name, row.accessing_from, row.whichmodule)
+(name = :sum, accessing_from = LinearAlgebra, whichmodule = Base)
 ```
 """
 function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,))
@@ -217,7 +210,7 @@ function print_improper_qualified_accesses(io::IO, mod::Module, file=pathof(mod)
                     "Module $mod accesses names from non-parent modules:")
             for row in problematic
                 println(io,
-                        "- `$(row.name)` has parentmodule $(row.parentmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
+                        "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
             end
         end
     end

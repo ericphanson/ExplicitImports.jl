@@ -101,12 +101,12 @@ end
     @test !isempty(ret[TestQualifiedAccess])
     row = only(ret[TestQualifiedAccess])
     @test row.name == :ABC
-    @test row.parentmodule == TestQualifiedAccess.Bar
+    @test row.whichmodule == TestQualifiedAccess.Bar
     @test row.accessing_from == TestQualifiedAccess.FooModule
-    @test row.accessing_from_matches_parent == false
+    @test row.accessing_from_matches_which == false
 
     # check_all_qualified_accesses_via_parents
-    ex = QualifiedAccessesFromNonParentException
+    ex = QualifiedAccessesFromNonOwnerException
     @test_throws ex check_all_qualified_accesses_via_parents(TestQualifiedAccess,
                                                              "test_qualified_access.jl")
 
@@ -119,12 +119,12 @@ end
     str = sprint(print_improper_qualified_accesses, TestQualifiedAccess,
                  "test_qualified_access.jl")
     @test contains(str, "accesses names from non-parent modules")
-    @test contains(str, "`ABC` has parentmodule")
+    @test contains(str, "`ABC` has owner")
 
     # Printing via `print_explicit_imports`
     str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
     @test contains(str, "accesses names from non-parent modules")
-    @test contains(str, "`ABC` has parentmodule")
+    @test contains(str, "`ABC` has owner")
 end
 
 @testset "structs" begin

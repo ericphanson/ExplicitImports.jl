@@ -12,7 +12,7 @@ export print_stale_explicit_imports, stale_explicit_imports,
 export print_improper_qualified_accesses, improper_qualified_accesses,
        improper_qualified_accesses_nonrecursive, check_all_qualified_accesses_via_parents
 export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException,
-       FileNotFoundException, QualifiedAccessesFromNonParentException
+       FileNotFoundException, QualifiedAccessesFromNonOwnerException
 
 include("parse_utilities.jl")
 include("find_implicit_imports.jl")
@@ -193,7 +193,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                         "$word, $(name_fn(mod)) accesses names from non-parent modules:")
                 for row in problematic
                     println(io,
-                            "- `$(row.name)` has parentmodule $(row.parentmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
+                            "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
                 end
             end
         end

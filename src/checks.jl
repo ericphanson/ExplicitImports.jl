@@ -36,20 +36,20 @@ function Base.showerror(io::IO, e::UnanalyzableModuleException)
     return nothing
 end
 
-struct QualifiedAccessesFromNonParentException <: Exception
+struct QualifiedAccessesFromNonOwnerException <: Exception
     mod::Module
     accesses::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
                                  accessing_from::Module,
-                                 parentmodule::Module}}
+                                 whichmodule::Module}}
 end
 
-function Base.showerror(io::IO, e::QualifiedAccessesFromNonParentException)
-    println(io, "QualifiedAccessesFromNonParentException")
+function Base.showerror(io::IO, e::QualifiedAccessesFromNonOwnerException)
+    println(io, "QualifiedAccessesFromNonOwnerException")
     println(io,
-            "Module `$(e.mod)` has qualified accesses to names via modules other than their `Base.parentmodule`:")
+            "Module `$(e.mod)` has qualified accesses to names via modules other than their owner as determined via `Base.which`:")
     for row in e.accesses
         println(io,
-                "- `$(row.name)` has parentmodule $(row.parentmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
+                "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
     end
 end
 
@@ -191,8 +191,8 @@ end
 """
     check_all_qualified_accesses_via_parents(mod::Module, file=pathof(mod); ignore::Tuple=())
 
-Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their `Base.parentmodule` (unless the name is public or exported in that module),
-throwing an `QualifiedAccessesFromNonParentException` if so, and returning `nothing` otherwise.
+Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
+throwing an `QualifiedAccessesFromNonOwnerException` if so, and returning `nothing` otherwise.
 
 This can be used in a package's tests, e.g.
 
@@ -213,25 +213,25 @@ would check there were no qualified accesses from non-parent modules besides tha
 
 See also: [`improper_qualified_accesses`](@ref). Note that while that function may increase in scope and
 report other kinds of improper accesses, `check_all_qualified_accesses_via_parents` will always only check
-for the particular kind of improper access of a name being accessed via a module other than its `parentmodule`.
+for the particular kind of improper access of a name being accessed via a module other than its `whichmodule`.
 """
 function check_all_qualified_accesses_via_parents(mod::Module, file=pathof(mod);
                                                   ignore::Tuple=())
     check_file(file)
     for (submodule, problematic) in improper_qualified_accesses(mod, file; skip=ignore)
         filter!(problematic) do row
-            return !row.accessing_from_matches_parent
+            return !row.accessing_from_matches_which
         end
         # drop unnecessary columns
         problematic = [(;
                         (k => v for (k, v) in pairs(row) if k ∉ (:public_access,
-                                                                 :accessing_from_matches_parent))...)
+                                                                 :accessing_from_matches_which))...)
                        for row in problematic]
         filter!(problematic) do nt
             return nt.name ∉ ignore
         end
         if !isempty(problematic)
-            throw(QualifiedAccessesFromNonParentException(submodule, problematic))
+            throw(QualifiedAccessesFromNonOwnerException(submodule, problematic))
         end
     end
     return nothing
