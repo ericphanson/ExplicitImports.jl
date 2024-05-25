@@ -189,7 +189,7 @@ function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::
 end
 
 """
-    check_all_qualified_accesses_via_parents(mod::Module, file=pathof(mod); ignore::Tuple=())
+    check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), require_submodule_access=false)
 
 Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
 throwing an `QualifiedAccessesFromNonOwnerException` if so, and returning `nothing` otherwise.
@@ -197,35 +197,31 @@ throwing an `QualifiedAccessesFromNonOwnerException` if so, and returning `nothi
 This can be used in a package's tests, e.g.
 
 ```julia
-@test check_all_qualified_accesses_via_parents(MyPackage) === nothing
+@test check_all_qualified_accesses_via_owners(MyPackage) === nothing
 ```
 
-## Allowing some qualified accesses via non-parent modules
+## Allowing some qualified accesses via non-owner modules
 
 If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
-that are allowed to be accessed from non-parent modules. For example,
+that are allowed to be accessed from non-owner modules. For example,
 
 ```julia
-@test check_all_qualified_accesses_via_parents(MyPackage; ignore=(:DataFrame,)) === nothing
+@test check_all_qualified_accesses_via_owners(MyPackage; ignore=(:DataFrame,)) === nothing
 ```
 
-would check there were no qualified accesses from non-parent modules besides that of the name `DataFrame`.
+would check there were no qualified accesses from non-owner modules besides that of the name `DataFrame`.
 
-See also: [`improper_qualified_accesses`](@ref). Note that while that function may increase in scope and
-report other kinds of improper accesses, `check_all_qualified_accesses_via_parents` will always only check
-for the particular kind of improper access of a name being accessed via a module other than its `whichmodule`.
+See also: [`improper_qualified_accesses`](@ref), which also describes the meaning of the keyword argument `require_submodule_access`. Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_qualified_accesses_via_owners` will not.
 """
-function check_all_qualified_accesses_via_parents(mod::Module, file=pathof(mod);
-                                                  ignore::Tuple=())
+function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
+                                                 ignore::Tuple=(),
+                                                 require_submodule_access=false)
     check_file(file)
-    for (submodule, problematic) in improper_qualified_accesses(mod, file; skip=ignore)
-        filter!(problematic) do row
-            return !row.accessing_from_matches_which
-        end
+    for (submodule, problematic) in
+        improper_qualified_accesses(mod, file; skip=ignore, require_submodule_access)
         # drop unnecessary columns
         problematic = [(;
-                        (k => v for (k, v) in pairs(row) if k ∉ (:public_access,
-                                                                 :accessing_from_matches_which))...)
+                        (k => v for (k, v) in pairs(row) if k ∉ (:public_access,))...)
                        for row in problematic]
         filter!(problematic) do nt
             return nt.name ∉ ignore

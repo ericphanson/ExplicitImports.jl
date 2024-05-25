@@ -54,7 +54,7 @@ using AbstractTrees: AbstractTrees, Leaves, TreeCursor, children, nodevalue
 using JuliaSyntax: JuliaSyntax, @K_str
 ```
 
-Additionally, module ExplicitImports accesses names from non-parent modules:
+Additionally, module ExplicitImports accesses names from non-owner modules:
 - `parent` has owner AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
 
 ````
@@ -76,7 +76,7 @@ using AbstractTrees: nodevalue # used at /Users/eph/ExplicitImports/src/parse_ut
 using JuliaSyntax: JuliaSyntax # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:103:15
 ```
 
-Additionally, module ExplicitImports accesses names from non-parent modules:
+Additionally, module ExplicitImports accesses names from non-owner modules:
 - `parent` has owner AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
 ````
 

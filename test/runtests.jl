@@ -85,13 +85,14 @@ end
 @testset "qualified access" begin
     # analyze_qualified_names
     qualified = analyze_qualified_names(TestQualifiedAccess, "test_qualified_access.jl")
-    @test length(qualified) == 3
-    ABC, DEF, HIJ = qualified
+    @test length(qualified) == 4
+    ABC, DEF, HIJ, X = qualified
     @test ABC.name == :ABC
     @test DEF.public_access
     @test HIJ.public_access
     @test DEF.name == :DEF
     @test HIJ.name == :HIJ
+    @test X.name == :X
 
     # improper_qualified_accesses
     ret = Dict(improper_qualified_accesses(TestQualifiedAccess,
@@ -103,27 +104,47 @@ end
     @test row.name == :ABC
     @test row.whichmodule == TestQualifiedAccess.Bar
     @test row.accessing_from == TestQualifiedAccess.FooModule
-    @test row.accessing_from_matches_which == false
 
-    # check_all_qualified_accesses_via_parents
+    # test require_submodule_access=true
+    ret = improper_qualified_accesses_nonrecursive(TestQualifiedAccess,
+                                                   "test_qualified_access.jl";
+                                                   require_submodule_access=true)
+    @test length(ret) == 2
+    ABC, X = ret
+    @test ABC.name == :ABC
+    @test X.name == :X
+    @test X.whichmodule == TestQualifiedAccess.FooModule.FooSub
+
+    # check_all_qualified_accesses_via_owners
     ex = QualifiedAccessesFromNonOwnerException
-    @test_throws ex check_all_qualified_accesses_via_parents(TestQualifiedAccess,
-                                                             "test_qualified_access.jl")
+    @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                            "test_qualified_access.jl")
 
     ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
-    @test check_all_qualified_accesses_via_parents(TestQualifiedAccess,
-                                                   "test_qualified_access.jl";
-                                                   ignore) === nothing
+    @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  ignore) === nothing
+
+    @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                            "test_qualified_access.jl";
+                                                            ignore,
+                                                            require_submodule_access=true)
+    ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,
+              TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub)
+    @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  ignore,
+                                                  require_submodule_access=true) === nothing
 
     # Printing via `print_improper_qualified_accesses`
     str = sprint(print_improper_qualified_accesses, TestQualifiedAccess,
                  "test_qualified_access.jl")
-    @test contains(str, "accesses names from non-parent modules")
+    @test contains(str, "accesses names from non-owner modules")
     @test contains(str, "`ABC` has owner")
 
     # Printing via `print_explicit_imports`
     str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
-    @test contains(str, "accesses names from non-parent modules")
+    @test contains(str, "accesses names from non-owner modules")
     @test contains(str, "`ABC` has owner")
 end
 

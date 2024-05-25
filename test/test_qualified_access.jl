@@ -1,15 +1,14 @@
 module TestQualifiedAccess
 # https://github.com/ericphanson/ExplicitImports.jl/issues/48
 module Bar
-struct ABC
-end
+struct ABC end
 
 struct DEF end
 
 struct HIJ end
 
 export ABC
-end
+end # Bar
 
 module FooModule
 using ..Main: @public_or_export
@@ -18,14 +17,22 @@ export DEF
 
 @public_or_export HIJ
 
+module FooSub
+struct X end
+end # FooSub
+
+using .FooSub: X
+X()
+
 ABC()
 HIJ()
+X()
 end
 
 # Qualified access to `ABC` from the wrong module
 FooModule.ABC
 
-# Qualified access to `DEF` from non-parent module, BUT `DEF` is exported in `FooModule`,
+# Qualified access to `DEF` from non-owner module, BUT `DEF` is exported in `FooModule`,
 # so it's OK
 FooModule.DEF
 
@@ -34,5 +41,8 @@ FooModule.HIJ
 
 # Accessing it again does not affect results (we only report one)
 FooModule.DEF
+
+# This is allowed unless `require_submodule_access=true`
+FooModule.X
 
 end # TestQualifiedAccess

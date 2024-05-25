@@ -10,7 +10,7 @@ export print_explicit_imports_script
 export print_stale_explicit_imports, stale_explicit_imports,
        check_no_stale_explicit_imports, stale_explicit_imports_nonrecursive
 export print_improper_qualified_accesses, improper_qualified_accesses,
-       improper_qualified_accesses_nonrecursive, check_all_qualified_accesses_via_parents
+       improper_qualified_accesses_nonrecursive, check_all_qualified_accesses_via_owners
 export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException,
        FileNotFoundException, QualifiedAccessesFromNonOwnerException
 
@@ -131,7 +131,7 @@ $STRICT_PRINTING_KWARG
 * `show_locations=false`: whether or not to print locations of where the names are being used (and, if `warn_stale=true`, where the stale explicit imports are).
 * `linewidth=80`: format into lines of up to this length. Set to 0 to indicate one name should be printed per line.
 
-See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), and [`check_all_qualified_accesses_via_parents`](@ref).
+See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), and [`check_all_qualified_accesses_via_owners`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core), warn_stale=true,
@@ -190,7 +190,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                        "However" : "Additionally"
                 println(io)
                 println(io,
-                        "$word, $(name_fn(mod)) accesses names from non-parent modules:")
+                        "$word, $(name_fn(mod)) accesses names from non-owner modules:")
                 for row in problematic
                     println(io,
                             "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
