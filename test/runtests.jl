@@ -12,7 +12,7 @@ using Logging
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
 using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg,
-                       is_generator_arg, analyze_per_usage_info
+                       is_generator_arg
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -129,7 +129,7 @@ end
           ["using LinearAlgebra: LinearAlgebra"]
 
     per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    df = DataFrame(per_usage_info)
     subset!(df, :module_path => ByRow(==([:TestMod9])), :name => ByRow(==(:i1)))
     @test all(==(ExplicitImports.InternalGenerator), df.analysis_code)
 end
@@ -139,7 +139,7 @@ end
           ["using LinearAlgebra: LinearAlgebra", "using LinearAlgebra: I"]
 
     per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    df = DataFrame(per_usage_info)
     subset!(df, :module_path => ByRow(==([:TestMod10])), :name => ByRow(==(:I)))
     # First one is internal, second one external
     @test df.analysis_code == [ExplicitImports.InternalAssignment, ExplicitImports.External]
@@ -152,7 +152,7 @@ end
            "using LinearAlgebra: svd"]
 
     per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    df = DataFrame(per_usage_info)
     subset!(df, :module_path => ByRow(==([:TestMod11])))
 
     I_codes = subset(df, :name => ByRow(==(:I))).analysis_code
@@ -173,7 +173,7 @@ end
            "using LinearAlgebra: svd"]
 
     per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    df = DataFrame(per_usage_info)
     subset!(df, :module_path => ByRow(==([:TestMod12])))
 
     I_codes = subset(df, :name => ByRow(==(:I))).analysis_code
@@ -357,7 +357,7 @@ end
     @test isempty(lookup[TestModA])
 
     per_usage_info, _ = analyze_all_names("TestModC.jl")
-    testmodc = DataFrame(analyze_per_usage_info(per_usage_info))
+    testmodc = DataFrame(per_usage_info)
     qualified_row = only(subset(testmodc, :name => ByRow(==(:exported_a))))
     @test qualified_row.analysis_code == ExplicitImports.IgnoredQualified
     @test qualified_row.qualified_by == [:Exporter]

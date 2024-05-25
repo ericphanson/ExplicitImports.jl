@@ -128,7 +128,9 @@ $STRICT_PRINTING_KWARG
 See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
-                                skip=(mod, Base, Core), warn_stale=true, strict=true,
+                                skip=(mod, Base, Core), warn_stale=true,
+                                warn_qualified_name_issues=true,
+                                strict=true,
                                 show_locations=false,
                                 linewidth=80,
                                 # internal kwargs
@@ -169,6 +171,23 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                         proof = ""
                     end
                     println(io, "- $name", proof)
+                end
+            end
+        else
+            stale = ()
+        end
+        if warn_qualified_name_issues
+            problematic = improper_qualified_names_nonrecursive(mod, file;
+                                                                file_analysis=file_analysis[file])
+            if !isnothing(problematic) && !isempty(problematic)
+                word = !isnothing(imports) && isempty(imports) && isempty(stale) ?
+                       "However" : "Additionally"
+                println(io)
+                println(io,
+                        "$word, $(name_fn(mod)) accesses names from non-parent modules:")
+                for row in problematic
+                    println(io,
+                            "- `$(row.name)` has parentmodule $(row.parentmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
                 end
             end
         end
@@ -425,6 +444,9 @@ function filter_to_module(file_analysis::FileAnalysis, mod::Module)
     # Don't do that!
     match = module_path -> all(Base.splat(isequal), zip(module_path, mod_path))
 
+    per_usage_info = filter(file_analysis.per_usage_info) do nt
+        return match(nt.module_path)
+    end
     needs_explicit_import = filter(file_analysis.needs_explicit_import) do nt
         return match(nt.module_path)
     end
@@ -433,7 +455,7 @@ function filter_to_module(file_analysis::FileAnalysis, mod::Module)
     end
     mods_found = filter(!isempty, file_analysis.untainted_modules)
     tainted = !any(match, mods_found)
-    return (; needs_explicit_import, unnecessary_explicit_import, tainted)
+    return (; needs_explicit_import, unnecessary_explicit_import, tainted, per_usage_info)
 end
 
 if VERSION < v"1.9-"
