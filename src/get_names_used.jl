@@ -2,7 +2,47 @@
 # We will do this by parsing, then re-implementing scoping rules on top of the parse tree.
 # See `src/parse_utilities.jl` for an overview of the strategy and the utility functions we will use.
 
+@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop InternalGenerator InternalCatchArgument External
+
+Base.@kwdef struct PerUsageInfo
+    name::Symbol
+    qualified_by::Union{Nothing,Vector{Symbol}}
+    import_type::Symbol
+    location::String
+    function_arg::Bool
+    is_assignment::Bool
+    module_path::Vector{Symbol}
+    scope_path::Vector{JuliaSyntax.SyntaxNode}
+    struct_field_or_type_param::Bool
+    for_loop_index::Bool
+    generator_index::Bool
+    catch_arg::Bool
+    first_usage_in_scope::Bool
+    external_global_name::Union{Missing,Bool}
+    analysis_code::AnalysisCode
+end
+
+function Base.NamedTuple(r::PerUsageInfo)
+    names = fieldnames(typeof(r))
+    return NamedTuple{names}(map(x -> getfield(r, x), names))
+end
+
+"""
+    FileAnalysis
+
+Contains structured analysis results.
+
+## Fields
+
+-  per_usage_info::Vector{PerUsageInfo}
+- `needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
+    location::String}}`
+- `unnecessary_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
+          location::String}}`
+- `untainted_modules::Set{Vector{Symbol}}`: those which were analyzed and do not contain an unanalyzable `include`
+"""
 Base.@kwdef struct FileAnalysis
+    per_usage_info::Vector{PerUsageInfo}
     needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
                                            location::String}}
     unnecessary_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
@@ -400,7 +440,7 @@ function analyze_all_names(file; debug=false)
         debug && println(ret)
         push!(seen_modules, ret.module_path)
         push!(per_usage_info,
-              (; name, qualified_by, import_type, location, ret...,))
+              (; name, qualified_by, import_type, location, ret...))
     end
     untainted_modules = setdiff!(seen_modules, tainted_modules)
     return analyze_per_usage_info(per_usage_info), untainted_modules
@@ -431,8 +471,6 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
     return false
 end
 
-@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop InternalGenerator InternalCatchArgument External
-
 function analyze_per_usage_info(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
     # First, throw away all qualified usages, they are irrelevant
@@ -444,16 +482,19 @@ function analyze_per_usage_info(per_usage_info)
     seen = Dict{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}},Bool}()
     return map(per_usage_info) do nt
         if (; nt.name, nt.scope_path) in keys(seen)
-            return (; nt..., first_usage_in_scope=false, external_global_name=missing,
-                    analysis_code=IgnoredNonFirst)
+            return PerUsageInfo(; nt..., first_usage_in_scope=false,
+                                external_global_name=missing,
+                                analysis_code=IgnoredNonFirst)
         end
         if nt.qualified_by !== nothing
-            return (; nt..., first_usage_in_scope=true, external_global_name=missing,
-                    analysis_code=IgnoredQualified)
+            return PerUsageInfo(; nt..., first_usage_in_scope=true,
+                                external_global_name=missing,
+                                analysis_code=IgnoredQualified)
         end
         if nt.import_type == :import_RHS
-            return (; nt..., first_usage_in_scope=true, external_global_name=missing,
-                    analysis_code=IgnoredImportRHS)
+            return PerUsageInfo(; nt..., first_usage_in_scope=true,
+                                external_global_name=missing,
+                                analysis_code=IgnoredImportRHS)
         end
 
         # At this point, we have an unqualified name, which is not the RHS of an import, and it is the first time we have seen this name in this scope.
@@ -473,8 +514,9 @@ function analyze_per_usage_info(per_usage_info)
             if is_local
                 external_global_name = false
                 push!(seen, (; nt.name, nt.scope_path) => external_global_name)
-                return (; nt..., first_usage_in_scope=true, external_global_name,
-                        analysis_code=reason)
+                return PerUsageInfo(; nt..., first_usage_in_scope=true,
+                                    external_global_name,
+                                    analysis_code=reason)
             end
         end
         # * this was the first usage in this scope, but it could already be used in a "higher" local scope. It is possible we have not yet processed that scope fully but we will assume we have (TODO). So we will recurse up and check if it is a local name there.
@@ -483,14 +525,14 @@ function analyze_per_usage_info(per_usage_info)
                                                   seen)
             external_global_name = false
             push!(seen, (; nt.name, nt.scope_path) => external_global_name)
-            return (; nt..., first_usage_in_scope=true, external_global_name,
-                    analysis_code=InternalHigherScope)
+            return PerUsageInfo(; nt..., first_usage_in_scope=true, external_global_name,
+                                analysis_code=InternalHigherScope)
         end
 
         external_global_name = true
         push!(seen, (; nt.name, nt.scope_path) => external_global_name)
-        return (; nt..., first_usage_in_scope=true, external_global_name,
-                analysis_code=External)
+        return PerUsageInfo(; nt..., first_usage_in_scope=true, external_global_name,
+                            analysis_code=External)
     end
 end
 
@@ -534,14 +576,7 @@ Figures out which global names are used in `file`, and what modules they are use
 
 Traverses static `include` statements.
 
-Returns two `Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol}}}`, namely
-
-* `needs_explicit_import`
-* `unnecessary_explicit_import`
-
-and a `Set{Vector{Symbol}}` of "untainted module paths", i.e. those which were analyzed and do not contain an unanalyzable `include`:
-
-* `untainted_modules`
+Returns a `FileAnalysis` object.
 """
 function get_names_used(file)
     check_file(file)
@@ -557,6 +592,7 @@ function get_names_used(file)
     unnecessary_explicit_import = setdiff_no_metadata(explicit_imports,
                                                       names_used_for_global_bindings)
 
-    return FileAnalysis(; needs_explicit_import, unnecessary_explicit_import,
+    return FileAnalysis(; per_usage_info, needs_explicit_import,
+                        unnecessary_explicit_import,
                         untainted_modules)
 end

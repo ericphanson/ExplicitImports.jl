@@ -36,6 +36,23 @@ function Base.showerror(io::IO, e::UnanalyzableModuleException)
     return nothing
 end
 
+struct QualifiedAccessesFromNonOwnerException <: Exception
+    mod::Module
+    accesses::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
+                                 accessing_from::Module,
+                                 whichmodule::Module}}
+end
+
+function Base.showerror(io::IO, e::QualifiedAccessesFromNonOwnerException)
+    println(io, "QualifiedAccessesFromNonOwnerException")
+    println(io,
+            "Module `$(e.mod)` has qualified accesses to names via modules other than their owner as determined via `Base.which`:")
+    for row in e.accesses
+        println(io,
+                "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
+    end
+end
+
 """
     check_no_implicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), ignore::Tuple=(), allow_unanalyzable::Tuple=())
 
@@ -166,6 +183,51 @@ function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::
         end
         if !isempty(stale_imports)
             throw(StaleImportsException(submodule, stale_imports))
+        end
+    end
+    return nothing
+end
+
+"""
+    check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), require_submodule_access=false)
+
+Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
+throwing an `QualifiedAccessesFromNonOwnerException` if so, and returning `nothing` otherwise.
+
+This can be used in a package's tests, e.g.
+
+```julia
+@test check_all_qualified_accesses_via_owners(MyPackage) === nothing
+```
+
+## Allowing some qualified accesses via non-owner modules
+
+If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
+that are allowed to be accessed from non-owner modules. For example,
+
+```julia
+@test check_all_qualified_accesses_via_owners(MyPackage; ignore=(:DataFrame,)) === nothing
+```
+
+would check there were no qualified accesses from non-owner modules besides that of the name `DataFrame`.
+
+See also: [`improper_qualified_accesses`](@ref), which also describes the meaning of the keyword argument `require_submodule_access`. Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_qualified_accesses_via_owners` will not.
+"""
+function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
+                                                 ignore::Tuple=(),
+                                                 require_submodule_access=false)
+    check_file(file)
+    for (submodule, problematic) in
+        improper_qualified_accesses(mod, file; skip=ignore, require_submodule_access)
+        # drop unnecessary columns
+        problematic = [(;
+                        (k => v for (k, v) in pairs(row) if k ∉ (:public_access,))...)
+                       for row in problematic]
+        filter!(problematic) do nt
+            return nt.name ∉ ignore
+        end
+        if !isempty(problematic)
+            throw(QualifiedAccessesFromNonOwnerException(submodule, problematic))
         end
     end
     return nothing

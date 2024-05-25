@@ -12,7 +12,7 @@ using Logging, UUIDs
 using AbstractTrees
 using ExplicitImports: is_function_definition_arg, SyntaxNodeWrapper, get_val
 using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg,
-                       is_generator_arg, analyze_per_usage_info
+                       is_generator_arg, analyze_qualified_names
 using TestPkg, Markdown
 
 # DataFrames version of `filter_to_module`
@@ -44,6 +44,7 @@ only_name_source(::Nothing) = nothing
 only_name_source(v::Vector) = only_name_source.(v)
 only_name_source(p::Pair) = first(p) => only_name_source(last(p))
 
+include("public_compat.jl")
 include("Exporter.jl")
 include("TestModA.jl")
 include("test_mods.jl")
@@ -51,6 +52,7 @@ include("DynMod.jl")
 include("TestModArgs.jl")
 include("examples.jl")
 include("script.jl")
+include("test_qualified_access.jl")
 
 # package extension support needs Julia 1.9+
 if VERSION > v"1.9-"
@@ -79,6 +81,73 @@ end
 # js_node(leaf) # inspect it
 # p = js_node(get_parent(leaf, 3)) # see the tree, etc
 # kind(p)
+
+@testset "qualified access" begin
+    # analyze_qualified_names
+    qualified = analyze_qualified_names(TestQualifiedAccess, "test_qualified_access.jl")
+    @test length(qualified) == 4
+    ABC, DEF, HIJ, X = qualified
+    @test ABC.name == :ABC
+    @test DEF.public_access
+    @test HIJ.public_access
+    @test DEF.name == :DEF
+    @test HIJ.name == :HIJ
+    @test X.name == :X
+
+    # improper_qualified_accesses
+    ret = Dict(improper_qualified_accesses(TestQualifiedAccess,
+                                           "test_qualified_access.jl")...)
+    @test isempty(ret[TestQualifiedAccess.Bar])
+    @test isempty(ret[TestQualifiedAccess.FooModule])
+    @test !isempty(ret[TestQualifiedAccess])
+    row = only(ret[TestQualifiedAccess])
+    @test row.name == :ABC
+    @test row.whichmodule == TestQualifiedAccess.Bar
+    @test row.accessing_from == TestQualifiedAccess.FooModule
+
+    # test require_submodule_access=true
+    ret = improper_qualified_accesses_nonrecursive(TestQualifiedAccess,
+                                                   "test_qualified_access.jl";
+                                                   require_submodule_access=true)
+    @test length(ret) == 2
+    ABC, X = ret
+    @test ABC.name == :ABC
+    @test X.name == :X
+    @test X.whichmodule == TestQualifiedAccess.FooModule.FooSub
+
+    # check_all_qualified_accesses_via_owners
+    ex = QualifiedAccessesFromNonOwnerException
+    @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                            "test_qualified_access.jl")
+
+    ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
+    @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  ignore) === nothing
+
+    @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                            "test_qualified_access.jl";
+                                                            ignore,
+                                                            require_submodule_access=true)
+                                                
+    ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,
+              TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub)
+    @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  ignore,
+                                                  require_submodule_access=true) === nothing
+
+    # Printing via `print_improper_qualified_accesses`
+    str = sprint(print_improper_qualified_accesses, TestQualifiedAccess,
+                 "test_qualified_access.jl")
+    @test contains(str, "accesses names from non-owner modules")
+    @test contains(str, "`ABC` has owner")
+
+    # Printing via `print_explicit_imports`
+    str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
+    @test contains(str, "accesses names from non-owner modules")
+    @test contains(str, "`ABC` has owner")
+end
 
 @testset "structs" begin
     cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
@@ -129,7 +198,7 @@ end
           ["using LinearAlgebra: LinearAlgebra"]
 
     per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    df = DataFrame(per_usage_info)
     subset!(df, :module_path => ByRow(==([:TestMod9])), :name => ByRow(==(:i1)))
     @test all(==(ExplicitImports.InternalGenerator), df.analysis_code)
 end
@@ -139,7 +208,7 @@ end
           ["using LinearAlgebra: LinearAlgebra", "using LinearAlgebra: I"]
 
     per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    df = DataFrame(per_usage_info)
     subset!(df, :module_path => ByRow(==([:TestMod10])), :name => ByRow(==(:I)))
     # First one is internal, second one external
     @test df.analysis_code == [ExplicitImports.InternalAssignment, ExplicitImports.External]
@@ -152,7 +221,7 @@ end
            "using LinearAlgebra: svd"]
 
     per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    df = DataFrame(per_usage_info)
     subset!(df, :module_path => ByRow(==([:TestMod11])))
 
     I_codes = subset(df, :name => ByRow(==(:I))).analysis_code
@@ -173,7 +242,7 @@ end
            "using LinearAlgebra: svd"]
 
     per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(analyze_per_usage_info(per_usage_info))
+    df = DataFrame(per_usage_info)
     subset!(df, :module_path => ByRow(==([:TestMod12])))
 
     I_codes = subset(df, :name => ByRow(==(:I))).analysis_code
@@ -368,7 +437,7 @@ end
     @test isempty(lookup[TestModA])
 
     per_usage_info, _ = analyze_all_names("TestModC.jl")
-    testmodc = DataFrame(analyze_per_usage_info(per_usage_info))
+    testmodc = DataFrame(per_usage_info)
     qualified_row = only(subset(testmodc, :name => ByRow(==(:exported_a))))
     @test qualified_row.analysis_code == ExplicitImports.IgnoredQualified
     @test qualified_row.qualified_by == [:Exporter]

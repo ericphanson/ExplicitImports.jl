@@ -21,17 +21,16 @@ jobs:
         version:
           - '1.7' # earliest supported version
           - '1' # current release
+          - 'beta'
           - 'nightly'
         os:
           - ubuntu-latest
-        arch:
-          - x64
     steps:
       - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v1
+      # Using `juliaup` over `setup-julia` so we can access beta versions easier
+      - uses: julia-actions/install-juliaup@v1
         with:
-          version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
+          julia-version: ${{ matrix.version }}
       - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
