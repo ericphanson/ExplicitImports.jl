@@ -69,7 +69,7 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                     # The children of a static include statement is the entire file being included
                     new_file = joinpath(dirname(wrapper.file), c.val)
                     if isfile(new_file)
-                        @debug "Recursing into `$new_file`" node wrapper.file
+                        # @debug "Recursing into `$new_file`" node wrapper.file
                         new_wrapper = try_parse_wrapper(new_file; wrapper.bad_locations)
                         if new_wrapper === nothing
                             push!(wrapper.bad_locations, location)

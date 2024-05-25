@@ -18,6 +18,7 @@ include("parse_utilities.jl")
 include("find_implicit_imports.jl")
 include("get_names_used.jl")
 include("qualified_names.jl")
+include("explicit_imports.jl")
 include("checks.jl")
 
 const SKIPS_KWARG = """
@@ -182,11 +183,28 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
         else
             stale = ()
         end
+
+        # TODO- make optional?
+        problematic_imports = improper_explicit_imports_nonrecursive(mod, file;
+                                                                     file_analysis=file_analysis[file])
+        if !isnothing(problematic_imports) && !isempty(problematic_imports)
+            word = !isnothing(imports) && isempty(imports) && isempty(stale) ?
+                   "However" : "Additionally"
+            println(io)
+            println(io,
+                    "$word, $(name_fn(mod)) imports names from non-owner packages:")
+            for row in problematic_imports
+                println(io,
+                        "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(row.location)")
+            end
+        end
+
         if warn_improper_qualified_accesses
             problematic = improper_qualified_accesses_nonrecursive(mod, file;
                                                                    file_analysis=file_analysis[file])
             if !isnothing(problematic) && !isempty(problematic)
-                word = !isnothing(imports) && isempty(imports) && isempty(stale) ?
+                word = !isnothing(imports) && isempty(imports) && isempty(stale) &&
+                       isempty(problematic_imports) ?
                        "However" : "Additionally"
                 println(io)
                 println(io,
