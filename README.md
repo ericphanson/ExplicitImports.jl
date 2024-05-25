@@ -53,6 +53,9 @@ using AbstractTrees: AbstractTrees, Leaves, TreeCursor, children, nodevalue
 using JuliaSyntax: JuliaSyntax, @K_str
 ```
 
+Additionally, module ExplicitImports accesses names from non-parent modules:
+- `parent` has parentmodule AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
+
 ````
 
 Note: the `WARNING` is more or less harmless; the way this package is written, it will happen any time there is a clash, even if that clash is not realized in your code. I cannot figure out how to suppress it.
@@ -71,6 +74,9 @@ using AbstractTrees: children # used at /Users/eph/ExplicitImports/src/get_names
 using AbstractTrees: nodevalue # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:96:34
 using JuliaSyntax: JuliaSyntax # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:103:15
 ```
+
+Additionally, module ExplicitImports accesses names from non-parent modules:
+- `parent` has parentmodule AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
 ````
 
 Note the paths of course will differ depending on the location of the code on your system.
