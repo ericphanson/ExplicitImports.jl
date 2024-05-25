@@ -147,7 +147,7 @@ In non-breaking releases of ExplicitImports:
 
 However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
 
-See also [`print_improper_qualified_accesses`](@ref) to easily compute and print these results, [`improper_qualified_accesses_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_no_XYZ`](@ref) for a version that throws errors, for regression testing.
+See also [`print_improper_qualified_accesses`](@ref) to easily compute and print these results, [`improper_qualified_accesses_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_all_qualified_accesses_via_parents`](@ref) for a version that throws errors, for regression testing.
 
 ## Example
 
@@ -165,7 +165,7 @@ end
 
 julia> include(example_path);
 
-julia> row = improper_qualified_accesses(MyMod, example_path)[MyMod][1];
+julia> row = improper_qualified_accesses(MyMod, example_path)[1][2][1];
 
 julia> (; row.name, row.accessing_from, row.parentmodule)
 (name = :sum, accessing_from = LinearAlgebra, parentmodule = Base)
@@ -181,6 +181,17 @@ function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base =
                                                                   skip)
             for (submodule, path) in submodules]
 end
+
+"""
+    print_improper_qualified_accesses([io::IO=stdout,] mod::Module, file=pathof(mod))
+
+Runs [`improper_qualified_accesses`](@ref) and prints the results.
+
+Note that the particular printing may change in future non-breaking releases of ExplicitImports.
+
+See also [`print_explicit_imports`](@ref) and [`check_all_qualified_accesses_via_parents`](@ref).
+"""
+print_improper_qualified_accesses
 
 function print_improper_qualified_accesses(mod::Module, file=pathof(mod))
     return print_improper_qualified_accesses(stdout, mod, file)

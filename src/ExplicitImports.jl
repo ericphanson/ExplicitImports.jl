@@ -10,9 +10,9 @@ export print_explicit_imports_script
 export print_stale_explicit_imports, stale_explicit_imports,
        check_no_stale_explicit_imports, stale_explicit_imports_nonrecursive
 export print_improper_qualified_accesses, improper_qualified_accesses,
-       improper_qualified_accesses_nonrecursive
+       improper_qualified_accesses_nonrecursive, check_all_qualified_accesses_via_parents
 export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException,
-       FileNotFoundException
+       FileNotFoundException, QualifiedAccessesFromNonParentException
 
 include("parse_utilities.jl")
 include("find_implicit_imports.jl")
@@ -131,7 +131,7 @@ $STRICT_PRINTING_KWARG
 * `show_locations=false`: whether or not to print locations of where the names are being used (and, if `warn_stale=true`, where the stale explicit imports are).
 * `linewidth=80`: format into lines of up to this length. Set to 0 to indicate one name should be printed per line.
 
-See also [`check_no_implicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
+See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), and [`check_all_qualified_accesses_via_parents`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core), warn_stale=true,
