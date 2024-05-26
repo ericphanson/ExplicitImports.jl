@@ -7,12 +7,15 @@ using TOML: parsefile
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
 export print_explicit_imports_script
-export print_stale_explicit_imports, stale_explicit_imports,
-       check_no_stale_explicit_imports, stale_explicit_imports_nonrecursive
 export print_improper_qualified_accesses, improper_qualified_accesses,
        improper_qualified_accesses_nonrecursive, check_all_qualified_accesses_via_owners
-export StaleImportsException, ImplicitImportsException, UnanalyzableModuleException,
+export ImplicitImportsException, UnanalyzableModuleException,
        FileNotFoundException, QualifiedAccessesFromNonOwnerException
+
+# deprecated
+export print_stale_explicit_imports, stale_explicit_imports,
+       check_no_stale_explicit_imports, stale_explicit_imports_nonrecursive,
+       StaleImportsException
 
 include("parse_utilities.jl")
 include("find_implicit_imports.jl")
@@ -20,6 +23,7 @@ include("get_names_used.jl")
 include("qualified_names.jl")
 include("explicit_imports.jl")
 include("checks.jl")
+include("deprecated.jl")
 
 const SKIPS_KWARG = """
     * `skip=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
@@ -360,50 +364,6 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     return to_make_explicit
 end
 
-"""
-    print_stale_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); strict=true, show_locations=false)
-
-Runs [`stale_explicit_imports`](@ref) and prints the results.
-
-Note that the particular printing may change in future non-breaking releases of ExplicitImports.
-
-## Keyword arguments
-
-$STRICT_PRINTING_KWARG
-* `show_locations=false`: whether or not to print where the explicit imports were made. If the same name was explicitly imported more than once, it will only show one such import.
-
-See also [`print_explicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref).
-"""
-print_stale_explicit_imports
-
-function print_stale_explicit_imports(mod::Module, file=pathof(mod); kw...)
-    return print_stale_explicit_imports(stdout, mod, file; kw...)
-end
-function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); strict=true,
-                                      show_locations=false)
-    check_file(file)
-    for (i, (mod, stale_imports)) in enumerate(stale_explicit_imports(mod, file; strict))
-        i == 1 || println(io)
-        if isnothing(stale_imports)
-            println(io,
-                    "Module $mod could not be accurately analyzed, likely due to dynamic `include` statements. You can pass `strict=false` to attempt to get (possibly inaccurate) results anyway.")
-        elseif isempty(stale_imports)
-            println(io, "Module $mod has no stale explicit imports.")
-        else
-            println(io,
-                    "Module $mod has stale explicit imports for these unused names:")
-            for (; name, location) in stale_imports
-                if show_locations
-                    proof = " (imported at $(location))"
-                else
-                    proof = ""
-                end
-                println(io, "- $name", proof)
-            end
-        end
-    end
-end
-
 function has_ancestor(cmp, query, target)
     cmp(query, target) && return true
     while true
@@ -572,9 +532,9 @@ function print_explicit_imports_script(path; kw...)
     return print_explicit_imports_script(stdout, path; kw...)
 end
 """
-    print_explicit_imports_script([io::IO=stdout,] path; skip=(Base, Core), warn_stale=true)
+    print_explicit_imports_script([io::IO=stdout,] path; skip=(Base, Core), warn_improper_explicit_imports=true)
 
-Analyzes the script located at `path` and prints information about reliance on implicit exports as well as any stale explicit imports (if `warn_stale=true`).
+Analyzes the script located at `path` and prints information about reliance on implicit exports as well as any "improper" explicit imports (if `warn_improper_explicit_imports=true`).
 
 Note that the particular printing may change in future non-breaking releases of ExplicitImports.
 
@@ -586,10 +546,12 @@ Note that the particular printing may change in future non-breaking releases of 
 $SKIPS_KWARG
 * `warn_stale=true`: if set, this function will also print information about stale explicit imports.
 """
-function print_explicit_imports_script(io::IO, path; skip=(Base, Core), warn_stale=true,
+function print_explicit_imports_script(io::IO, path; skip=(Base, Core), warn_stale=nothing, # deprecated
+                                       warn_improper_explicit_imports=nothing, # set to `true` once `warn_stale` is ,removed,
                                        show_locations=false)
     return print_explicit_imports(io, Main, path;
-                                  skip, warn_stale, show_locations,
+                                  skip, warn_stale, warn_improper_explicit_imports,
+                                  show_locations,
                                   strict=false,
                                   recursive=false,
                                   name_fn=_ -> "script `$path`")

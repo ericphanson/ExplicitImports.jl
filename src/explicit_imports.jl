@@ -1,63 +1,3 @@
-#####
-##### Stale explicit imports
-#####
-
-"""
-    stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
-
-Returns a collection of pairs, where the keys are submodules of `mod` (including `mod` itself), and the values are either `nothing` if `strict=true` and the module couldn't analyzed, or else a vector of `NamedTuple`s with at least the keys `name` and `location`, consisting of names that are explicitly imported in that submodule, but which either are not used, or are only used in a qualified fashion, making the explicit import a priori unnecessary.
-
-More keys may be added to the NamedTuples in the future in non-breaking releases of ExplicitImports.jl.
-
-!!! warning
-    Note that it is possible for an import from a module (say `X`) into one module (say `A`) to be relied on from another unrelated module (say `B`). For example, if `A` contains the code `using X: x`, but either does not use `x` at all or only uses `x` in the form `X.x`, then `x` will be flagged as a stale explicit import by this function. However, it could be that the code in some unrelated module `B` uses `A.x` or `using A: x`, relying on the fact that `x` has been imported into `A`'s namespace.
-
-    This is an unusual situation (generally `B` should just get `x` directly from `X`, rather than indirectly via `A`), but there are situations in which it arises, so one may need to be careful about naively removing all "stale" explicit imports flagged by this function.
-
-    Running [`improper_qualified_accesses`](@ref) on downstream code can help identify such "improper" accesses to names via modules other than their owner.
-
-## Keyword arguments
-
-$STRICT_KWARG
-
-See [`stale_explicit_imports_nonrecursive`](@ref) for a non-recursive version, and [`check_no_stale_explicit_imports`](@ref) for a version that throws an error when encountering stale explicit imports.
-
-See also [`print_explicit_imports`](@ref) which prints this information.
-"""
-function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
-    check_file(file)
-    submodules = find_submodules(mod, file)
-    file_analysis = Dict{String,FileAnalysis}()
-    fill_cache!(file_analysis, last.(submodules))
-    return [submodule => stale_explicit_imports_nonrecursive(submodule, path;
-                                                             file_analysis=file_analysis[path],
-                                                             strict)
-            for (submodule, path) in submodules]
-end
-
-"""
-    stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true)
-
-A non-recursive version of [`stale_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules.
-
-If `mod` was unanalyzable and `strict=true`, returns `nothing`. Otherwise, returns a collection of `NamedTuple`'s, with at least the keys `name` and `location`, corresponding to the names of stale explicit imports. More keys may be added in the future in non-breaking releases of ExplicitImports.jl.
-
-## Keyword arguments
-
-$STRICT_NONRECURSIVE_KWARG
-
-See also [`print_explicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref), both of which do recurse through submodules.
-"""
-function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
-                                             strict=true,
-                                             # private undocumented kwarg for hoisting this analysis
-                                             file_analysis=get_names_used(file))
-    check_file(file)
-    (; unnecessary_explicit_import, tainted) = filter_to_module(file_analysis, mod)
-    tainted && strict && return nothing
-    ret = [(; nt.name, nt.location) for nt in unnecessary_explicit_import]
-    return unique!(nt -> nt.name, sort!(ret))
-end
 
 #####
 ##### Non-public or non-owning explicit imports
@@ -196,7 +136,6 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     # the name is not publicly available in `importing_from`.
     filter!(problematic) do row
         row.stale === true && return true # keep these
-
         row.public_import === true && return false # skip these
         if require_submodule_access
             return !row.importing_from_owns_name
