@@ -4,14 +4,24 @@
 [![Build Status](https://github.com/ericphanson/ExplicitImports.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ericphanson/ExplicitImports.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/ericphanson/ExplicitImports.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ericphanson/ExplicitImports.jl)
 
-| Problem           | Example                             | Interactive              | API                           | Check                                     |
-| ----------------- | ----------------------------------- | ------------------------ | ----------------------------- | ----------------------------------------- |
-| Implicit import   | `using LinearAlgebra; svd`          | `print_explicit_imports` | `implicit_imports`            | `check_no_implicit_imports`               |
-| Non-owning import | `using LinearAlgebra: map`          | `print_explicit_imports` | `improper_explicit_imports`   |                                           |
-| Non-public import | `using LinearAlgebra: _svd!`        | `print_explicit_imports` | `improper_explicit_imports`   | `check_all_explicit_imports_public`       |
-| Stale import      | `using LinearAlgebra: svd # unused` | `print_explicit_imports` | `improper_explicit_imports`   |                                           |
-| Non-owning access | `LinearAlgebra.map`                 | `print_explicit_imports` | `improper_qualified_accesses` | `check_all_qualified_accesses_via_owners` |
-| Non-public access | `LinearAlgebra._svd!`               | `print_explicit_imports` | `improper_qualified_accesses` |                                           |
+## Summary
+
+ExplicitImports.jl helps detect implicit imports and mitigate issues with the alternatives (explicit imports and qualified accesses).
+
+| Problem           | Example                             | Interactive usage of ExplicitImports.jl                | ExplicitImports.jl API        | ExplicitImports.jl-powered check              |
+| ----------------- | ----------------------------------- | ------------------------------------------------------ | ----------------------------- | --------------------------------------------- |
+| Implicit imports  | `using LinearAlgebra`               | `print_explicit_imports`                               | `implicit_imports`            | `check_no_implicit_imports`                   |
+| Non-owning import | `using LinearAlgebra: map`          | `print_explicit_imports`                               | `improper_explicit_imports`   | TODO: `check_all_explicit_imports_via_owners` |
+| Non-public import | `using LinearAlgebra: _svd!`        | `print_explicit_imports` with `report_non_public=true` | `improper_explicit_imports`   | TODO: `check_all_explicit_imports_public`     |
+| Stale import      | `using LinearAlgebra: svd # unused` | `print_explicit_imports`                               | `improper_explicit_imports`   | `check_no_stale_explicit_imports`             |
+| Non-owning access | `LinearAlgebra.map`                 | `print_explicit_imports`                               | `improper_qualified_accesses` | `check_all_qualified_accesses_via_owners`     |
+| Non-public access | `LinearAlgebra._svd!`               | `print_explicit_imports` with `report_non_public=true` | `improper_qualified_accesses` | TODO: `check_all_qualified_accesses_public`   |
+
+To understand these examples, note that:
+
+- `svd` is an API function of LinearAlgebra
+- `map` is an API function of Base, which happens to be present in the LinearAlgebra namespace
+- `_svd!` is a private function of LinearAlgebra
 
 ## Goal
 
