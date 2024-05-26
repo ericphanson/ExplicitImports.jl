@@ -20,8 +20,8 @@ export print_stale_explicit_imports, stale_explicit_imports,
 include("parse_utilities.jl")
 include("find_implicit_imports.jl")
 include("get_names_used.jl")
-include("qualified_names.jl")
-include("explicit_imports.jl")
+include("improper_qualified_accesses.jl")
+include("improper_explicit_imports.jl")
 include("checks.jl")
 include("deprecated.jl")
 
