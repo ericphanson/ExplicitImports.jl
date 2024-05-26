@@ -143,6 +143,8 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core),
                                 warn_improper_explicit_imports=nothing, # set to `true` once `warn_stale` is removed
                                 warn_improper_qualified_accesses=true,
+                                #TODO- document
+                                report_non_public=VERSION >= v"1.11-",
                                 strict=true,
                                 show_locations=false,
                                 linewidth=80,
@@ -184,9 +186,9 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
             problematic_imports = improper_explicit_imports_nonrecursive(mod, file;
                                                                          file_analysis=file_analysis[file])
             if !isempty(problematic_imports)
-                println(io)
                 stale = filter(row -> row.stale, problematic_imports)
                 if !isempty(stale)
+                    println(io)
                     word = !isnothing(imports) && isempty(imports) ?
                            "However" : "Additionally"
 
@@ -202,27 +204,32 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 non_owner = filter(row -> !row.importing_from_submodule_owns_name,
                                    problematic_imports)
                 if !isempty(non_owner)
+                    println(io)
+
                     word = !isnothing(imports) && isempty(imports) && isempty(stale) ?
                            "However" : "Additionally"
                     plural = length(non_owner) > 1 ? "s" : ""
                     println(io,
-                            "$word, $(name_fn(mod)) imports $(length(non_owner)) name$(plural) from non-owner modules:")
+                            "$word, $(name_fn(mod)) explicitly imports $(length(non_owner)) name$(plural) from non-owner modules:")
                     for row in non_owner
                         println(io,
                                 "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(row.location)")
                     end
                 end
-                non_public = filter(row -> row.importing_from_submodule_owns_name &&
+                non_public = report_non_public ?
+                             filter(row -> row.importing_from_submodule_owns_name &&
                                         row.public_import === false,
-                                    problematic_imports)
+                                    problematic_imports) : []
                 if !isempty(non_public)
+                    println(io)
+
                     word = !isnothing(imports) && isempty(imports) && isempty(stale) &&
                            isempty(non_owner) ?
                            "However" : "Additionally"
                     plural = length(non_public) > 1 ? "s" : ""
 
                     println(io,
-                            "$word, $(name_fn(mod)) imports $(length(non_public)) non-public name$(plural):")
+                            "$word, $(name_fn(mod)) explicitly imports $(length(non_public)) non-public name$(plural):")
                     for row in non_public
                         println(io,
                                 "- `$(row.name)` is not public in $(row.importing_from) but it was imported from $(row.importing_from) at $(row.location)")
@@ -235,16 +242,41 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
         if warn_improper_qualified_accesses
             problematic = improper_qualified_accesses_nonrecursive(mod, file;
                                                                    file_analysis=file_analysis[file])
-            if !isnothing(problematic) && !isempty(problematic)
+
+            non_owner = filter(row -> !row.accessing_from_submodule_owns_name,
+                               problematic)
+
+            if !isempty(non_owner)
+                println(io)
                 word = !isnothing(imports) && isempty(imports) &&
                        isempty(problematic_imports) ?
                        "However" : "Additionally"
-                println(io)
+                plural = length(non_owner) > 1 ? "s" : ""
                 println(io,
-                        "$word, $(name_fn(mod)) accesses names from non-owner modules:")
-                for row in problematic
+                        "$word, $(name_fn(mod)) accesses $(length(non_owner)) name$(plural) from non-owner modules:")
+                for row in non_owner
                     println(io,
                             "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
+                end
+            end
+
+            non_public = report_non_public ?
+                         filter(row -> row.accessing_from_submodule_owns_name &&
+                                    row.public_access === false,
+                                problematic) : []
+
+            if !isempty(non_public)
+                println(io)
+
+                word = !isnothing(imports) && isempty(imports) &&
+                       isempty(problematic_imports) && isempty(non_owner) ?
+                       "However" : "Additionally"
+                plural = length(non_public) > 1 ? "s" : ""
+                println(io,
+                        "$word, $(name_fn(mod)) accesses $(length(non_public)) non-public name$(plural):")
+                for row in non_public
+                    println(io,
+                            "- `$(row.name)` is not public in $(row.accessing_from) but it was accessed via $(row.accessing_from) at $(row.location)")
                 end
             end
         end

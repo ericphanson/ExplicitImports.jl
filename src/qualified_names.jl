@@ -21,13 +21,24 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
         return match(nt.module_path)
     end
 
-    table = @NamedTuple{name::Symbol,location::String,value::Any,accessing_from::Module,
-                        whichmodule::Module,public_access::Bool}[]
+    table = @NamedTuple{name::Symbol,
+                        location::String,
+                        value::Any,
+                        accessing_from::Module,whichmodule::Module,
+                        public_access::Bool,
+                        accessing_from_owns_name::Bool,
+                        accessing_from_submodule_owns_name::Bool}[]
     # Now check:
     for row in qualified
         output = process_qualified_row(row, mod)
         output === nothing && continue
-        push!(table, output)
+        accessing_from_owns_name = compare_modules(output.whichmodule,
+                                                   output.accessing_from)
+        accessing_from_submodule_owns_name = has_ancestor(output.whichmodule,
+                                                          output.accessing_from)
+
+        push!(table,
+              (; output..., accessing_from_owns_name, accessing_from_submodule_owns_name))
     end
     # Sort first, so we get the "first" time each is used
     sort!(table; by=nt -> (; nt.name, nt.location))
@@ -99,22 +110,15 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 """
 function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
                                                   skip=(Base => Core,),
-                                                  require_submodule_access=false,
+                                                  # deprecated
+                                                  require_submodule_access=nothing,
                                                   # private undocumented kwarg for hoisting this analysis
                                                   file_analysis=get_names_used(file))
     check_file(file)
     problematic = analyze_qualified_names(mod, file; file_analysis)
 
-    # Currently only care about mismatches between `accessing_from` and `parent` in which
-    # the name is not publicly available in `accessing_from`.
-    filter!(problematic) do row
-        row.public_access && return false # skip these
-        if require_submodule_access
-            return row.whichmodule != row.accessing_from
-        else
-            return !has_ancestor(row.whichmodule, row.accessing_from)
-        end
-    end
+    # Report non-public accesses
+    filter!(row -> !row.public_access, problematic)
 
     for (from, parent) in skip
         filter!(problematic) do row
@@ -126,10 +130,11 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
 end
 
 """
-    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,),
-                                require_submodule_access)
+    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,))
 
 Attempts do detect various kinds of "improper" qualified accesses taking place in `mod` and any submodules of `mod`.
+
+TODO-update
 
 Currently, only detects cases in which the name is being accessed from a module `mod` which:
 
@@ -181,7 +186,8 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 ```
 """
 function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,),
-                                     require_submodule_access=false)
+                                     # deprecated
+                                     require_submodule_access=nothing)
     check_file(file)
     submodules = find_submodules(mod, file)
     file_analysis = Dict{String,FileAnalysis}()

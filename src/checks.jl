@@ -131,6 +131,8 @@ end
 
 """
     check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), require_submodule_access=false)
+    
+TODO-document `require_submodule_access`
 
 Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
 throwing an `QualifiedAccessesFromNonOwnerException` if so, and returning `nothing` otherwise.
@@ -152,20 +154,28 @@ that are allowed to be accessed from non-owner modules. For example,
 
 would check there were no qualified accesses from non-owner modules besides that of the name `DataFrame`.
 
-See also: [`improper_qualified_accesses`](@ref), which also describes the meaning of the keyword argument `require_submodule_access`. Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_qualified_accesses_via_owners` will not.
+See also: [`improper_qualified_accesses`](@ref). Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_qualified_accesses_via_owners` will not.
 """
 function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
                                                  ignore::Tuple=(),
                                                  require_submodule_access=false)
     check_file(file)
     for (submodule, problematic) in
-        improper_qualified_accesses(mod, file; skip=ignore, require_submodule_access)
+        improper_qualified_accesses(mod, file; skip=ignore)
         # drop unnecessary columns
         problematic = [(;
                         (k => v for (k, v) in pairs(row) if k ∉ (:public_access,))...)
                        for row in problematic]
+
         filter!(problematic) do nt
             return nt.name ∉ ignore
+        end
+        filter!(problematic) do row
+            if require_submodule_access
+                !row.accessing_from_owns_name
+            else
+                !row.accessing_from_submodule_owns_name
+            end
         end
         if !isempty(problematic)
             throw(QualifiedAccessesFromNonOwnerException(submodule, problematic))

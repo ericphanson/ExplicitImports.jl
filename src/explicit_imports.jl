@@ -1,8 +1,3 @@
-
-#####
-##### Non-public or non-owning explicit imports
-#####
-
 function analyze_explicitly_imported_names(mod::Module, file=pathof(Mod);
                                            # private undocumented kwarg for hoisting this analysis
                                            file_analysis=get_names_used(file))
@@ -119,11 +114,6 @@ function process_explicitly_imported_row(row, mod; lookup)
             public_import=public_or_exported(current_mod, row.name),)
 end
 
-#####
-##### All "improper" explicit imports
-#####
-
-# TODO- this should probably include stale explicit imports, or else it should get a more specific name
 function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                                 skip=(Base => Core,),
                                                 require_submodule_access=false,
@@ -137,6 +127,9 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     filter!(problematic) do row
         row.stale === true && return true # keep these
         row.public_import === true && return false # skip these
+        row.public_import === false && return true # keep these
+        # OK, if we are down to `missing`, then it's a local module.
+        # We will report only if there is an ownership issue.
         if require_submodule_access
             return !row.importing_from_owns_name
         else
