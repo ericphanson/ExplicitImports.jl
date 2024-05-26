@@ -116,7 +116,8 @@ function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
 end
 
 """
-    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true,
+    print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); skip=(mod, Base, Core),
+                           warn_improper_explicit_imports=true,
                            warn_improper_qualified_accesses=true, strict=true)
 
 Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref) and [`improper_qualified_accesses`](@ref).
@@ -126,7 +127,7 @@ Note that the particular printing may change in future non-breaking releases of 
 ## Keyword arguments
 
 $SKIPS_KWARG
-* `warn_stale=true`: if set, this function will also print information about stale explicit imports.
+* `warn_improper_explicit_imports=true`: if set, this function will also print information about any "improper" imports of names from other modules.
 * `warn_improper_qualified_accesses=true`: if set, this function will also print information about any "improper" qualified accesses to names from other modules.
 $STRICT_PRINTING_KWARG
 * `show_locations=false`: whether or not to print locations of where the names are being used (and, if `warn_stale=true`, where the stale explicit imports are).
@@ -135,14 +136,25 @@ $STRICT_PRINTING_KWARG
 See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), and [`check_all_qualified_accesses_via_owners`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
-                                skip=(mod, Base, Core), warn_stale=true,
+                                skip=(mod, Base, Core),
+                                warn_improper_explicit_imports=nothing, # set to `true` once `warn_stale` is removed
                                 warn_improper_qualified_accesses=true,
                                 strict=true,
                                 show_locations=false,
                                 linewidth=80,
+                                # deprecated
+                                warn_stale=nothing,
                                 # internal kwargs
                                 recursive=true,
                                 name_fn=mod -> "module $mod")
+    if warn_improper_explicit_imports !== nothing && warn_stale !== nothing
+        throw(ArgumentError("[print_explicit_imports] Cannot set both `warn_improper_explicit_imports` and `warn_stale`; instead set only `warn_improper_explicit_imports`."))
+    elseif warn_stale === nothing && warn_improper_explicit_imports === nothing
+        warn_improper_explicit_imports = true
+    elseif warn_stale !== nothing
+        @warn "[print_explicit_imports] Keyword argument `warn_stale` is deprecated, instead use `warn_improper_explicit_imports`" maxlog = 1
+        warn_improper_explicit_imports = warn_stale
+    end
     file_analysis = Dict{String,FileAnalysis}()
     ee = explicit_imports(mod, file; warn_stale=false, skip, strict, file_analysis)
     for (i, (mod, imports)) in enumerate(ee)
@@ -163,47 +175,64 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
             using_statements(io, imports; linewidth, show_locations)
             println(io, "```")
         end
-        if warn_stale
-            stale = stale_explicit_imports_nonrecursive(mod, file; strict,
-                                                        file_analysis=file_analysis[file])
-            if !isnothing(stale) && !isempty(stale)
-                word = isempty(imports) ? "However" : "Additionally"
+
+        if warn_improper_explicit_imports
+            problematic_imports = improper_explicit_imports_nonrecursive(mod, file;
+                                                                         file_analysis=file_analysis[file])
+            if !isempty(problematic_imports)
                 println(io)
-                println(io,
-                        "$word, $(name_fn(mod)) has stale explicit imports for these unused names:")
-                for (; name, location) in stale
-                    if show_locations
-                        proof = " (imported at $(location))"
-                    else
-                        proof = ""
+                stale = filter(row -> row.stale, problematic_imports)
+                if !isempty(stale)
+                    word = !isnothing(imports) && isempty(imports) ?
+                           "However" : "Additionally"
+
+                    plural1 = length(stale) > 1 ? "these" : "this"
+                    plural2 = length(stale) > 1 ? "s" : ""
+                    println(io,
+                            "$word, $(name_fn(mod)) has stale explicit imports for $plural1 $(length(stale)) unused name$(plural2):")
+                    for row in stale
+                        println(io,
+                                "- `$(row.name)` is unused but it was imported from $(row.importing_from) at $(row.location)")
                     end
-                    println(io, "- $name", proof)
+                end
+                non_owner = filter(row -> !row.importing_from_submodule_owns_name,
+                                   problematic_imports)
+                if !isempty(non_owner)
+                    word = !isnothing(imports) && isempty(imports) && isempty(stale) ?
+                           "However" : "Additionally"
+                    plural = length(non_owner) > 1 ? "s" : ""
+                    println(io,
+                            "$word, $(name_fn(mod)) imports $(length(non_owner)) name$(plural) from non-owner modules:")
+                    for row in non_owner
+                        println(io,
+                                "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(row.location)")
+                    end
+                end
+                non_public = filter(row -> row.importing_from_submodule_owns_name &&
+                                        row.public_import === false,
+                                    problematic_imports)
+                if !isempty(non_public)
+                    word = !isnothing(imports) && isempty(imports) && isempty(stale) &&
+                           isempty(non_owner) ?
+                           "However" : "Additionally"
+                    plural = length(non_public) > 1 ? "s" : ""
+
+                    println(io,
+                            "$word, $(name_fn(mod)) imports $(length(non_public)) non-public name$(plural):")
+                    for row in non_public
+                        println(io,
+                                "- `$(row.name)` is not public in $(row.importing_from) but it was imported from $(row.importing_from) at $(row.location)")
+                    end
                 end
             end
         else
-            stale = ()
+            problematic_imports = ()
         end
-
-        # TODO- make optional?
-        problematic_imports = improper_explicit_imports_nonrecursive(mod, file;
-                                                                     file_analysis=file_analysis[file])
-        if !isnothing(problematic_imports) && !isempty(problematic_imports)
-            word = !isnothing(imports) && isempty(imports) && isempty(stale) ?
-                   "However" : "Additionally"
-            println(io)
-            println(io,
-                    "$word, $(name_fn(mod)) imports names from non-owner packages:")
-            for row in problematic_imports
-                println(io,
-                        "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(row.location)")
-            end
-        end
-
         if warn_improper_qualified_accesses
             problematic = improper_qualified_accesses_nonrecursive(mod, file;
                                                                    file_analysis=file_analysis[file])
             if !isnothing(problematic) && !isempty(problematic)
-                word = !isnothing(imports) && isempty(imports) && isempty(stale) &&
+                word = !isnothing(imports) && isempty(imports) &&
                        isempty(problematic_imports) ?
                        "However" : "Additionally"
                 println(io)
@@ -375,71 +404,25 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
     end
 end
 
-"""
-    stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
-
-Returns a collection of pairs, where the keys are submodules of `mod` (including `mod` itself), and the values are either `nothing` if `strict=true` and the module couldn't analyzed, or else a vector of `NamedTuple`s with at least the keys `name` and `location`, consisting of names that are explicitly imported in that submodule, but which either are not used, or are only used in a qualified fashion, making the explicit import a priori unnecessary.
-
-More keys may be added to the NamedTuples in the future in non-breaking releases of ExplicitImports.jl.
-
-!!! warning
-    Note that it is possible for an import from a module (say `X`) into one module (say `A`) to be relied on from another unrelated module (say `B`). For example, if `A` contains the code `using X: x`, but either does not use `x` at all or only uses `x` in the form `X.x`, then `x` will be flagged as a stale explicit import by this function. However, it could be that the code in some unrelated module `B` uses `A.x` or `using A: x`, relying on the fact that `x` has been imported into `A`'s namespace.
-
-    This is an unusual situation (generally `B` should just get `x` directly from `X`, rather than indirectly via `A`), but there are situations in which it arises, so one may need to be careful about naively removing all "stale" explicit imports flagged by this function.
-
-    Running [`improper_qualified_accesses`](@ref) on downstream code can help identify such "improper" accesses to names via modules other than their owner.
-
-## Keyword arguments
-
-$STRICT_KWARG
-
-See [`stale_explicit_imports_nonrecursive`](@ref) for a non-recursive version, and [`check_no_stale_explicit_imports`](@ref) for a version that throws an error when encountering stale explicit imports.
-
-See also [`print_explicit_imports`](@ref) which prints this information.
-"""
-function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
-    check_file(file)
-    submodules = find_submodules(mod, file)
-    file_analysis = Dict{String,FileAnalysis}()
-    fill_cache!(file_analysis, last.(submodules))
-    return [submodule => stale_explicit_imports_nonrecursive(submodule, path;
-                                                             file_analysis=file_analysis[path],
-                                                             strict)
-            for (submodule, path) in submodules]
-end
-
-"""
-    stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true)
-
-A non-recursive version of [`stale_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules.
-
-If `mod` was unanalyzable and `strict=true`, returns `nothing`. Otherwise, returns a collection of `NamedTuple`'s, with at least the keys `name` and `location`, corresponding to the names of stale explicit imports. More keys may be added in the future in non-breaking releases of ExplicitImports.jl.
-
-## Keyword arguments
-
-$STRICT_NONRECURSIVE_KWARG
-
-See also [`print_explicit_imports`](@ref) and [`check_no_stale_explicit_imports`](@ref), both of which do recurse through submodules.
-"""
-function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
-                                             strict=true,
-                                             # private undocumented kwarg for hoisting this analysis
-                                             file_analysis=get_names_used(file))
-    check_file(file)
-    (; unnecessary_explicit_import, tainted) = filter_to_module(file_analysis, mod)
-    tainted && strict && return nothing
-    ret = [(; nt.name, nt.location) for nt in unnecessary_explicit_import]
-    return unique!(nt -> nt.name, sort!(ret))
-end
-
-function has_ancestor(query, target)
-    query == target && return true
+function has_ancestor(cmp, query, target)
+    cmp(query, target) && return true
     while true
         next = parentmodule(query)
-        next == target && return true
+        cmp(next, target) && return true
         next == query && return false
         query = next
     end
+end
+
+compare_modules(m1::Module, m2::Module) = m1 == m2
+compare_modules(m1::Module, m2::Symbol) = nameof(m1) == m2
+compare_modules(m1::Symbol, m2::Module) = m1 == nameof(m2)
+
+has_ancestor(query, target) = has_ancestor(==, query, target)
+
+# Weaker version when we maybe only have the name of the target
+function has_ancestor_name(query, target)
+    return has_ancestor(compare_modules, query, target)
 end
 
 function should_skip(target; skip)
