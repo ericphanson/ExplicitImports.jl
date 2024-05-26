@@ -13,7 +13,7 @@ export ImplicitImportsException, UnanalyzableModuleException,
        FileNotFoundException, QualifiedAccessesFromNonOwnerException
 export StaleImportsException, check_no_stale_explicit_imports
 
-# deprecated
+# soft-deprecated
 export print_stale_explicit_imports, stale_explicit_imports,
        stale_explicit_imports_nonrecursive,
        print_improper_qualified_accesses

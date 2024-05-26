@@ -145,3 +145,14 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
 
     return problematic
 end
+
+function improper_explicit_imports(mod::Module, file=pathof(mod); skip=(Base => Core,))
+    check_file(file)
+    submodules = find_submodules(mod, file)
+    file_analysis = Dict{String,FileAnalysis}()
+    fill_cache!(file_analysis, last.(submodules))
+    return [submodule => improper_explicit_imports_nonrecursive(submodule, path;
+                                                                file_analysis=file_analysis[path],
+                                                                skip)
+            for (submodule, path) in submodules]
+end
