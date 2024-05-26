@@ -8,7 +8,7 @@
 
 ExplicitImports.jl helps detect implicit imports and mitigate issues with the alternatives (explicit imports and qualified accesses).
 
-| Problem           | Example                             | Interactive usage of ExplicitImports.jl                | ExplicitImports.jl API        | ExplicitImports.jl-powered check              |
+| Problem           | Example                             | Interactive usage                                      | Programmatic API access       | Regression-testing check                      |
 | ----------------- | ----------------------------------- | ------------------------------------------------------ | ----------------------------- | --------------------------------------------- |
 | Implicit imports  | `using LinearAlgebra`               | `print_explicit_imports`                               | `implicit_imports`            | `check_no_implicit_imports`                   |
 | Non-owning import | `using LinearAlgebra: map`          | `print_explicit_imports`                               | `improper_explicit_imports`   | TODO: `check_all_explicit_imports_via_owners` |

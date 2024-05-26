@@ -114,6 +114,7 @@ function process_explicitly_imported_row(row, mod; lookup)
             public_import=public_or_exported(current_mod, row.name),)
 end
 
+# TODO-docs, tests
 function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                                 skip=(Base => Core,),
                                                 require_submodule_access=false,
@@ -146,6 +147,7 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     return problematic
 end
 
+# TODO-docs, tests
 function improper_explicit_imports(mod::Module, file=pathof(mod); skip=(Base => Core,))
     check_file(file)
     submodules = find_submodules(mod, file)
