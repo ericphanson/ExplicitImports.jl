@@ -9,6 +9,7 @@ export print_explicit_imports, explicit_imports, check_no_implicit_imports,
 export print_explicit_imports_script
 export improper_qualified_accesses,
        improper_qualified_accesses_nonrecursive, check_all_qualified_accesses_via_owners
+export improper_explicit_imports, improper_explicit_imports_nonrecursive
 export ImplicitImportsException, UnanalyzableModuleException,
        FileNotFoundException, QualifiedAccessesFromNonOwnerException
 export StaleImportsException, check_no_stale_explicit_imports
