@@ -84,6 +84,7 @@ end
 # this seems to trigger for both `X` and `y` in `using X: y`, but that seems alright.
 function analyze_import_type(leaf)
     kind(leaf) == K"Identifier" || return :not_import
+    has_parent(leaf) || return :not_import
     is_import = parents_match(leaf, (K"importpath",))
     is_import || return :not_import
     if parents_match(leaf, (K"importpath", K":"))
@@ -111,15 +112,19 @@ function analyze_import_type(leaf)
         return :import_RHS
     else
         # Not part of `:` generally means it's a `using X` or `import Y` situation
+        # We could be using X.Y.Z, so we will return `plain_import` or `plain_import_member` depending if we are the last one or not
         n_children = length(js_children(parent(leaf)))
         last_child = child_index(leaf) == n_children
         if parents_match(leaf, (K"importpath", K"using"))
             return last_child ? :plain_import : :plain_import_member
         elseif parents_match(leaf, (K"importpath", K"import"))
             return last_child ? :blanket_using : :blanket_using_member
+        elseif parents_match(leaf, (K"importpath", K"as", K"import"))
+            # import X as Y
+            # Here we are `X`, not `Y`
+            return last_child ? :plain_import : :plain_import_member
         else
-            # TODO: handle `import X as Y`
-            error("Unhandled case $(js_node(get_parent(leaf, 2)))")
+            error("Unhandled case $(js_node(get_parent(leaf, 3)))")
         end
     end
 end
