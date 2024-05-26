@@ -198,39 +198,3 @@ function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base =
                                                                   require_submodule_access)
             for (submodule, path) in submodules]
 end
-
-"""
-    print_improper_qualified_accesses([io::IO=stdout,] mod::Module, file=pathof(mod))
-
-Runs [`improper_qualified_accesses`](@ref) and prints the results.
-
-Note that the particular printing may change in future non-breaking releases of ExplicitImports.
-
-See also [`print_explicit_imports`](@ref) and [`check_all_qualified_accesses_via_owners`](@ref).
-"""
-print_improper_qualified_accesses
-
-function print_improper_qualified_accesses(mod::Module, file=pathof(mod))
-    return print_improper_qualified_accesses(stdout, mod, file)
-end
-
-function print_improper_qualified_accesses(io::IO, mod::Module, file=pathof(mod))
-    check_file(file)
-    for (i, (mod, problematic)) in enumerate(improper_qualified_accesses(mod, file))
-        i == 1 || println(io)
-        if isempty(problematic)
-            println(io, "Module $mod accesses names only from owner modules.")
-        else
-            println(io,
-                    "Module $mod accesses names from non-owner modules:")
-            for row in problematic
-                println(io,
-                        "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
-            end
-        end
-    end
-
-    # We leave this so we can have non-trivial printout when running this function on ExplicitImports:
-    ExplicitImports.parent
-    return nothing
-end

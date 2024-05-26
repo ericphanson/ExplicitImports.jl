@@ -1,62 +1,5 @@
 # TODO- add deprecation warnings
-struct StaleImportsException <: Exception
-    mod::Module
-    names::Vector{@NamedTuple{name::Symbol,location::String}}
-end
 
-function Base.showerror(io::IO, e::StaleImportsException)
-    println(io, "StaleImportsException")
-    println(io, "Module `$(e.mod)` has stale (unused) explicit imports for:")
-    for (; name) in e.names
-        println(io, "* `$name`")
-    end
-end
-
-"""
-    check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(), allow_unanalyzable::Tuple=())
-
-Checks that neither `mod` nor any of its submodules has stale (unused) explicit imports, throwing
-an `StaleImportsException` if so, and returning `nothing` otherwise.
-
-This can be used in a package's tests, e.g.
-
-```julia
-@test check_no_stale_explicit_imports(MyPackage) === nothing
-```
-
-## Allowing some submodules to be unanalyzable
-
-Pass `allow_unanalyzable` as a tuple of submodules which are allowed to be unanalyzable.
-Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
-
-## Allowing some stale explicit imports
-
-If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
-that are allowed to be stale explicit imports. For example,
-
-```julia
-@test check_no_stale_explicit_imports(MyPackage; ignore=(:DataFrame,)) === nothing
-```
-
-would check there were no stale explicit imports besides that of the name `DataFrame`.
-"""
-function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(),
-                                         allow_unanalyzable::Tuple=())
-    check_file(file)
-    for (submodule, stale_imports) in stale_explicit_imports(mod, file)
-        if isnothing(stale_imports)
-            submodule in allow_unanalyzable && continue
-            throw(UnanalyzableModuleException(submodule))
-        end
-        filter!(stale_imports) do nt
-            return nt.name ∉ ignore
-        end
-        if !isempty(stale_imports)
-            throw(StaleImportsException(submodule, stale_imports))
-        end
-    end
-    return nothing
-end
 
 """
     stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
@@ -157,4 +100,32 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
             end
         end
     end
+end
+
+# TODO- deprecate for `print_explicit_imports` with kwargs
+"""
+    print_improper_qualified_accesses([io::IO=stdout,] mod::Module, file=pathof(mod))
+
+Runs [`improper_qualified_accesses`](@ref) and prints the results.
+
+Note that the particular printing may change in future non-breaking releases of ExplicitImports.
+
+See also [`print_explicit_imports`](@ref) and [`check_all_qualified_accesses_via_owners`](@ref).
+"""
+print_improper_qualified_accesses
+
+function print_improper_qualified_accesses(mod::Module, file=pathof(mod))
+    return print_improper_qualified_accesses(stdout, mod, file)
+end
+
+function print_improper_qualified_accesses(io::IO, mod::Module, file=pathof(mod))
+    print_explicit_imports(io, mod, file;
+                           warn_improper_qualified_accesses=true,
+                           warn_improper_explicit_imports=false,
+                           warn_implicit_imports=false,
+                           #TODO- document
+                           report_non_public=VERSION >= v"1.11-")
+    # We leave this so we can have non-trivial printout when running this function on ExplicitImports:
+    ExplicitImports.parent
+    return nothing
 end

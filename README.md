@@ -4,6 +4,15 @@
 [![Build Status](https://github.com/ericphanson/ExplicitImports.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ericphanson/ExplicitImports.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/ericphanson/ExplicitImports.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ericphanson/ExplicitImports.jl)
 
+| Problem           | Example                             | Interactive              | API                           | Check                                     |
+| ----------------- | ----------------------------------- | ------------------------ | ----------------------------- | ----------------------------------------- |
+| Implicit import   | `using LinearAlgebra; svd`          | `print_explicit_imports` | `implicit_imports`            | `check_no_implicit_imports`               |
+| Non-owning import | `using LinearAlgebra: map`          | `print_explicit_imports` | `improper_explicit_imports`   |                                           |
+| Non-public import | `using LinearAlgebra: _svd!`        | `print_explicit_imports` | `improper_explicit_imports`   | `check_all_explicit_imports_public`       |
+| Stale import      | `using LinearAlgebra: svd # unused` | `print_explicit_imports` | `improper_explicit_imports`   |                                           |
+| Non-owning access | `LinearAlgebra.map`                 | `print_explicit_imports` | `improper_qualified_accesses` | `check_all_qualified_accesses_via_owners` |
+| Non-public access | `LinearAlgebra._svd!`               | `print_explicit_imports` | `improper_qualified_accesses` |                                           |
+
 ## Goal
 
 Figure out what implicit imports a Julia module is relying on, in order to make them explicit.
