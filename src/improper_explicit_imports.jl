@@ -17,7 +17,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(Mod);
     # the global environment to find the actual module in question.
 
     # Clashes will get resolved arbitrarily
-    # TODO: check for clash and bail
+    # TODO: check for clash and bail?
     lookup = Dict(nameof(m) => m for (_, m) in Base.loaded_modules)
 
     table = @NamedTuple{name::Symbol,
