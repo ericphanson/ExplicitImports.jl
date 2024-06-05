@@ -80,7 +80,7 @@ end
     @test import_type_pairs ==
           [:Exporter => :import_LHS,
            :exported_a => :import_RHS,
-           :exported_b => :import_RHS,
+           :exported_c => :import_RHS,
            :Exporter => :import_LHS,
            :exported_c => :import_RHS,
            :TestModA => :blanket_using_member,
@@ -95,16 +95,27 @@ end
            :SubModB => :import_LHS,
            :h => :import_RHS,
            :Exporter => :blanket_using,
-           :Exporter => :plain_import]
+           :Exporter => :plain_import,
+           :LinearAlgebra => :import_LHS,
+           :map => :import_RHS,
+           :_svd! => :import_RHS,
+           :LinearAlgebra => :import_LHS,
+           :svd => :import_RHS,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS, :exported_b => :import_RHS]
 
     inds = findall(==(:import_RHS), analyze_import_type.(leaves))
     lhs_rhs_pairs = get_import_lhs.(leaves[inds]) .=> get_val.(leaves[inds])
-    @test lhs_rhs_pairs == [[:., :Exporter] => :exported_a,
-                            [:., :Exporter] => :exported_b,
-                            [:., :Exporter] => :exported_c,
-                            [:., :TestModA, :SubModB] => :h2,
-                            [:., :TestModA, :SubModB] => :h3,
-                            [:., :TestModA, :SubModB] => :h]
+    @test lhs_rhs_pairs == [[:., :., :Exporter] => :exported_a,
+                            [:., :., :Exporter] => :exported_c,
+                            [:., :., :Exporter] => :exported_c,
+                            [:., :., :TestModA, :SubModB] => :h2,
+                            [:., :., :TestModA, :SubModB] => :h3,
+                            [:., :., :TestModA, :SubModB] => :h,
+                            [:LinearAlgebra] => :map,
+                            [:LinearAlgebra] => :_svd!,
+                            [:LinearAlgebra] => :svd,
+                            [:., :., :TestModA, :SubModB] => :exported_b]
 end
 
 #####

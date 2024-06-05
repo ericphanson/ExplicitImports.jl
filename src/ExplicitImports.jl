@@ -19,6 +19,24 @@ export print_stale_explicit_imports, stale_explicit_imports,
        stale_explicit_imports_nonrecursive,
        print_improper_qualified_accesses
 
+const SKIPS_KWARG = """
+* `skip=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
+"""
+
+const STRICT_KWARG = """
+* `strict=true`: when `strict` is set, results for a module will be `nothing` in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate."""
+
+const STRICT_PRINTING_KWARG = """
+* `strict=true`: when `strict` is set, a module will be noted as unanalyzable in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate.
+"""
+
+const STRICT_NONRECURSIVE_KWARG = """
+* `strict=true`: when `strict=true`, results will be `nothing` in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate."""
+
+const WARN_STALE_KWARG = """
+* `warn_stale=true`: whether or not to warn about stale explicit imports.
+"""
+
 include("parse_utilities.jl")
 include("find_implicit_imports.jl")
 include("get_names_used.jl")
@@ -27,24 +45,6 @@ include("improper_explicit_imports.jl")
 include("interactive_usage.jl")
 include("checks.jl")
 include("deprecated.jl")
-
-const SKIPS_KWARG = """
-    * `skip=(mod, Base, Core)`: any names coming from the listed modules (or any submodules thereof) will be skipped. Since `mod` is included by default, implicit imports of names exported from its own submodules will not count by default.
-    """
-
-const STRICT_KWARG = """
-    * `strict=true`: when `strict` is set, results for a module will be `nothing` in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate."""
-
-const STRICT_PRINTING_KWARG = """
-    * `strict=true`: when `strict` is set, a module will be noted as unanalyzable in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate.
-    """
-
-const STRICT_NONRECURSIVE_KWARG = """
-    * `strict=true`: when `strict=true`, results will be `nothing` in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate."""
-
-const WARN_STALE_KWARG = """
-    * `warn_stale=true`: whether or not to warn about stale explicit imports.
-    """
 
 struct FileNotFoundException <: Exception end
 
