@@ -149,10 +149,20 @@ end
     @test isempty(ret[TestQualifiedAccess.Bar])
     @test isempty(ret[TestQualifiedAccess.FooModule])
     @test !isempty(ret[TestQualifiedAccess])
-    row = only(ret[TestQualifiedAccess])
-    @test row.name == :ABC
-    @test row.whichmodule == TestQualifiedAccess.Bar
-    @test row.accessing_from == TestQualifiedAccess.FooModule
+
+    @test length(ret[TestQualifiedAccess]) == 2
+    ABC, X = ret[TestQualifiedAccess]
+    @test ABC.name == :ABC
+    @test ABC.whichmodule == TestQualifiedAccess.Bar
+    @test ABC.accessing_from == TestQualifiedAccess.FooModule
+    @test ABC.public_access == false
+    @test ABC.accessing_from_submodule_owns_name == false
+
+    @test X.name == :X
+    @test X.whichmodule == TestQualifiedAccess.FooModule.FooSub
+    @test X.accessing_from == TestQualifiedAccess.FooModule
+    @test X.public_access == false
+    @test X.accessing_from_submodule_owns_name == true
 
     # test require_submodule_access=true
     ret = improper_qualified_accesses_nonrecursive(TestQualifiedAccess,
@@ -189,12 +199,12 @@ end
     # Printing via `print_improper_qualified_accesses`
     str = sprint(print_improper_qualified_accesses, TestQualifiedAccess,
                  "test_qualified_access.jl")
-    @test contains(str, "accesses names from non-owner modules")
+    @test contains(str, "accesses 1 name from non-owner modules")
     @test contains(str, "`ABC` has owner")
 
     # Printing via `print_explicit_imports`
     str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
-    @test contains(str, "accesses names from non-owner modules")
+    @test contains(str, "accesses 1 name from non-owner modules")
     @test contains(str, "`ABC` has owner")
 end
 
@@ -314,8 +324,8 @@ end
     @test contains(str, "Script `script.jl`")
     @test contains(str, "relying on implicit imports for 1 name")
     @test contains(str, "using LinearAlgebra: norm")
-    @test contains(str, "stale explicit imports for these unused names")
-    @test contains(str, "- qr")
+    @test contains(str, "stale explicit imports for this 1 unused name")
+    @test contains(str, "- `qr`")
 end
 
 @testset "Don't skip source modules (#29)" begin
@@ -522,7 +532,7 @@ end
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
     @test contains(str, "using .Exporter2: Exporter2, exported_a")
     @test contains(str,
-                   "However, module Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
+                   "However, module Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these 2 unused names")
 
     # should be no logs
     # try with linewidth tiny - should put one name per line
@@ -537,12 +547,12 @@ end
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
                                                          show_locations=true))
     @test contains(str, "using .Exporter3: Exporter3 # used at TestModA.jl:")
-    @test contains(str, "(imported at TestModC.jl:")
+    @test contains(str, "is unused but it was imported from Exporter at TestModC.jl")
 
-    # `warn_stale=false` does something (also still no logs)
+    # `warn_improper_explicit_imports=false` does something (also still no logs)
     str_no_warn = @test_logs sprint(io -> print_explicit_imports(io, TestModA,
                                                                  "TestModA.jl";
-                                                                 warn_stale=false))
+                                                                 warn_improper_explicit_imports=false))
     @test length(str_no_warn) <= length(str)
 
     # in particular, this ensures we add `using Foo: Foo` as the first line

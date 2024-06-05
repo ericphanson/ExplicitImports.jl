@@ -222,11 +222,6 @@ function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
     check_file(file)
     for (submodule, problematic) in
         improper_qualified_accesses(mod, file; skip=ignore)
-        # drop unnecessary columns
-        problematic = [(;
-                        (k => v for (k, v) in pairs(row) if k ∉ (:public_access,))...)
-                       for row in problematic]
-
         filter!(problematic) do nt
             return nt.name ∉ ignore
         end
@@ -237,6 +232,9 @@ function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
                 !row.accessing_from_submodule_owns_name
             end
         end
+
+        # drop unnecessary columns
+        problematic = NamedTuple{(:name, :location, :value, :accessing_from, :whichmodule)}.(problematic)
         if !isempty(problematic)
             throw(QualifiedAccessesFromNonOwnerException(submodule, problematic))
         end
