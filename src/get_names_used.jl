@@ -336,7 +336,7 @@ end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
 # a leaf and follow the parents up to see what scopes our leaf is in.
-# TODO- cleanup. This basically has two jobs: check is function arg etc, and figure out the scope/module path.
+# TODO-someday- cleanup. This basically has two jobs: check is function arg etc, and figure out the scope/module path.
 # We could do these two things separately for more clarity.
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
@@ -567,7 +567,7 @@ function analyze_per_usage_info(per_usage_info)
                                     analysis_code=reason)
             end
         end
-        # * this was the first usage in this scope, but it could already be used in a "higher" local scope. It is possible we have not yet processed that scope fully but we will assume we have (TODO). So we will recurse up and check if it is a local name there.
+        # * this was the first usage in this scope, but it could already be used in a "higher" local scope. It is possible we have not yet processed that scope fully but we will assume we have (TODO-someday). So we will recurse up and check if it is a local name there.
         if is_name_internal_in_higher_local_scope(nt.name,
                                                   nt.scope_path,
                                                   seen)

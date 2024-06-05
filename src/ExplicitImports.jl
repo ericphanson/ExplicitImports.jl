@@ -118,7 +118,7 @@ function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
             for (submodule, path) in submodules]
 end
 
-# TODO; there may be a better way to make this choice
+# TODO-someday; there may be a better way to make this choice
 function choose_exporter(name, exporters)
     by = mod -> reverse(module_path(mod))
     sorted = sort(exporters; by, lt=is_prefix)

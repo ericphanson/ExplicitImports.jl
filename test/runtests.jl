@@ -396,8 +396,6 @@ function get_per_scope(per_usage_info)
     return per_usage_df
 end
 
-# TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
-
 @testset "file not found" begin
     for f in (check_no_implicit_imports, check_no_stale_explicit_imports, explicit_imports,
               explicit_imports_nonrecursive, print_explicit_imports,

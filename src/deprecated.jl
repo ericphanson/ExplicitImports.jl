@@ -1,4 +1,4 @@
-# TODO- add deprecation warnings
+# TODO-someday- add deprecation warnings
 
 """
     stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
@@ -101,11 +101,11 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
     end
 end
 
-# TODO- deprecate for `print_explicit_imports` with kwargs
+# TODO-someday- deprecate for `print_explicit_imports` with kwargs
 """
-    print_improper_qualified_accesses([io::IO=stdout,] mod::Module, file=pathof(mod))
+    print_improper_qualified_accesses([io::IO=stdout,] mod::Module, file=pathof(mod); report_non_public=VERSION >= v"1.11-")
 
-Runs [`improper_qualified_accesses`](@ref) and prints the results.
+Runs [`improper_qualified_accesses`](@ref) and prints the results. If `report_non_public=true`, then accesses of non-public names will be reported. By default, this is enabled on Julia v1.11+.
 
 Note that the particular printing may change in future non-breaking releases of ExplicitImports.
 
@@ -117,13 +117,13 @@ function print_improper_qualified_accesses(mod::Module, file=pathof(mod))
     return print_improper_qualified_accesses(stdout, mod, file)
 end
 
-function print_improper_qualified_accesses(io::IO, mod::Module, file=pathof(mod))
+function print_improper_qualified_accesses(io::IO, mod::Module, file=pathof(mod);
+                                           report_non_public=VERSION >= v"1.11-")
     print_explicit_imports(io, mod, file;
                            warn_improper_qualified_accesses=true,
                            warn_improper_explicit_imports=false,
                            warn_implicit_imports=false,
-                           #TODO- document
-                           report_non_public=VERSION >= v"1.11-")
+                           report_non_public)
     # We leave this so we can have non-trivial printout when running this function on ExplicitImports:
     ExplicitImports.parent
     return nothing
