@@ -1,6 +1,5 @@
 # TODO- add deprecation warnings
 
-
 """
     stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
 
