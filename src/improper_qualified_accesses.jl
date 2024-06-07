@@ -122,7 +122,7 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
 
     for (from, parent) in skip
         filter!(problematic) do row
-            return !(row.whichmodule == parent && row.accessing_from == from)
+            return !(has_ancestor(row.whichmodule, parent) && row.accessing_from == from)
         end
     end
 
@@ -139,7 +139,7 @@ Currently, only detects cases in which the name is being accessed from a module 
 - `name` is not exported from `mod`
 - `name` is not declared public in `mod` (requires Julia v1.11+)
 
-The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but whose parent is `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
+The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but who have an ancestor `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
 
 This functionality is still in development, so the exact results may change in future non-breaking releases. Read on for the current outputs, what may change, and what will not change (without a breaking release of ExplicitImports.jl).
 
