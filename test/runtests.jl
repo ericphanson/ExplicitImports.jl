@@ -5,7 +5,8 @@ using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_nonrecursive,
                        inspect_session, get_parent, choose_exporter,
-                       get_import_lhs, analyze_import_type
+                       get_import_lhs, analyze_import_type,
+                       analyze_explicitly_imported_names
 using Test
 using DataFrames
 using Aqua
@@ -53,6 +54,7 @@ include("DynMod.jl")
 include("TestModArgs.jl")
 include("examples.jl")
 include("script.jl")
+include("imports.jl")
 include("test_qualified_access.jl")
 
 # package extension support needs Julia 1.9+
@@ -116,6 +118,18 @@ end
                             [:LinearAlgebra] => :_svd!,
                             [:LinearAlgebra] => :svd,
                             [:., :., :TestModA, :SubModB] => :exported_b]
+
+    imps = DataFrame(improper_explicit_imports_nonrecursive(ModImports, "imports.jl"))
+    h_row = only(subset(imps, :name => ByRow(==(:h))))
+    @test !h_row.public_import
+    # Note: if this fails locally, try `include("imports.jl")` to rebuild the module
+    @test h_row.whichmodule == TestModA.SubModB
+
+    h2_row = only(subset(imps, :name => ByRow(==(:h2))))
+    @test h2_row.public_import
+    @test h2_row.whichmodule === TestModA.SubModB
+    _svd!_row = only(subset(imps, :name => ByRow(==(:_svd!))))
+    @test !_svd!_row.public_import
 end
 
 #####

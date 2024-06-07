@@ -64,7 +64,6 @@ end
 # TODO-docs, tests
 function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                                 skip=(Base => Core,),
-                                                require_submodule_access=false,
                                                 # private undocumented kwarg for hoisting this analysis
                                                 file_analysis=get_names_used(file))
     check_file(file)
@@ -74,15 +73,8 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     # the name is not publicly available in `importing_from`.
     filter!(problematic) do row
         row.stale === true && return true # keep these
-        row.public_import === true && return false # skip these
-        row.public_import === false && return true # keep these
-        # OK, if we are down to `missing`, then it's a local module.
-        # We will report only if there is an ownership issue.
-        if require_submodule_access
-            return !row.importing_from_owns_name
-        else
-            return !row.importing_from_submodule_owns_name
-        end
+        row.public_import && return false # skip these
+        return true
     end
 
     for (from, parent) in skip
