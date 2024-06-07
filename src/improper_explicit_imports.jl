@@ -1,4 +1,4 @@
-function analyze_explicitly_imported_names(mod::Module, file=pathof(Mod);
+function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
                                            # private undocumented kwarg for hoisting this analysis
                                            file_analysis=get_names_used(file))
     check_file(file)
@@ -8,17 +8,6 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(Mod);
     _explicit_imports = filter(per_usage_info) do row
         return row.import_type === :import_RHS
     end
-
-    # Unlike with qualified names, we can't actually access the modules in question in code in many cases.
-    # For example, if you do `module Mod; using LinearAlgebra: svd; end`, then `LinearAlgebra` does not exist
-    # inside the `Mod` namespace; only `svd` does. So we can't just do `getproperty(mod, :LinearAlgebra)` to get it.
-    # Instead, we will just go by the *names* of the modules and hope there aren't clashes.
-    # For some features also, we will only support packages, not relative paths, so that we can use `Base.loaded_modules` to inspect
-    # the global environment to find the actual module in question.
-
-    # Clashes will get resolved arbitrarily
-    # TODO-someday: check for clash and bail?
-    lookup = Dict(nameof(m) => m for (_, m) in Base.loaded_modules)
 
     table = @NamedTuple{name::Symbol,
                         location::String,
@@ -30,14 +19,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(Mod);
                         importing_from_submodule_owns_name::Bool,
                         stale::Bool}[]
     for row in _explicit_imports
-        if (:. in row.explicitly_imported_by)
-            # Relative module path; we can't figure out somethings, but can others
-            output = process_module_explicitly_imported_row(row, mod)
-        else
-            # Package import: we can lookup the actual module from `Base.loaded_modules`
-            # and should have full information, assuming there wasn't a clash
-            output = process_explicitly_imported_row(row, mod; lookup)
-        end
+        output = process_explicitly_imported_row(row, mod)
         output === nothing && continue
         importing_from_owns_name = compare_modules(output.whichmodule,
                                                    output.importing_from)
@@ -55,55 +37,20 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(Mod);
     return table
 end
 
-function process_module_explicitly_imported_row(row, mod)
-    # For local modules, we can check if the import is unnecessary,
-    # or if the name of the module we are importing from matches the owner.
-    value = trygetproperty(mod, row.name)
-    value === nothing && return nothing
-    value = something(value) # unwrap
-    importing_from = row.explicitly_imported_by[end]
-    whichmodule = try
-        which(mod, row.name)
-    catch
-        return nothing
-    end
-    return (; row.name,
-            row.location,
-            value,
-            importing_from,
-            whichmodule,
-            public_import=missing)
-end
+function process_explicitly_imported_row(row, mod)
+    current_mod = Base.binding_module(mod, row.name)
+    current_mod === mod && return nothing
 
-function process_explicitly_imported_row(row, mod; lookup)
     isempty(row.explicitly_imported_by) && return nothing
-    current_mod = get(lookup, row.explicitly_imported_by[1], nothing)
-    for sub in row.explicitly_imported_by[2:end]
-        current_mod = trygetproperty(current_mod, sub)
-        current_mod isa Module || return nothing
-    end
 
     # Ok, now `current_mod` should contain the actual module we imported the name from
     # This lets us query if the name is public in *that* module, get the value, etc
     value = trygetproperty(current_mod, row.name)
     value === nothing && return nothing
     value = something(value) # unwrap
-
-    # We can also look up the module that created the name. We could use either `current_mod` or `mod` for that.
-    # We will in fact use both to try to detect a clash.
     whichmodule = try
         which(mod, row.name)
     catch
-        return nothing
-    end
-    whichmodule2 = try
-        which(current_mod, row.name)
-    catch
-        return nothing
-    end
-    if whichmodule !== whichmodule2
-        #TODO-someday handle somehow?
-        @debug "Clash occurred; $(row.name) in mod $mod has `whichmodule=$whichmodule` and `whichmodule2=$whichmodule2`"
         return nothing
     end
     return (; row.name,

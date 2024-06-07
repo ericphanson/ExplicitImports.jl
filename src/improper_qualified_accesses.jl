@@ -110,7 +110,7 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 """
 function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
                                                   skip=(Base => Core,),
-                                                  # deprecated
+                                                  # deprecated, does nothing
                                                   require_submodule_access=nothing,
                                                   # private undocumented kwarg for hoisting this analysis
                                                   file_analysis=get_names_used(file))
