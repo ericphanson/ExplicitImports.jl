@@ -61,7 +61,6 @@ function process_explicitly_imported_row(row, mod)
             public_import=public_or_exported(current_mod, row.name),)
 end
 
-
 """
     improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skip=(Base => Core,))
 
