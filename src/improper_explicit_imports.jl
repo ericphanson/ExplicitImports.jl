@@ -121,7 +121,6 @@ In non-breaking releases of ExplicitImports:
 
 However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
 
-
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`improper_explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_all_explicit_imports_via_owners`](@ref) for a version that throws errors, for regression testing.
 """
 function improper_explicit_imports(mod::Module, file=pathof(mod); skip=(Base => Core,))

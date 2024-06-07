@@ -222,6 +222,19 @@ end
     @test contains(str, "`ABC` has owner")
 end
 
+@testset "improper explicit imports" begin
+    imps = Dict(improper_explicit_imports(TestModA, "TestModA.jl"))
+    row = only(imps[TestModA])
+    @test row.name == :un_exported
+    @test row.whichmodule == Exporter
+
+    row1, row2 = imps[TestModA.SubModB.TestModA.TestModC]
+    @test row1.name == :exported_c
+    @test row1.stale == true
+    @test row2.name == :exported_d
+    @test row2.stale == true
+end
+
 @testset "structs" begin
     cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
     leaves = collect(Leaves(cursor))
