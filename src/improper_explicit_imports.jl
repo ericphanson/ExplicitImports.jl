@@ -86,7 +86,38 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     return problematic
 end
 
-# TODO-docs, tests
+"""
+    improper_explicit_imports(mod::Module, file=pathof(mod); skip=(Base => Core,))
+
+Attempts do detect various kinds of "improper" explicit imports taking place in `mod` and any submodules of `mod`.
+
+Currently, only detects cases in which the name is being imported from a module `mod` for which:
+
+- `name` is not exported from `mod`
+- `name` is not declared public in `mod` (requires Julia v1.11+)
+
+The keyword argument `skip` is expected to be an iterator of `importing_from => parent` pairs, where names which are imported from `importing_from` but whose parent is `parent` are ignored. By default, imports from Base to names owned by Core are skipped.
+
+This functionality is still in development, so the exact results may change in future non-breaking releases. Read on for the current outputs, what may change, and what will not change (without a breaking release of ExplicitImports.jl).
+
+Returns a nested structure providing information about improper explicit imports to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are a `Vector` of `NamedTuple`s with the following keys:
+
+- `name::Symbol`: the name being imported
+- `location::String`: the location the access takes place
+- `importing_from::Module`: the module the name is being imported from (e.g. `Module.name`)
+- `whichmodule::Module`: the `Base.which` of the object
+- `public_access::Bool`: whether or not `name` is public or exported in `importing_from`. Checking if a name is marked `public` requires Julia v1.11+.
+
+In non-breaking releases of ExplicitImports:
+
+- more columns may be added to these rows
+- additional rows may be returned which qualify as some other kind of "improper" access
+
+However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
+
+
+See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`improper_explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_all_explicit_imports_via_owners`](@ref) for a version that throws errors, for regression testing.
+"""
 function improper_explicit_imports(mod::Module, file=pathof(mod); skip=(Base => Core,))
     check_file(file)
     submodules = find_submodules(mod, file)

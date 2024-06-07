@@ -134,13 +134,10 @@ end
 
 Attempts do detect various kinds of "improper" qualified accesses taking place in `mod` and any submodules of `mod`.
 
-TODO-update
-
-Currently, only detects cases in which the name is being accessed from a module `mod` which:
+Currently, only detects cases in which the name is being accessed from a module `mod` for which:
 
 - `name` is not exported from `mod`
 - `name` is not declared public in `mod` (requires Julia v1.11+)
-- `name` is not "owned" by `mod`. This is determined by calling `owner = Base.which(mod, name)` to obtain the module the name was defined in. If `require_submodule_access=true`, then `mod` must be exactly `owner` to not be considered "improper" access. Otherwise (the default), `mod` is allowed to be a module which contains `owner`.
 
 The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but whose parent is `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
 
@@ -161,7 +158,7 @@ In non-breaking releases of ExplicitImports:
 
 However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
 
-See also [`print_improper_qualified_accesses`](@ref) to easily compute and print these results, [`improper_qualified_accesses_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_all_qualified_accesses_via_owners`](@ref) for a version that throws errors, for regression testing.
+See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`improper_qualified_accesses_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_all_qualified_accesses_via_owners`](@ref) for a version that throws errors, for regression testing.
 
 ## Example
 
@@ -189,6 +186,9 @@ function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base =
                                      # deprecated
                                      require_submodule_access=nothing)
     check_file(file)
+    if require_submodule_access !== nothing
+        @warn "[improper_qualified_accesses] `require_submodule_access` is deprecated and unused" maxlog = 1
+    end
     submodules = find_submodules(mod, file)
     file_analysis = Dict{String,FileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
