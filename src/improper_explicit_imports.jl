@@ -61,7 +61,12 @@ function process_explicitly_imported_row(row, mod)
             public_import=public_or_exported(current_mod, row.name),)
 end
 
-# TODO-docs, tests
+
+"""
+    improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skip=(Base => Core,))
+
+A non-recursive version of [`improper_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details, including important caveats about stability (outputs may grow in future non-breaking releases of ExplicitImports!).
+"""
 function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                                 skip=(Base => Core,),
                                                 # private undocumented kwarg for hoisting this analysis
