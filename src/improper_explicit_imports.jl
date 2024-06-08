@@ -37,13 +37,20 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
     return table, tainted
 end
 
+if !isdefined(Base, :maybe_root_module)
+    # 1.7 support
+    maybe_root_module(key::Base.PkgId) = Base.@lock Base.require_lock get(Base.loaded_modules, key, nothing)
+else
+    maybe_root_module(key::Base.PkgId) = Base.maybe_root_module(key)
+end
+
 # Like `Base.require` (as invoked by `eval_import_path`), but
 # assumes the package is already loaded (so importantly, doesn't try to actually load new modules).
 # Returns `nothing` if something goes wrong.
 function __require(into, mod)
     pkgid = Base.identify_package(into, String(mod))
     pkgid === nothing && return nothing
-    return Base.maybe_root_module(pkgid)
+    return maybe_root_module(pkgid)
 end
 
 # partial reimplementation of `eval_import_path`
@@ -111,7 +118,7 @@ function process_explicitly_imported_row(row, mod)
         Please file an issue on ExplicitImports.jl (https://github.com/ericphanson/ExplicitImports.jl/issues/new).
 
         Info:
-        
+
         `row.explicitly_imported_by`=$(row.explicitly_imported_by)
         `nameof(current_mod)`=$(nameof(current_mod))
         """)
