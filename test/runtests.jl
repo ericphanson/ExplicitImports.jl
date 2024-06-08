@@ -6,7 +6,7 @@ using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_nonrecursive,
                        inspect_session, get_parent, choose_exporter,
                        get_import_lhs, analyze_import_type,
-                       analyze_explicitly_imported_names
+                       analyze_explicitly_imported_names, owner_mod_for_printing
 using Test
 using DataFrames
 using Aqua
@@ -70,6 +70,11 @@ if VERSION > v"1.9-"
                               (; name=:DataFrame, source=DataFrames),
                               (; name=:groupby, source=DataFrames)]
     end
+end
+
+@testset "owner_mod_for_printing" begin
+    @test owner_mod_for_printing(Core, :throw, Core.throw) == Base
+    @test owner_mod_for_printing(Core, :println, Core.println) == Core
 end
 
 @testset "imports" begin

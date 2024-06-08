@@ -3,6 +3,16 @@ function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
     return print_explicit_imports(stdout, mod, file; kw...)
 end
 
+# If `name` is defined in Core, but is present in Base with the same value,
+# then report `Base`. That way we suggest `Base.throw` instead of `Core.throw`
+# for example.
+function owner_mod_for_printing(whichmodule, name, value)
+    if whichmodule == Core && try_getglobal(Base, name) === value
+        return Base
+    end
+    return whichmodule
+end
+
 """
     print_explicit_imports([io::IO=stdout,] mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                            warn_implicit_imports=true,
@@ -107,8 +117,9 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                     println(io,
                             "$word, $(name_fn(mod)) explicitly imports $(length(non_owner)) name$(plural) from non-owner modules:")
                     for row in non_owner
+                        owner = owner_mod_for_printing(row.whichmodule, row.name, row.value)
                         println(io,
-                                "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(row.location)")
+                                "- `$(row.name)` has owner $(owner) but it was imported from $(row.importing_from) at $(row.location)")
                     end
                 end
                 non_public = report_non_public ?
@@ -150,8 +161,9 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 println(io,
                         "$word, $(name_fn(mod)) accesses $(length(non_owner)) name$(plural) from non-owner modules:")
                 for row in non_owner
+                    owner = owner_mod_for_printing(row.whichmodule, row.name, row.value)
                     println(io,
-                            "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
+                            "- `$(row.name)` has owner $(owner) but it was accessed from $(row.accessing_from) at $(row.location)")
                 end
             end
 
