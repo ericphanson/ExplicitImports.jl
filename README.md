@@ -11,7 +11,7 @@ ExplicitImports.jl helps detect implicit imports and mitigate issues with the al
 | Problem           | Example                             | Interactive detection of issue                         | Programmatic detection        | Regression-testing check                                     |
 | ----------------- | ----------------------------------- | ------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------ |
 | Implicit imports  | `using LinearAlgebra`               | `print_explicit_imports`                               | `implicit_imports`            | `check_no_implicit_imports`                                  |
-| Non-owning import | `using LinearAlgebra: map`          | `print_explicit_imports`                               | `improper_explicit_imports`   | not yet implemented: `check_all_explicit_imports_via_owners` |
+| Non-owning import | `using LinearAlgebra: map`          | `print_explicit_imports`                               | `improper_explicit_imports`   | `check_all_explicit_imports_via_owners` |
 | Non-public import | `using LinearAlgebra: _svd!`        | `print_explicit_imports` with `report_non_public=true` | `improper_explicit_imports`   | not yet implemented: `check_all_explicit_imports_public`     |
 | Stale import      | `using LinearAlgebra: svd # unused` | `print_explicit_imports`                               | `improper_explicit_imports`   | `check_no_stale_explicit_imports`                            |
 | Non-owning access | `LinearAlgebra.map`                 | `print_explicit_imports`                               | `improper_qualified_accesses` | `check_all_qualified_accesses_via_owners`                    |

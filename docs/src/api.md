@@ -29,6 +29,7 @@ ExplicitImports.jl provides three functions which can be used to regression test
 check_no_implicit_imports
 check_no_stale_explicit_imports
 check_all_qualified_accesses_via_owners
+check_all_explicit_imports_via_owners
 ```
 
 ## Usage with scripts (such as `runtests.jl`)
