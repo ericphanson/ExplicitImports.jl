@@ -506,11 +506,6 @@ end
 
     @test from_inner_file == ["using .TestModA: TestModA", "using .TestModA: f"]
 
-    # Deprecation log
-    @test_logs (:warn, r"deprecated") explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                                                    "TestModC.jl";
-                                                                    warn_stale=true)
-
     @test only_name_source(stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
                                                                "TestModC.jl")) ==
           [(; name=:exported_c), (; name=:exported_d)]
@@ -548,10 +543,6 @@ end
     @test TestModA.SubModB in first.(nested)
     @test TestModA.SubModB.TestModA in first.(nested)
     @test TestModA.SubModB.TestModA.TestModC in first.(nested)
-
-    # Deprecation logs when `warn_stale=false`
-    @test_logs (:warn, r"deprecated") explicit_imports(TestModA, "TestModA.jl";
-                                                       warn_stale=false)
 
     # Printing
     # should be no logs
@@ -697,30 +688,27 @@ end
                                                                                "DynMod.jl";
                                                                                strict=false)) ==
                                 [(; name=:print_explicit_imports, source=ExplicitImports)]
-        @test_logs match_mode = :any (:warn, r"deprecated") @test stale_explicit_imports(DynMod,
-                                                                                         "DynMod.jl") ==
-                                                                  [DynMod => nothing,
-                                                                   DynMod.Hidden => nothing]
 
-        @test_logs match_mode = :any (:warn, r"deprecated") @test stale_explicit_imports_nonrecursive(DynMod,
-                                                                                                      "DynMod.jl") ===
-                                                                  nothing
+        @test @test_logs log... improper_explicit_imports(DynMod,
+                                                          "DynMod.jl") ==
+                                [DynMod => nothing,
+                                 DynMod.Hidden => nothing]
 
-        @test_logs match_mode = :any (:warn, r"deprecated") @test stale_explicit_imports(DynMod,
-                                                                                         "DynMod.jl";
-                                                                                         strict=false) ==
-                                                                  [DynMod => [],
-                                                                   # Wrong! Missing stale explicit export
-                                                                   DynMod.Hidden => []]
+        @test_logs log... @test improper_explicit_imports_nonrecursive(DynMod,
+                                                                       "DynMod.jl") ===
+                                nothing
 
-        @test_logs match_mode = :any (:warn, r"deprecated") @test stale_explicit_imports_nonrecursive(DynMod,
-                                                                                                      "DynMod.jl";
-                                                                                                      strict=false) ==
-                                                                  []
-        @test_logs match_mode = :any (:warn, r"deprecated") str = sprint(print_stale_explicit_imports,
-                                                                         DynMod,
-                                                                         "DynMod.jl")
-        @test contains(str, "DynMod could not be accurately analyzed")
+        @test_logs log... @test improper_explicit_imports(DynMod,
+                                                          "DynMod.jl";
+                                                          strict=false) ==
+                                [DynMod => [],
+                                 # Wrong! Missing stale explicit export
+                                 DynMod.Hidden => []]
+
+        @test_logs log... @test improper_explicit_imports_nonrecursive(DynMod,
+                                                                       "DynMod.jl";
+                                                                       strict=false) ==
+                                []
 
         @test_logs log... str = sprint(print_explicit_imports, DynMod, "DynMod.jl")
         @test contains(str, "DynMod could not be accurately analyzed")
