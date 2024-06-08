@@ -76,7 +76,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
         end
 
         if warn_improper_explicit_imports
-            problematic_imports = improper_explicit_imports_nonrecursive(mod, file;
+            problematic_imports = improper_explicit_imports_nonrecursive(mod, file; strict,
                                                                          file_analysis=file_analysis[file])
             if !isnothing(problematic_imports) && !isempty(problematic_imports)
                 stale = filter(row -> row.stale, problematic_imports)

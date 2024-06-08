@@ -351,8 +351,8 @@ end
     @test contains(str, "Script `script.jl`")
     @test contains(str, "relying on implicit imports for 1 name")
     @test contains(str, "using LinearAlgebra: norm")
-    @test_broken contains(str, "stale explicit imports for this 1 unused name")
-    @test_broken contains(str, "- `qr`")
+    @test contains(str, "stale explicit imports for this 1 unused name")
+    @test contains(str, "- `qr`")
 end
 
 @testset "Don't skip source modules (#29)" begin
