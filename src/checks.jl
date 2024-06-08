@@ -12,19 +12,6 @@ function Base.showerror(io::IO, e::ImplicitImportsException)
     end
 end
 
-struct StaleImportsException <: Exception
-    mod::Module
-    names::Vector{@NamedTuple{name::Symbol,location::String}}
-end
-
-function Base.showerror(io::IO, e::StaleImportsException)
-    println(io, "StaleImportsException")
-    println(io, "Module `$(e.mod)` has stale (unused) explicit imports for:")
-    for (; name) in e.names
-        println(io, "* `$name`")
-    end
-end
-
 struct UnanalyzableModuleException <: Exception
     mod::Module
 end
@@ -51,6 +38,66 @@ function Base.showerror(io::IO, e::QualifiedAccessesFromNonOwnerException)
         println(io,
                 "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
     end
+end
+
+struct StaleImportsException <: Exception
+    mod::Module
+    names::Vector{@NamedTuple{name::Symbol,location::String}}
+end
+
+function Base.showerror(io::IO, e::StaleImportsException)
+    println(io, "StaleImportsException")
+    println(io, "Module `$(e.mod)` has stale (unused) explicit imports for:")
+    for (; name) in e.names
+        println(io, "* `$name`")
+    end
+end
+
+"""
+    check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(), allow_unanalyzable::Tuple=())
+
+Checks that neither `mod` nor any of its submodules has stale (unused) explicit imports, throwing
+an `StaleImportsException` if so, and returning `nothing` otherwise.
+
+This can be used in a package's tests, e.g.
+
+```julia
+@test check_no_stale_explicit_imports(MyPackage) === nothing
+```
+
+## Allowing some submodules to be unanalyzable
+
+Pass `allow_unanalyzable` as a tuple of submodules which are allowed to be unanalyzable.
+Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
+
+## Allowing some stale explicit imports
+
+If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
+that are allowed to be stale explicit imports. For example,
+
+```julia
+@test check_no_stale_explicit_imports(MyPackage; ignore=(:DataFrame,)) === nothing
+```
+
+would check there were no stale explicit imports besides that of the name `DataFrame`.
+"""
+function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(),
+                                         allow_unanalyzable::Tuple=())
+    check_file(file)
+    for (submodule, stale_imports) in improper_explicit_imports(mod, file; strict=true)
+        if isnothing(stale_imports)
+            submodule in allow_unanalyzable && continue
+            throw(UnanalyzableModuleException(submodule))
+        end
+        filter!(stale_imports) do nt
+            return nt.name ∉ ignore && nt.stale
+        end
+        if !isempty(stale_imports)
+            throw(StaleImportsException(submodule,
+                                        NamedTuple{(:name, :location)}.(stale_imports)))
+        end
+    end
+    return nothing
 end
 
 """
@@ -105,7 +152,7 @@ but verify there are no other implicit imports.
 function check_no_implicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                                    ignore::Tuple=(), allow_unanalyzable::Tuple=())
     check_file(file)
-    ee = explicit_imports(mod, file; warn_stale=false, skip)
+    ee = explicit_imports(mod, file; skip)
     for (submodule, names) in ee
         if isnothing(names) && submodule in allow_unanalyzable
             continue
@@ -143,52 +190,6 @@ function should_ignore!(::Nothing, mod; ignore)
 end
 
 """
-    check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(), allow_unanalyzable::Tuple=())
-
-Checks that neither `mod` nor any of its submodules has stale (unused) explicit imports, throwing
-an `StaleImportsException` if so, and returning `nothing` otherwise.
-
-This can be used in a package's tests, e.g.
-
-```julia
-@test check_no_stale_explicit_imports(MyPackage) === nothing
-```
-
-## Allowing some submodules to be unanalyzable
-
-Pass `allow_unanalyzable` as a tuple of submodules which are allowed to be unanalyzable.
-Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
-
-## Allowing some stale explicit imports
-
-If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
-that are allowed to be stale explicit imports. For example,
-
-```julia
-@test check_no_stale_explicit_imports(MyPackage; ignore=(:DataFrame,)) === nothing
-```
-
-would check there were no stale explicit imports besides that of the name `DataFrame`.
-"""
-function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(),
-                                         allow_unanalyzable::Tuple=())
-    check_file(file)
-    for (submodule, stale_imports) in stale_explicit_imports(mod, file)
-        if isnothing(stale_imports)
-            submodule in allow_unanalyzable && continue
-            throw(UnanalyzableModuleException(submodule))
-        end
-        filter!(stale_imports) do nt
-            return nt.name ∉ ignore
-        end
-        if !isempty(stale_imports)
-            throw(StaleImportsException(submodule, stale_imports))
-        end
-    end
-    return nothing
-end
-
-"""
     check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), require_submodule_access=false)
 
 Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
@@ -211,21 +212,29 @@ that are allowed to be accessed from non-owner modules. For example,
 
 would check there were no qualified accesses from non-owner modules besides that of the name `DataFrame`.
 
-See also: [`improper_qualified_accesses`](@ref), which also describes the meaning of the keyword argument `require_submodule_access`. Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_qualified_accesses_via_owners` will not.
+If `require_submodule_access=true`, then an error will be thrown if the name is accessed by a non-owner module even if it is accessed by a parent module of the owner module. For example, in June 2024, `JSON.parse` is actually defined in the submodule `JSON.Parser` and is not declared public inside `JSON`, but the name is present within the module `JSON`. If `require_submodule_access=false`, the default, in this scenario the access `JSON.parse` will not trigger an error, since the name is being accessed by a parent of the owner. If `require_submodule_access=false`, then accessing the function as `JSON.Parser.parse` will be required to avoid an error.
+
+See also: [`improper_qualified_accesses`](@ref). Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_qualified_accesses_via_owners` will not.
 """
 function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
                                                  ignore::Tuple=(),
                                                  require_submodule_access=false)
     check_file(file)
     for (submodule, problematic) in
-        improper_qualified_accesses(mod, file; skip=ignore, require_submodule_access)
-        # drop unnecessary columns
-        problematic = [(;
-                        (k => v for (k, v) in pairs(row) if k ∉ (:public_access,))...)
-                       for row in problematic]
+        improper_qualified_accesses(mod, file; skip=ignore)
         filter!(problematic) do nt
             return nt.name ∉ ignore
         end
+        filter!(problematic) do row
+            if require_submodule_access
+                !row.accessing_from_owns_name
+            else
+                !row.accessing_from_submodule_owns_name
+            end
+        end
+
+        # drop unnecessary columns
+        problematic = NamedTuple{(:name, :location, :value, :accessing_from, :whichmodule)}.(problematic)
         if !isempty(problematic)
             throw(QualifiedAccessesFromNonOwnerException(submodule, problematic))
         end

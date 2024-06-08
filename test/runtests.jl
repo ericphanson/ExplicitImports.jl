@@ -4,7 +4,9 @@ Pkg.precompile()
 using ExplicitImports
 using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_nonrecursive,
-                       inspect_session, get_parent, choose_exporter
+                       inspect_session, get_parent, choose_exporter,
+                       get_import_lhs, analyze_import_type,
+                       analyze_explicitly_imported_names, owner_mod_for_printing
 using Test
 using DataFrames
 using Aqua
@@ -52,6 +54,7 @@ include("DynMod.jl")
 include("TestModArgs.jl")
 include("examples.jl")
 include("script.jl")
+include("imports.jl")
 include("test_qualified_access.jl")
 
 # package extension support needs Julia 1.9+
@@ -67,6 +70,83 @@ if VERSION > v"1.9-"
                               (; name=:DataFrame, source=DataFrames),
                               (; name=:groupby, source=DataFrames)]
     end
+end
+
+@testset "owner_mod_for_printing" begin
+    @test owner_mod_for_printing(Core, :throw, Core.throw) == Base
+    @test owner_mod_for_printing(Core, :println, Core.println) == Core
+end
+
+@testset "imports" begin
+    cursor = TreeCursor(SyntaxNodeWrapper("imports.jl"))
+    leaves = collect(Leaves(cursor))
+    import_type_pairs = get_val.(leaves) .=> analyze_import_type.(leaves)
+    filter!(import_type_pairs) do (k, v)
+        return v !== :not_import
+    end
+    @test import_type_pairs ==
+          [:Exporter => :import_LHS,
+           :exported_a => :import_RHS,
+           :exported_c => :import_RHS,
+           :Exporter => :import_LHS,
+           :exported_c => :import_RHS,
+           :TestModA => :blanket_using_member,
+           :SubModB => :blanket_using,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :h2 => :import_RHS,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :h3 => :import_RHS,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :h => :import_RHS,
+           :Exporter => :blanket_using,
+           :Exporter => :plain_import,
+           :LinearAlgebra => :import_LHS,
+           :map => :import_RHS,
+           :_svd! => :import_RHS,
+           :LinearAlgebra => :import_LHS,
+           :svd => :import_RHS,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :exported_b => :import_RHS,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :f => :import_RHS]
+
+    inds = findall(==(:import_RHS), analyze_import_type.(leaves))
+    lhs_rhs_pairs = get_import_lhs.(leaves[inds]) .=> get_val.(leaves[inds])
+    @test lhs_rhs_pairs == [[:., :., :Exporter] => :exported_a,
+                            [:., :., :Exporter] => :exported_c,
+                            [:., :., :Exporter] => :exported_c,
+                            [:., :., :TestModA, :SubModB] => :h2,
+                            [:., :., :TestModA, :SubModB] => :h3,
+                            [:., :., :TestModA, :SubModB] => :h,
+                            [:LinearAlgebra] => :map,
+                            [:LinearAlgebra] => :_svd!,
+                            [:LinearAlgebra] => :svd,
+                            [:., :., :TestModA, :SubModB] => :exported_b,
+                            [:., :., :TestModA, :SubModB] => :f]
+
+    imps = DataFrame(improper_explicit_imports_nonrecursive(ModImports, "imports.jl"))
+    h_row = only(subset(imps, :name => ByRow(==(:h))))
+    @test !h_row.public_import
+    # Note: if this fails locally, try `include("imports.jl")` to rebuild the module
+    @test h_row.whichmodule == TestModA.SubModB
+    @test h_row.importing_from == TestModA.SubModB
+
+    h2_row = only(subset(imps, :name => ByRow(==(:h2))))
+    @test h2_row.public_import
+    @test h2_row.whichmodule === TestModA.SubModB
+    @test h2_row.importing_from == TestModA.SubModB
+    _svd!_row = only(subset(imps, :name => ByRow(==(:_svd!))))
+    @test !_svd!_row.public_import
+
+    f_row = only(subset(imps, :name => ByRow(==(:f))))
+    @test !f_row.public_import # not public in `TestModA.SubModB`
+    @test f_row.whichmodule == TestModA
+    @test f_row.importing_from == TestModA.SubModB
 end
 
 #####
@@ -100,10 +180,25 @@ end
     @test isempty(ret[TestQualifiedAccess.Bar])
     @test isempty(ret[TestQualifiedAccess.FooModule])
     @test !isempty(ret[TestQualifiedAccess])
-    row = only(ret[TestQualifiedAccess])
-    @test row.name == :ABC
-    @test row.whichmodule == TestQualifiedAccess.Bar
-    @test row.accessing_from == TestQualifiedAccess.FooModule
+
+    @test length(ret[TestQualifiedAccess]) == 2
+    ABC, X = ret[TestQualifiedAccess]
+    # Can add keys, but removing them is breaking
+    @test keys(ABC) ⊆
+          [:name, :location, :value, :accessing_from, :whichmodule, :public_access,
+           :accessing_from_owns_name, :accessing_from_submodule_owns_name]
+    @test ABC.name == :ABC
+    @test ABC.location isa AbstractString
+    @test ABC.whichmodule == TestQualifiedAccess.Bar
+    @test ABC.accessing_from == TestQualifiedAccess.FooModule
+    @test ABC.public_access == false
+    @test ABC.accessing_from_submodule_owns_name == false
+
+    @test X.name == :X
+    @test X.whichmodule == TestQualifiedAccess.FooModule.FooSub
+    @test X.accessing_from == TestQualifiedAccess.FooModule
+    @test X.public_access == false
+    @test X.accessing_from_submodule_owns_name == true
 
     # test require_submodule_access=true
     ret = improper_qualified_accesses_nonrecursive(TestQualifiedAccess,
@@ -129,7 +224,7 @@ end
                                                             "test_qualified_access.jl";
                                                             ignore,
                                                             require_submodule_access=true)
-                                                
+
     ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,
               TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
@@ -140,13 +235,30 @@ end
     # Printing via `print_improper_qualified_accesses`
     str = sprint(print_improper_qualified_accesses, TestQualifiedAccess,
                  "test_qualified_access.jl")
-    @test contains(str, "accesses names from non-owner modules")
+    @test contains(str, "accesses 1 name from non-owner modules")
     @test contains(str, "`ABC` has owner")
 
     # Printing via `print_explicit_imports`
     str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
-    @test contains(str, "accesses names from non-owner modules")
+    @test contains(str, "accesses 1 name from non-owner modules")
     @test contains(str, "`ABC` has owner")
+end
+
+@testset "improper explicit imports" begin
+    imps = Dict(improper_explicit_imports(TestModA, "TestModA.jl"))
+    row = only(imps[TestModA])
+    @test row.name == :un_exported
+    @test row.whichmodule == Exporter
+
+    row1, row2 = imps[TestModA.SubModB.TestModA.TestModC]
+    # Can add keys, but removing them is breaking
+    @test keys(row1) ⊆
+          [:name, :location, :value, :importing_from, :whichmodule, :public_import,
+           :importing_from_owns_name, :importing_from_submodule_owns_name, :stale]
+    @test row1.name == :exported_c
+    @test row1.stale == true
+    @test row2.name == :exported_d
+    @test row2.stale == true
 end
 
 @testset "structs" begin
@@ -265,8 +377,8 @@ end
     @test contains(str, "Script `script.jl`")
     @test contains(str, "relying on implicit imports for 1 name")
     @test contains(str, "using LinearAlgebra: norm")
-    @test contains(str, "stale explicit imports for these unused names")
-    @test contains(str, "- qr")
+    @test contains(str, "stale explicit imports for this 1 unused name")
+    @test contains(str, "- `qr`")
 end
 
 @testset "Don't skip source modules (#29)" begin
@@ -337,8 +449,6 @@ function get_per_scope(per_usage_info)
     return per_usage_df
 end
 
-# TODO- unit tests for `analyze_import_type`, `is_qualified`, `analyze_name`, etc.
-
 @testset "file not found" begin
     for f in (check_no_implicit_imports, check_no_stale_explicit_imports, explicit_imports,
               explicit_imports_nonrecursive, print_explicit_imports,
@@ -403,10 +513,10 @@ end
     @test module_path(TestModA.SubModB.TestModA.TestModC) ==
           [:TestModC, :TestModA, :SubModB, :TestModA, :Main]
 
-    from_outer_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                                                                                  "TestModA.jl"))
-    from_inner_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                                                                                  "TestModC.jl"))
+    from_outer_file = using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                                     "TestModA.jl"))
+    from_inner_file = using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                                     "TestModC.jl"))
     @test from_inner_file == from_outer_file
     @test "using .TestModA: f" in from_inner_file
     # This one isn't needed bc all usages are fully qualified
@@ -421,10 +531,6 @@ end
     @test "using .Exporter: exported_c" ∉ from_inner_file
 
     @test from_inner_file == ["using .TestModA: TestModA", "using .TestModA: f"]
-
-    # No logs when `warn_stale=false`
-    @test_logs explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                             "TestModC.jl"; warn_stale=false)
 
     @test only_name_source(stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
                                                                "TestModC.jl")) ==
@@ -455,7 +561,7 @@ end
           ["using ExplicitImports: print_explicit_imports"]
 
     # Recursion
-    nested = @test_logs (:warn, r"stale") explicit_imports(TestModA, "TestModA.jl")
+    nested = explicit_imports(TestModA, "TestModA.jl")
     @test nested isa Vector{Pair{Module,
                                  Vector{@NamedTuple{name::Symbol,source::Module,
                                                     exporters::Vector{Module},location::String}}}}
@@ -464,16 +570,13 @@ end
     @test TestModA.SubModB.TestModA in first.(nested)
     @test TestModA.SubModB.TestModA.TestModC in first.(nested)
 
-    # No logs when `warn_stale=false`
-    @test_logs explicit_imports(TestModA, "TestModA.jl"; warn_stale=false)
-
     # Printing
     # should be no logs
     str = @test_logs sprint(print_explicit_imports, TestModA, "TestModA.jl")
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
     @test contains(str, "using .Exporter2: Exporter2, exported_a")
     @test contains(str,
-                   "However, module Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these unused names")
+                   "However, module Main.TestModA.SubModB.TestModA.TestModC has stale explicit imports for these 2 unused names")
 
     # should be no logs
     # try with linewidth tiny - should put one name per line
@@ -488,12 +591,12 @@ end
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
                                                          show_locations=true))
     @test contains(str, "using .Exporter3: Exporter3 # used at TestModA.jl:")
-    @test contains(str, "(imported at TestModC.jl:")
+    @test contains(str, "is unused but it was imported from Main.Exporter at TestModC.jl")
 
-    # `warn_stale=false` does something (also still no logs)
+    # `warn_improper_explicit_imports=false` does something (also still no logs)
     str_no_warn = @test_logs sprint(io -> print_explicit_imports(io, TestModA,
                                                                  "TestModA.jl";
-                                                                 warn_stale=false))
+                                                                 warn_improper_explicit_imports=false))
     @test length(str_no_warn) <= length(str)
 
     # in particular, this ensures we add `using Foo: Foo` as the first line
@@ -611,23 +714,27 @@ end
                                                                                "DynMod.jl";
                                                                                strict=false)) ==
                                 [(; name=:print_explicit_imports, source=ExplicitImports)]
-        @test_logs log... @test stale_explicit_imports(DynMod, "DynMod.jl") ==
+
+        @test @test_logs log... improper_explicit_imports(DynMod,
+                                                          "DynMod.jl") ==
                                 [DynMod => nothing,
                                  DynMod.Hidden => nothing]
 
-        @test_logs log... @test stale_explicit_imports_nonrecursive(DynMod, "DynMod.jl") ===
+        @test_logs log... @test improper_explicit_imports_nonrecursive(DynMod,
+                                                                       "DynMod.jl") ===
                                 nothing
 
-        @test_logs log... @test stale_explicit_imports(DynMod, "DynMod.jl"; strict=false) ==
+        @test_logs log... @test improper_explicit_imports(DynMod,
+                                                          "DynMod.jl";
+                                                          strict=false) ==
                                 [DynMod => [],
                                  # Wrong! Missing stale explicit export
                                  DynMod.Hidden => []]
 
-        @test_logs log... @test stale_explicit_imports_nonrecursive(DynMod, "DynMod.jl";
-                                                                    strict=false) ==
+        @test_logs log... @test improper_explicit_imports_nonrecursive(DynMod,
+                                                                       "DynMod.jl";
+                                                                       strict=false) ==
                                 []
-        @test_logs log... str = sprint(print_stale_explicit_imports, DynMod, "DynMod.jl")
-        @test contains(str, "DynMod could not be accurately analyzed")
 
         @test_logs log... str = sprint(print_explicit_imports, DynMod, "DynMod.jl")
         @test contains(str, "DynMod could not be accurately analyzed")

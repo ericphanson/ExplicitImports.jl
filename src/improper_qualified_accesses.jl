@@ -21,13 +21,24 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
         return match(nt.module_path)
     end
 
-    table = @NamedTuple{name::Symbol,location::String,value::Any,accessing_from::Module,
-                        whichmodule::Module,public_access::Bool}[]
+    table = @NamedTuple{name::Symbol,
+                        location::String,
+                        value::Any,
+                        accessing_from::Module,
+                        whichmodule::Module,
+                        public_access::Bool,
+                        accessing_from_owns_name::Bool,
+                        accessing_from_submodule_owns_name::Bool}[]
     # Now check:
     for row in qualified
         output = process_qualified_row(row, mod)
         output === nothing && continue
-        push!(table, output)
+        accessing_from_owns_name = output.whichmodule == output.accessing_from
+        accessing_from_submodule_owns_name = has_ancestor(output.whichmodule,
+                                                          output.accessing_from)
+
+        push!(table,
+              (; output..., accessing_from_owns_name, accessing_from_submodule_owns_name))
     end
     # Sort first, so we get the "first" time each is used
     sort!(table; by=nt -> (; nt.name, nt.location))
@@ -99,26 +110,19 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 """
 function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
                                                   skip=(Base => Core,),
-                                                  require_submodule_access=false,
+                                                  # deprecated, does nothing
+                                                  require_submodule_access=nothing,
                                                   # private undocumented kwarg for hoisting this analysis
                                                   file_analysis=get_names_used(file))
     check_file(file)
     problematic = analyze_qualified_names(mod, file; file_analysis)
 
-    # Currently only care about mismatches between `accessing_from` and `parent` in which
-    # the name is not publicly available in `accessing_from`.
-    filter!(problematic) do row
-        row.public_access && return false # skip these
-        if require_submodule_access
-            return row.whichmodule != row.accessing_from
-        else
-            return !has_ancestor(row.whichmodule, row.accessing_from)
-        end
-    end
+    # Report non-public accesses
+    filter!(row -> !row.public_access, problematic)
 
     for (from, parent) in skip
         filter!(problematic) do row
-            return !(row.whichmodule == parent && row.accessing_from == from)
+            return !(has_ancestor(row.whichmodule, parent) && row.accessing_from == from)
         end
     end
 
@@ -126,18 +130,16 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
 end
 
 """
-    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,),
-                                require_submodule_access)
+    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,))
 
 Attempts do detect various kinds of "improper" qualified accesses taking place in `mod` and any submodules of `mod`.
 
-Currently, only detects cases in which the name is being accessed from a module `mod` which:
+Currently, only detects cases in which the name is being accessed from a module `mod` for which:
 
 - `name` is not exported from `mod`
 - `name` is not declared public in `mod` (requires Julia v1.11+)
-- `name` is not "owned" by `mod`. This is determined by calling `owner = Base.which(mod, name)` to obtain the module the name was defined in. If `require_submodule_access=true`, then `mod` must be exactly `owner` to not be considered "improper" access. Otherwise (the default), `mod` is allowed to be a module which contains `owner`.
 
-The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but whose parent is `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
+The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but who have an ancestor `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
 
 This functionality is still in development, so the exact results may change in future non-breaking releases. Read on for the current outputs, what may change, and what will not change (without a breaking release of ExplicitImports.jl).
 
@@ -145,9 +147,12 @@ Returns a nested structure providing information about improper accesses to name
 
 - `name::Symbol`: the name being accessed
 - `location::String`: the location the access takes place
+- `value::Any`: the which `name` points to in `mod`
 - `accessing_from::Module`: the module the name is being accessed from (e.g. `Module.name`)
 - `whichmodule::Module`: the `Base.which` of the object
 - `public_access::Bool`: whether or not `name` is public or exported in `accessing_from`. Checking if a name is marked `public` requires Julia v1.11+.
+- `accessing_from_owns_name::Bool`: whether or not `accessing_from` matches `whichmodule` and therefore is considered to directly "own" the name
+- `accessing_from_submodule_owns_name::Bool`: whether or not `whichmodule` is a submodule of `accessing_from`
 
 In non-breaking releases of ExplicitImports:
 
@@ -156,7 +161,7 @@ In non-breaking releases of ExplicitImports:
 
 However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
 
-See also [`print_improper_qualified_accesses`](@ref) to easily compute and print these results, [`improper_qualified_accesses_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_all_qualified_accesses_via_owners`](@ref) for a version that throws errors, for regression testing.
+See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`improper_qualified_accesses_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_all_qualified_accesses_via_owners`](@ref) for a version that throws errors, for regression testing.
 
 ## Example
 
@@ -181,8 +186,12 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 ```
 """
 function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,),
-                                     require_submodule_access=false)
+                                     # deprecated
+                                     require_submodule_access=nothing)
     check_file(file)
+    if require_submodule_access !== nothing
+        @warn "[improper_qualified_accesses] `require_submodule_access` is deprecated and unused" maxlog = 1
+    end
     submodules = find_submodules(mod, file)
     file_analysis = Dict{String,FileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
@@ -191,40 +200,4 @@ function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base =
                                                                   skip,
                                                                   require_submodule_access)
             for (submodule, path) in submodules]
-end
-
-"""
-    print_improper_qualified_accesses([io::IO=stdout,] mod::Module, file=pathof(mod))
-
-Runs [`improper_qualified_accesses`](@ref) and prints the results.
-
-Note that the particular printing may change in future non-breaking releases of ExplicitImports.
-
-See also [`print_explicit_imports`](@ref) and [`check_all_qualified_accesses_via_owners`](@ref).
-"""
-print_improper_qualified_accesses
-
-function print_improper_qualified_accesses(mod::Module, file=pathof(mod))
-    return print_improper_qualified_accesses(stdout, mod, file)
-end
-
-function print_improper_qualified_accesses(io::IO, mod::Module, file=pathof(mod))
-    check_file(file)
-    for (i, (mod, problematic)) in enumerate(improper_qualified_accesses(mod, file))
-        i == 1 || println(io)
-        if isempty(problematic)
-            println(io, "Module $mod accesses names only from owner modules.")
-        else
-            println(io,
-                    "Module $mod accesses names from non-owner modules:")
-            for row in problematic
-                println(io,
-                        "- `$(row.name)` has owner $(row.whichmodule) but it was accessed from $(row.accessing_from) at $(row.location)")
-            end
-        end
-    end
-
-    # We leave this so we can have non-trivial printout when running this function on ExplicitImports:
-    ExplicitImports.parent
-    return nothing
 end

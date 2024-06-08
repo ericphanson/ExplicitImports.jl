@@ -8,6 +8,7 @@ Base.@kwdef struct PerUsageInfo
     name::Symbol
     qualified_by::Union{Nothing,Vector{Symbol}}
     import_type::Symbol
+    explicitly_imported_by::Union{Nothing,Vector{Symbol}}
     location::String
     function_arg::Bool
     is_assignment::Bool
@@ -82,19 +83,49 @@ end
 # figure out if `leaf` is part of an import or using statement
 # this seems to trigger for both `X` and `y` in `using X: y`, but that seems alright.
 function analyze_import_type(leaf)
+    kind(leaf) == K"Identifier" || return :not_import
+    has_parent(leaf) || return :not_import
     is_import = parents_match(leaf, (K"importpath",))
     is_import || return :not_import
-    is_conditional_import = parents_match(leaf, (K"importpath", K":"))
-    if is_conditional_import
+    if parents_match(leaf, (K"importpath", K":"))
         # we are on the LHS if we are the first child
         if child_index(parent(leaf)) == 1
             return :import_LHS
         else
             return :import_RHS
         end
+    elseif parents_match(leaf, (K"importpath", K"as", K":"))
+        # this name is either part of an `import X: a as b` statement
+        # since we are in an `importpath`, we are the `a` part, not the `b` part, I think
+        # do we also want to identify the `b` part as an `import_RHS`?
+        # For the purposes of stale explicit imports, we want to know about `b`,
+        # since if `b` is unused then it is stale.
+        # For the purposes of not suggesting an explicit import that already exists,
+        # it is weird since they have renamed it here, so if they are referring to
+        # both names in their code (`a` and `b`), that's kind of a different confusing
+        # issue.
+        # For the purposes of "are they importing a non-public name", we care more about
+        # `a`, since that's the name we need to check if it is public or not in the source
+        # module (although we could check if `b` is public in the module sourced via `which`?).
+        # hm..
+        # let's just leave it; for now `b` will be declared `:not_import`
+        return :import_RHS
     else
         # Not part of `:` generally means it's a `using X` or `import Y` situation
-        return :blanket_import
+        # We could be using X.Y.Z, so we will return `plain_import` or `plain_import_member` depending if we are the last one or not
+        n_children = length(js_children(parent(leaf)))
+        last_child = child_index(leaf) == n_children
+        if parents_match(leaf, (K"importpath", K"using"))
+            return last_child ? :plain_import : :plain_import_member
+        elseif parents_match(leaf, (K"importpath", K"import"))
+            return last_child ? :blanket_using : :blanket_using_member
+        elseif parents_match(leaf, (K"importpath", K"as", K"import"))
+            # import X as Y
+            # Here we are `X`, not `Y`
+            return last_child ? :plain_import : :plain_import_member
+        else
+            error("Unhandled case $(js_node(get_parent(leaf, 3)))")
+        end
     end
 end
 
@@ -175,6 +206,20 @@ function is_non_anonymous_function_definition_arg(leaf)
         return is_non_anonymous_function_definition_arg(parent(leaf))
     else
         return false
+    end
+end
+
+function get_import_lhs(import_rhs_leaf)
+    if parents_match(import_rhs_leaf, (K"importpath", K":"))
+        n = first(children(get_parent(import_rhs_leaf, 2)))
+        @assert kind(n) == K"importpath"
+        return get_val.(children(n))
+    elseif parents_match(import_rhs_leaf, (K"importpath", K"as", K":"))
+        n = first(children(get_parent(import_rhs_leaf, 3)))
+        @assert kind(n) == K"importpath"
+        return get_val.(children(n))
+    else
+        error("does not seem to be an import RHS")
     end
 end
 
@@ -291,7 +336,7 @@ end
 
 # Here we use the magic of AbstractTrees' `TreeCursor` so we can start at
 # a leaf and follow the parents up to see what scopes our leaf is in.
-# TODO- cleanup. This basically has two jobs: check is function arg etc, and figure out the scope/module path.
+# TODO-someday- cleanup. This basically has two jobs: check is function arg etc, and figure out the scope/module path.
 # We could do these two things separately for more clarity.
 function analyze_name(leaf; debug=false)
     # Ok, we have a "name". Let us work our way up and try to figure out if it is in local scope or not
@@ -371,7 +416,7 @@ Returns a tuple of two items:
 * `per_usage_info`: a table containing information about each name each time it was used
 * `untainted_modules`: a set containing modules found and analyzed successfully
 """
-function analyze_all_names(file; debug=false)
+function analyze_all_names(file)
     # we don't use `try_parse_wrapper` here, since there's no recovery possible
     # (no other files we know about to look at)
     tree = SyntaxNodeWrapper(file)
@@ -383,14 +428,19 @@ function analyze_all_names(file; debug=false)
     # we can call `parent` to climb up from a leaf.
     cursor = TreeCursor(tree)
 
-    per_usage_info = @NamedTuple{name::Symbol,qualified_by::Union{Nothing,Vector{Symbol}},
+    per_usage_info = @NamedTuple{name::Symbol,
+                                 qualified_by::Union{Nothing,Vector{Symbol}},
                                  import_type::Symbol,
+                                 explicitly_imported_by::Union{Nothing,Vector{Symbol}},
                                  location::String,
-                                 function_arg::Bool,is_assignment::Bool,
+                                 function_arg::Bool,
+                                 is_assignment::Bool,
                                  module_path::Vector{Symbol},
                                  scope_path::Vector{JuliaSyntax.SyntaxNode},
-                                 struct_field_or_type_param::Bool,for_loop_index::Bool,
-                                 generator_index::Bool,catch_arg::Bool}[]
+                                 struct_field_or_type_param::Bool,
+                                 for_loop_index::Bool,
+                                 generator_index::Bool,
+                                 catch_arg::Bool}[]
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.
@@ -403,7 +453,7 @@ function analyze_all_names(file; debug=false)
     for leaf in Leaves(cursor)
         if nodevalue(leaf) isa SkippedFile
             # we start from the parent
-            mod_path = analyze_name(parent(leaf); debug).module_path
+            mod_path = analyze_name(parent(leaf)).module_path
             push!(tainted_modules, mod_path)
             continue
         end
@@ -426,21 +476,19 @@ function analyze_all_names(file; debug=false)
         #
         # We want to figure this out on a per-module basis, since each module has a different global namespace.
 
-        debug && println("-"^80)
         location = location_str(nodevalue(leaf))
-        debug && println("Leaf position: $(location)")
         name = get_val(leaf)
-        debug && println("Leaf name: ", name)
         qualified_by = qualifying_module(leaf)
         import_type = analyze_import_type(leaf)
-        debug && println("Import type: ", import_type)
-        debug && println("--")
-        debug && println("val : kind")
-        ret = analyze_name(leaf; debug)
-        debug && println(ret)
+        if import_type == :import_RHS
+            explicitly_imported_by = get_import_lhs(leaf)
+        else
+            explicitly_imported_by = nothing
+        end
+        ret = analyze_name(leaf)
         push!(seen_modules, ret.module_path)
         push!(per_usage_info,
-              (; name, qualified_by, import_type, location, ret...))
+              (; name, qualified_by, import_type, explicitly_imported_by, location, ret...))
     end
     untainted_modules = setdiff!(seen_modules, tainted_modules)
     return analyze_per_usage_info(per_usage_info), untainted_modules
@@ -519,7 +567,7 @@ function analyze_per_usage_info(per_usage_info)
                                     analysis_code=reason)
             end
         end
-        # * this was the first usage in this scope, but it could already be used in a "higher" local scope. It is possible we have not yet processed that scope fully but we will assume we have (TODO). So we will recurse up and check if it is a local name there.
+        # * this was the first usage in this scope, but it could already be used in a "higher" local scope. It is possible we have not yet processed that scope fully but we will assume we have (TODO-someday). So we will recurse up and check if it is a local name there.
         if is_name_internal_in_higher_local_scope(nt.name,
                                                   nt.scope_path,
                                                   seen)
