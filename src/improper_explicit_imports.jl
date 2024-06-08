@@ -100,10 +100,12 @@ end
 
 Attempts do detect various kinds of "improper" explicit imports taking place in `mod` and any submodules of `mod`.
 
-Currently, only detects cases in which the name is being imported from a module `mod` for which:
+Currently detects two classes of issues:
 
-- `name` is not exported from `mod`
-- `name` is not declared public in `mod` (requires Julia v1.11+)
+- names which are explicitly imported but unused (stale)
+- names which are not public in `mod`
+    - here, public means either exported or declared with the `public` keyword (requires Julia v1.11+)
+    - one particularly egregious type of non-public import is when a name is imported from a module which does not even "own" that name. See the returned fields `importing_from_owns_name` and `importing_from_submodule_owns_name` for two variations on this.
 
 The keyword argument `skip` is expected to be an iterator of `importing_from => parent` pairs, where names which are imported from `importing_from` but who have an ancestor which is `parent` are ignored. By default, imports from Base to names owned by Core are skipped.
 
@@ -113,11 +115,12 @@ Returns a nested structure providing information about improper explicit imports
 
 - `name::Symbol`: the name being imported
 - `location::String`: the location the access takes place
-- `importing_from::Module`: the module the name is being imported from (e.g. `Module.name`)
+- `value::Any`: the which `name` points to in `mod`
+- `importing_from::Module`: the module the name is being imported from (e.g. in the example `using Foo.X: bar`, this would be `X`)
 - `whichmodule::Module`: the `Base.which` of the object
 - `public_import::Bool`: whether or not `name` is public or exported in `importing_from`. Checking if a name is marked `public` requires Julia v1.11+.
-- `importing_from_owns_name::Bool` whether or not `importing_from` matches `whichmodule` and therefore is considered to directly "own" the name
-- `importing_from_submodule_owns_name::Bool` whether or not `whichmodule` is a submdoule of `importing_from`
+- `importing_from_owns_name::Bool`: whether or not `importing_from` matches `whichmodule` and therefore is considered to directly "own" the name
+- `importing_from_submodule_owns_name::Bool`: whether or not `whichmodule` is a submodule of `importing_from`
 - `stale::Bool`: whether or not the explicitly imported name is used
 
 If `strict=true`, then returns `nothing` if `mod` could not be fully analyzed.

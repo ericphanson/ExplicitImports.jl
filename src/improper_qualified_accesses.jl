@@ -24,7 +24,8 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
     table = @NamedTuple{name::Symbol,
                         location::String,
                         value::Any,
-                        accessing_from::Module,whichmodule::Module,
+                        accessing_from::Module,
+                        whichmodule::Module,
                         public_access::Bool,
                         accessing_from_owns_name::Bool,
                         accessing_from_submodule_owns_name::Bool}[]
@@ -146,9 +147,12 @@ Returns a nested structure providing information about improper accesses to name
 
 - `name::Symbol`: the name being accessed
 - `location::String`: the location the access takes place
+- `value::Any`: the which `name` points to in `mod`
 - `accessing_from::Module`: the module the name is being accessed from (e.g. `Module.name`)
 - `whichmodule::Module`: the `Base.which` of the object
 - `public_access::Bool`: whether or not `name` is public or exported in `accessing_from`. Checking if a name is marked `public` requires Julia v1.11+.
+- `accessing_from_owns_name::Bool`: whether or not `accessing_from` matches `whichmodule` and therefore is considered to directly "own" the name
+- `accessing_from_submodule_owns_name::Bool`: whether or not `whichmodule` is a submodule of `accessing_from`
 
 In non-breaking releases of ExplicitImports:
 
