@@ -56,6 +56,7 @@ include("examples.jl")
 include("script.jl")
 include("imports.jl")
 include("test_qualified_access.jl")
+include("test_explicit_imports.jl")
 
 # package extension support needs Julia 1.9+
 if VERSION > v"1.9-"
@@ -259,6 +260,39 @@ end
     @test row1.stale == true
     @test row2.name == :exported_d
     @test row2.stale == true
+
+    @test check_all_explicit_imports_via_owners(TestModA, "TestModA.jl") === nothing
+    @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(ModImports,
+                                                                                            "imports.jl")
+
+    # Test the printing is hitting our formatted errors
+    str = exception_string() do
+        return check_all_explicit_imports_via_owners(ModImports,
+                                                     "imports.jl")
+    end
+    
+    @test contains(str,
+                   "explicit imports of names from modules other than their owner as determined ")
+
+    @test check_all_explicit_imports_via_owners(ModImports, "imports.jl";
+                                                ignore=(:exported_b, :f, :map)) === nothing
+
+    @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(TestExplicitImports,
+                                                                                            "test_explicit_imports.jl")
+
+    @test check_all_explicit_imports_via_owners(TestExplicitImports,
+                                                "test_explicit_imports.jl";
+                                                ignore=(:ABC,)) === nothing
+
+    @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(TestExplicitImports,
+                                                                                            "test_explicit_imports.jl";
+                                                                                            ignore=(:ABC,),
+                                                                                            require_submodule_import=true)
+
+    @test check_all_explicit_imports_via_owners(TestExplicitImports,
+                                                "test_explicit_imports.jl";
+                                                ignore=(:ABC, :X),
+                                                require_submodule_import=true) === nothing
 end
 
 @testset "structs" begin

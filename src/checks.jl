@@ -40,6 +40,23 @@ function Base.showerror(io::IO, e::QualifiedAccessesFromNonOwnerException)
     end
 end
 
+struct ExplicitImportsFromNonOwnerException <: Exception
+    mod::Module
+    bad_imports::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
+                                 importing_from::Module,
+                                 whichmodule::Module}}
+end
+
+function Base.showerror(io::IO, e::ExplicitImportsFromNonOwnerException)
+    println(io, "ExplicitImportsFromNonOwnerException")
+    println(io,
+            "Module `$(e.mod)` has explicit imports of names from modules other than their owner as determined via `Base.which`:")
+    for row in e.bad_imports
+        println(io,
+                "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(row.location)")
+    end
+end
+
 struct StaleImportsException <: Exception
     mod::Module
     names::Vector{@NamedTuple{name::Symbol,location::String}}
@@ -237,6 +254,79 @@ function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
         problematic = NamedTuple{(:name, :location, :value, :accessing_from, :whichmodule)}.(problematic)
         if !isempty(problematic)
             throw(QualifiedAccessesFromNonOwnerException(submodule, problematic))
+        end
+    end
+    return nothing
+end
+
+
+"""
+    check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), allow_unanalyzable::Tuple=(), require_submodule_import=false)
+
+Checks that neither `mod` nor any of its submodules has imports to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
+throwing an `ExplicitImportsFromNonOwnerException` if so, and returning `nothing` otherwise.
+
+This can be used in a package's tests, e.g.
+
+```julia
+@test check_all_explicit_imports_via_owners(MyPackage) === nothing
+```
+
+## Allowing some submodules to be unanalyzable
+
+Pass `allow_unanalyzable` as a tuple of submodules which are allowed to be unanalyzable.
+Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
+
+## Allowing some explicit imports via non-owner modules
+
+If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
+that are allowed to be accessed from non-owner modules. For example,
+
+```julia
+@test check_all_explicit_imports_via_owners(MyPackage; ignore=(:DataFrame,)) === nothing
+```
+
+would check there were no explicit imports from non-owner modules besides that of the name `DataFrame`.
+
+## `require_submodule_import`
+
+If `require_submodule_import=true`, then an error will be thrown if the name is imported from a non-owner module even if it is imported from a parent module of the owner module. For example, in June 2024, `JSON.parse` is actually defined in the submodule `JSON.Parser` and is not declared public inside `JSON`, but the name is present within the module `JSON`. If `require_submodule_import=false`, the default, in this scenario the access `using JSON: parse` will not trigger an error, since the name is being accessed by a parent of the owner. If `require_submodule_import=false`, then accessing the function as `using JSON.Parser: parse` will be required to avoid an error.
+
+See also: [`improper_explicit_imports`](@ref). Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_via_owners` will not.
+"""
+function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
+                                               ignore::Tuple=(),
+                                               allow_unanalyzable::Tuple=(),
+                                               require_submodule_import=false)
+    check_file(file)
+    for (submodule, problematic) in
+        improper_explicit_imports(mod, file)
+        if isnothing(problematic)
+            submodule in allow_unanalyzable && continue
+            throw(UnanalyzableModuleException(submodule))
+        end
+
+        filter!(problematic) do nt
+            return nt.name ∉ ignore
+        end
+
+        # Discard imports from names that are public in their module; that's OK
+        filter!(problematic) do nt
+            return !nt.public_import
+        end
+
+        filter!(problematic) do row
+            if require_submodule_import
+                !row.importing_from_owns_name
+            else
+                !row.importing_from_submodule_owns_name
+            end
+        end
+
+        # drop unnecessary columns
+        problematic = NamedTuple{(:name, :location, :value, :importing_from, :whichmodule)}.(problematic)
+        if !isempty(problematic)
+            throw(ExplicitImportsFromNonOwnerException(submodule, problematic))
         end
     end
     return nothing
