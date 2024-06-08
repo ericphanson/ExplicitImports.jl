@@ -97,6 +97,7 @@ function process_explicitly_imported_row(row, mod)
 
     # this can happen for modules like `X.Y.X` if `filter_to_module`
     # got confused about which `X` we are in and this row is actually invalid
+    # or if the import was conditional, but it hasn't actually happened in this session
     current_mod === nothing && return nothing
 
     # doesn't seem to be an import
@@ -106,10 +107,16 @@ function process_explicitly_imported_row(row, mod)
 
     if row.explicitly_imported_by[end] != nameof(current_mod)
         error("""
+        Encountered implementation bug in `process_explicitly_imported_row`.
+        Please file an issue on ExplicitImports.jl (https://github.com/ericphanson/ExplicitImports.jl/issues/new).
+
+        Info:
+        
         `row.explicitly_imported_by`=$(row.explicitly_imported_by)
         `nameof(current_mod)`=$(nameof(current_mod))
         """)
     end
+
     # Ok, now `current_mod` should contain the actual module we imported the name from
     # This lets us query if the name is public in *that* module, get the value, etc
     value = trygetproperty(current_mod, row.name)
