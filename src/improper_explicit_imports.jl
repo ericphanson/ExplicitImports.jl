@@ -37,10 +37,13 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
     return table, tainted
 end
 
-if !isdefined(Base, :maybe_root_module)
+if !isdefined(Base, :require_lock)
     # 1.7 support
     maybe_root_module(key::Base.PkgId) = get(Base.loaded_modules, key, nothing)
 else
+    # if `require_lock` exists (so newer Julia versions)
+    # but `maybe_root_module` does not anymore, this will error,
+    # which will be our sign to update this code.
     maybe_root_module(key::Base.PkgId) = Base.maybe_root_module(key)
 end
 
