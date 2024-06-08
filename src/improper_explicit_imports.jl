@@ -39,7 +39,7 @@ end
 
 if !isdefined(Base, :maybe_root_module)
     # 1.7 support
-    maybe_root_module(key::Base.PkgId) = Base.@lock Base.require_lock get(Base.loaded_modules, key, nothing)
+    maybe_root_module(key::Base.PkgId) = get(Base.loaded_modules, key, nothing)
 else
     maybe_root_module(key::Base.PkgId) = Base.maybe_root_module(key)
 end
