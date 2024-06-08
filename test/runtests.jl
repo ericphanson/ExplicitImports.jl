@@ -17,6 +17,17 @@ using ExplicitImports: is_struct_type_param, is_struct_field_name, is_for_arg,
                        is_generator_arg, analyze_qualified_names
 using TestPkg, Markdown
 
+function exception_string(f)
+    str = try
+        f()
+        false
+    catch e
+        sprint(showerror, e)
+    end
+    @test str isa String
+    return str
+end
+
 # DataFrames version of `filter_to_module`
 function restrict_to_module(df, mod)
     mod_path = module_path(mod)
@@ -270,7 +281,7 @@ end
         return check_all_explicit_imports_via_owners(ModImports,
                                                      "imports.jl")
     end
-    
+
     @test contains(str,
                    "explicit imports of names from modules other than their owner as determined ")
 
@@ -640,17 +651,6 @@ end
            "using .Exporter4: Z"
            "using .Exporter4: a"
            "using .Exporter4: z"]
-end
-
-function exception_string(f)
-    str = try
-        f()
-        false
-    catch e
-        sprint(showerror, e)
-    end
-    @test str isa String
-    return str
 end
 
 @testset "checks" begin
