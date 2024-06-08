@@ -11,7 +11,6 @@ explicit_imports
 
 ## Detecting "improper" explicit imports
 
-
 ```@docs
 improper_explicit_imports
 ```
