@@ -21,8 +21,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
     for row in _explicit_imports
         output = process_explicitly_imported_row(row, mod)
         output === nothing && continue
-        importing_from_owns_name = compare_modules(output.whichmodule,
-                                                   output.importing_from)
+        importing_from_owns_name = output.whichmodule == output.importing_from
         importing_from_submodule_owns_name = has_ancestor_name(output.whichmodule,
                                                                output.importing_from)
         stale = (; row.name, row.module_path) in stale_imports
@@ -84,7 +83,7 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     for (from, parent) in skip
         filter!(problematic) do row
             return !(has_ancestor(row.whichmodule, parent) &&
-                     compare_modules(row.importing_from, from))
+                     row.importing_from == from)
         end
     end
 

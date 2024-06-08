@@ -32,8 +32,7 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
     for row in qualified
         output = process_qualified_row(row, mod)
         output === nothing && continue
-        accessing_from_owns_name = compare_modules(output.whichmodule,
-                                                   output.accessing_from)
+        accessing_from_owns_name = output.whichmodule == output.accessing_from
         accessing_from_submodule_owns_name = has_ancestor(output.whichmodule,
                                                           output.accessing_from)
 

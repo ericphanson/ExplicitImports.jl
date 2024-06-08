@@ -231,25 +231,14 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     return to_make_explicit
 end
 
-function has_ancestor(cmp, query, target)
-    cmp(query, target) && return true
+function has_ancestor(query, target)
+    query == target && return true
     while true
         next = parentmodule(query)
-        cmp(next, target) && return true
+        next == target && return true
         next == query && return false
         query = next
     end
-end
-
-compare_modules(m1::Module, m2::Module) = m1 == m2
-compare_modules(m1::Module, m2::Symbol) = nameof(m1) == m2
-compare_modules(m1::Symbol, m2::Module) = m1 == nameof(m2)
-
-has_ancestor(query, target) = has_ancestor(==, query, target)
-
-# Weaker version when we maybe only have the name of the target
-function has_ancestor_name(query, target)
-    return has_ancestor(compare_modules, query, target)
 end
 
 function should_skip(target; skip)
