@@ -63,10 +63,12 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                     println(io,
                             "$(uppercasefirst(name_fn(mod))) is not relying on any implicit imports.")
                 else
-                    plural = length(imports) > 1 ? "s" : ""
+                    plural1 = length(imports) > 1 ? "s" : ""
+                    plural2 = length(imports) > 1 ? "These" : "This"
+
                     println(io,
-                            "$(uppercasefirst(name_fn(mod))) is relying on implicit imports for $(length(imports)) name$(plural). ",
-                            "These could be explicitly imported as follows:")
+                            "$(uppercasefirst(name_fn(mod))) is relying on implicit imports for $(length(imports)) name$(plural1). ",
+                            "$(plural2) could be explicitly imported as follows:")
                     println(io)
                     println(io, "```julia")
                     using_statements(io, imports; linewidth, show_locations)
