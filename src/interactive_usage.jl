@@ -11,7 +11,7 @@ end
                            report_non_public=VERSION >= v"1.11-",
                             strict=true)
 
-Runs [`explicit_imports`](@ref) and prints the results, along with those of [`stale_explicit_imports`](@ref) and [`improper_qualified_accesses`](@ref).
+Runs [`explicit_imports`](@ref) and prints the results, along with those of [`improper_explicit_imports`](@ref) and [`improper_qualified_accesses`](@ref).
 
 Note that the particular printing may change in future non-breaking releases of ExplicitImports.
 
@@ -21,7 +21,7 @@ $SKIPS_KWARG
 * `warn_improper_explicit_imports=true`: if set, this function will also print information about any "improper" imports of names from other modules.
 * `warn_improper_qualified_accesses=true`: if set, this function will also print information about any "improper" qualified accesses to names from other modules.
 $STRICT_PRINTING_KWARG
-* `show_locations=false`: whether or not to print locations of where the names are being used (and, if `warn_stale=true`, where the stale explicit imports are).
+* `show_locations=false`: whether or not to print locations of where the names are being used.
 * `linewidth=80`: format into lines of up to this length. Set to 0 to indicate one name should be printed per line.
 
 See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), and [`check_all_qualified_accesses_via_owners`](@ref).
@@ -50,7 +50,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
         warn_improper_explicit_imports = warn_stale
     end
     file_analysis = Dict{String,FileAnalysis}()
-    ee = explicit_imports(mod, file; warn_stale=false, skip, strict, file_analysis)
+    ee = explicit_imports(mod, file; skip, strict, file_analysis)
     for (i, (mod, imports)) in enumerate(ee)
         !recursive && i > 1 && break
         i == 1 || println(io)
@@ -63,8 +63,9 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                     println(io,
                             "$(uppercasefirst(name_fn(mod))) is not relying on any implicit imports.")
                 else
+                    plural = length(imports) > 1 ? "s" : ""
                     println(io,
-                            "$(uppercasefirst(name_fn(mod))) is relying on implicit imports for $(length(imports)) names. ",
+                            "$(uppercasefirst(name_fn(mod))) is relying on implicit imports for $(length(imports)) name$(plural). ",
                             "These could be explicitly imported as follows:")
                     println(io)
                     println(io, "```julia")
@@ -77,7 +78,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
         if warn_improper_explicit_imports
             problematic_imports = improper_explicit_imports_nonrecursive(mod, file;
                                                                          file_analysis=file_analysis[file])
-            if !isempty(problematic_imports)
+            if !isnothing(problematic_imports) && !isempty(problematic_imports)
                 stale = filter(row -> row.stale, problematic_imports)
                 if !isempty(stale)
                     println(io)
@@ -191,7 +192,6 @@ Note that the particular printing may change in future non-breaking releases of 
 ## Keyword arguments
 
 $SKIPS_KWARG
-* `warn_stale=true`: if set, this function will also print information about stale explicit imports.
 """
 function print_explicit_imports_script(io::IO, path; skip=(Base, Core), warn_stale=nothing, # deprecated
                                        warn_improper_explicit_imports=nothing, # set to `true` once `warn_stale` is ,removed,

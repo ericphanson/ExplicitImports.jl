@@ -33,10 +33,6 @@ const STRICT_PRINTING_KWARG = """
 const STRICT_NONRECURSIVE_KWARG = """
 * `strict=true`: when `strict=true`, results will be `nothing` in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate."""
 
-const WARN_STALE_KWARG = """
-* `warn_stale=true`: whether or not to warn about stale explicit imports.
-"""
-
 include("parse_utilities.jl")
 include("find_implicit_imports.jl")
 include("get_names_used.jl")
@@ -66,7 +62,7 @@ function check_file(file)
 end
 
 """
-    explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true, strict=true)
+    explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), strict=true)
 
 Returns a nested structure providing information about explicit import statements one could make for each submodule of `mod`. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself), and the values are `NamedTuple`s, with at least the keys `name`, `source`, `exporters`, and `location`, showing which names are being used implicitly, which modules they were defined in, which modules they were exported from, and the location of those usages. Additional keys may be added to the `NamedTuple`'s in the future in non-breaking releases of ExplicitImports.jl.
 
@@ -80,7 +76,6 @@ Returns a nested structure providing information about explicit import statement
 ## Keyword arguments
 
 $SKIPS_KWARG
-$WARN_STALE_KWARG
 $STRICT_KWARG
 
 !!! note
@@ -106,7 +101,9 @@ $STRICT_KWARG
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_no_implicit_imports`](@ref) for a version that throws errors, for regression testing.
 """
 function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
-                          warn_stale=true, strict=true,
+                          strict=true,
+                          # deprecated
+                          warn_stale=nothing,
                           # private undocumented kwarg for hoisting this analysis
                           file_analysis=Dict())
     check_file(file)
@@ -161,24 +158,27 @@ function is_prefix(x, y)
 end
 
 """
-    explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skip=(mod, Base, Core), warn_stale=true, strict=true)
+    explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skip=(mod, Base, Core), strict=true)
 
 A non-recursive version of [`explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details.
 
 ## Keyword arguments
 
 $SKIPS_KWARG
-$WARN_STALE_KWARG
 $STRICT_NONRECURSIVE_KWARG
 
 """
 function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                        skip=(mod, Base, Core),
-                                       warn_stale=true,
                                        strict=true,
+                                       # deprecated
+                                       warn_stale=nothing,
                                        # private undocumented kwarg for hoisting this analysis
                                        file_analysis=get_names_used(file))
     check_file(file)
+    if warn_stale !== nothing
+        @warn "[explicit_imports_nonrecursive] keyword argument `warn_stale` is deprecated and does nothing" maxlog = 1
+    end
     all_implicit_imports = find_implicit_imports(mod; skip)
 
     needs_explicit_import, unnecessary_explicit_import, tainted = filter_to_module(file_analysis,
@@ -220,13 +220,6 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
 
     by = nt -> (nt.name, choose_exporter(nt.name, nt.exporters))
     sort!(to_make_explicit; by, lt)
-
-    if warn_stale
-        unnecessary = unique!(sort!([nt.name for nt in unnecessary_explicit_import]))
-        if !isempty(unnecessary)
-            @warn "Found stale explicit imports in $mod for these names: $unnecessary. To get this list programmatically, call `stale_explicit_imports`. To silence this warning, pass `warn_stale=false`."
-        end
-    end
 
     return to_make_explicit
 end

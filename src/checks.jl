@@ -84,17 +84,17 @@ would check there were no stale explicit imports besides that of the name `DataF
 function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::Tuple=(),
                                          allow_unanalyzable::Tuple=())
     check_file(file)
-    # TODO-someday- use `improper_explicit_imports`
-    for (submodule, stale_imports) in stale_explicit_imports(mod, file)
+    for (submodule, stale_imports) in improper_explicit_imports(mod, file; strict=true)
         if isnothing(stale_imports)
             submodule in allow_unanalyzable && continue
             throw(UnanalyzableModuleException(submodule))
         end
         filter!(stale_imports) do nt
-            return nt.name ∉ ignore
+            return nt.name ∉ ignore && nt.stale
         end
         if !isempty(stale_imports)
-            throw(StaleImportsException(submodule, stale_imports))
+            throw(StaleImportsException(submodule,
+                                        NamedTuple{(:name, :location)}.(stale_imports)))
         end
     end
     return nothing
@@ -152,7 +152,7 @@ but verify there are no other implicit imports.
 function check_no_implicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                                    ignore::Tuple=(), allow_unanalyzable::Tuple=())
     check_file(file)
-    ee = explicit_imports(mod, file; warn_stale=false, skip)
+    ee = explicit_imports(mod, file; skip)
     for (submodule, names) in ee
         if isnothing(names) && submodule in allow_unanalyzable
             continue

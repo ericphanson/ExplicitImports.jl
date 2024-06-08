@@ -9,21 +9,17 @@ print_explicit_imports
 explicit_imports
 ```
 
-## Looking just for stale explicit exports
+## Detecting "improper" explicit imports
 
-While [`print_explicit_imports`](@ref) prints stale explicit exports, and [`explicit_imports`](@ref) by default provides a warning when stale explicit exports are present, sometimes one wants to only look for stale explicit imports without looking at implicit imports. Here we provide some entrypoints that help for this use-case.
 
 ```@docs
-print_stale_explicit_imports
-stale_explicit_imports
+improper_explicit_imports
 ```
 
 ## Detecting "improper" access of names from other modules
 
 ```@docs
 improper_qualified_accesses
-print_improper_qualified_accesses
-improper_qualified_accesses_nonrecursive
 ```
 
 ## Checks to use in testing
@@ -54,5 +50,6 @@ The above functions all recurse through submodules of the provided module, provi
 
 ```@docs
 explicit_imports_nonrecursive
-stale_explicit_imports_nonrecursive
+improper_qualified_accesses_nonrecursive
+improper_explicit_imports_nonrecursive
 ```

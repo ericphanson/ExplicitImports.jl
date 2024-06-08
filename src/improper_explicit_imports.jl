@@ -2,7 +2,8 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
                                            # private undocumented kwarg for hoisting this analysis
                                            file_analysis=get_names_used(file))
     check_file(file)
-    (; per_usage_info, unnecessary_explicit_import) = filter_to_module(file_analysis, mod)
+    (; per_usage_info, unnecessary_explicit_import, tainted) = filter_to_module(file_analysis,
+                                                                                mod)
     stale_imports = Set((; nt.name, nt.module_path) for nt in unnecessary_explicit_import)
 
     _explicit_imports = filter(per_usage_info) do row
@@ -22,8 +23,8 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
         output = process_explicitly_imported_row(row, mod)
         output === nothing && continue
         importing_from_owns_name = output.whichmodule == output.importing_from
-        importing_from_submodule_owns_name = has_ancestor_name(output.whichmodule,
-                                                               output.importing_from)
+        importing_from_submodule_owns_name = has_ancestor(output.whichmodule,
+                                                          output.importing_from)
         stale = (; row.name, row.module_path) in stale_imports
         push!(table,
               (; output..., importing_from_owns_name, importing_from_submodule_owns_name,
@@ -33,7 +34,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
     # Sort first, so we get the "first" time each is used
     sort!(table; by=nt -> (; nt.name, nt.location))
     unique!(nt -> (; nt.name, nt.importing_from), table)
-    return table
+    return table, tainted
 end
 
 function process_explicitly_imported_row(row, mod)
@@ -61,17 +62,21 @@ function process_explicitly_imported_row(row, mod)
 end
 
 """
-    improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); skip=(Base => Core,))
+    improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,))
 
 A non-recursive version of [`improper_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details, including important caveats about stability (outputs may grow in future non-breaking releases of ExplicitImports!).
+
+If `strict=true`, then returns `nothing` if `mod` could not be fully analyzed.
 """
 function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                                 skip=(Base => Core,),
+                                                strict=true,
                                                 # private undocumented kwarg for hoisting this analysis
                                                 file_analysis=get_names_used(file))
     check_file(file)
-    problematic = analyze_explicitly_imported_names(mod, file; file_analysis)
+    problematic, tainted = analyze_explicitly_imported_names(mod, file; file_analysis)
 
+    tainted && strict && return nothing
     # Currently only care about mismatches between `importing_from` and `parent` in which
     # the name is not publicly available in `importing_from`.
     filter!(problematic) do row
@@ -91,7 +96,7 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
 end
 
 """
-    improper_explicit_imports(mod::Module, file=pathof(mod); skip=(Base => Core,))
+    improper_explicit_imports(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,))
 
 Attempts do detect various kinds of "improper" explicit imports taking place in `mod` and any submodules of `mod`.
 
@@ -104,13 +109,15 @@ The keyword argument `skip` is expected to be an iterator of `importing_from => 
 
 This functionality is still in development, so the exact results may change in future non-breaking releases. Read on for the current outputs, what may change, and what will not change (without a breaking release of ExplicitImports.jl).
 
-Returns a nested structure providing information about improper explicit imports to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are a `Vector` of `NamedTuple`s with the following keys:
+Returns a nested structure providing information about improper explicit imports to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are either `Nothing` or a `Vector` of `NamedTuple`s with the following keys:
 
 - `name::Symbol`: the name being imported
 - `location::String`: the location the access takes place
 - `importing_from::Module`: the module the name is being imported from (e.g. `Module.name`)
 - `whichmodule::Module`: the `Base.which` of the object
 - `public_access::Bool`: whether or not `name` is public or exported in `importing_from`. Checking if a name is marked `public` requires Julia v1.11+.
+
+If `strict=true`, then returns `nothing` if `mod` could not be fully analyzed.
 
 In non-breaking releases of ExplicitImports:
 
@@ -119,14 +126,15 @@ In non-breaking releases of ExplicitImports:
 
 However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
 
-See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`improper_explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, and  [`check_all_explicit_imports_via_owners`](@ref) for a version that throws errors, for regression testing.
+See also [`print_explicit_imports`](@ref) to easily compute and print these results, and [`improper_explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules.
 """
-function improper_explicit_imports(mod::Module, file=pathof(mod); skip=(Base => Core,))
+function improper_explicit_imports(mod::Module, file=pathof(mod); strict=true,
+                                   skip=(Base => Core,))
     check_file(file)
     submodules = find_submodules(mod, file)
     file_analysis = Dict{String,FileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
-    return [submodule => improper_explicit_imports_nonrecursive(submodule, path;
+    return [submodule => improper_explicit_imports_nonrecursive(submodule, path; strict,
                                                                 file_analysis=file_analysis[path],
                                                                 skip)
             for (submodule, path) in submodules]

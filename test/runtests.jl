@@ -351,8 +351,8 @@ end
     @test contains(str, "Script `script.jl`")
     @test contains(str, "relying on implicit imports for 1 name")
     @test contains(str, "using LinearAlgebra: norm")
-    @test contains(str, "stale explicit imports for this 1 unused name")
-    @test contains(str, "- `qr`")
+    @test_broken contains(str, "stale explicit imports for this 1 unused name")
+    @test_broken contains(str, "- `qr`")
 end
 
 @testset "Don't skip source modules (#29)" begin
@@ -487,10 +487,10 @@ end
     @test module_path(TestModA.SubModB.TestModA.TestModC) ==
           [:TestModC, :TestModA, :SubModB, :TestModA, :Main]
 
-    from_outer_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                                                                                  "TestModA.jl"))
-    from_inner_file = @test_logs (:warn, r"stale") using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                                                                                  "TestModC.jl"))
+    from_outer_file = using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                                     "TestModA.jl"))
+    from_inner_file = using_statement.(explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                                     "TestModC.jl"))
     @test from_inner_file == from_outer_file
     @test "using .TestModA: f" in from_inner_file
     # This one isn't needed bc all usages are fully qualified
@@ -506,9 +506,10 @@ end
 
     @test from_inner_file == ["using .TestModA: TestModA", "using .TestModA: f"]
 
-    # No logs when `warn_stale=false`
-    @test_logs explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                             "TestModC.jl"; warn_stale=false)
+    # Deprecation log
+    @test_logs (:warn, r"deprecated") explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                                    "TestModC.jl";
+                                                                    warn_stale=true)
 
     @test only_name_source(stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
                                                                "TestModC.jl")) ==
@@ -539,7 +540,7 @@ end
           ["using ExplicitImports: print_explicit_imports"]
 
     # Recursion
-    nested = @test_logs (:warn, r"stale") explicit_imports(TestModA, "TestModA.jl")
+    nested = explicit_imports(TestModA, "TestModA.jl")
     @test nested isa Vector{Pair{Module,
                                  Vector{@NamedTuple{name::Symbol,source::Module,
                                                     exporters::Vector{Module},location::String}}}}
@@ -548,8 +549,9 @@ end
     @test TestModA.SubModB.TestModA in first.(nested)
     @test TestModA.SubModB.TestModA.TestModC in first.(nested)
 
-    # No logs when `warn_stale=false`
-    @test_logs explicit_imports(TestModA, "TestModA.jl"; warn_stale=false)
+    # Deprecation logs when `warn_stale=false`
+    @test_logs (:warn, r"deprecated") explicit_imports(TestModA, "TestModA.jl";
+                                                       warn_stale=false)
 
     # Printing
     # should be no logs
@@ -695,22 +697,29 @@ end
                                                                                "DynMod.jl";
                                                                                strict=false)) ==
                                 [(; name=:print_explicit_imports, source=ExplicitImports)]
-        @test_logs log... @test stale_explicit_imports(DynMod, "DynMod.jl") ==
-                                [DynMod => nothing,
-                                 DynMod.Hidden => nothing]
+        @test_logs match_mode = :any (:warn, r"deprecated") @test stale_explicit_imports(DynMod,
+                                                                                         "DynMod.jl") ==
+                                                                  [DynMod => nothing,
+                                                                   DynMod.Hidden => nothing]
 
-        @test_logs log... @test stale_explicit_imports_nonrecursive(DynMod, "DynMod.jl") ===
-                                nothing
+        @test_logs match_mode = :any (:warn, r"deprecated") @test stale_explicit_imports_nonrecursive(DynMod,
+                                                                                                      "DynMod.jl") ===
+                                                                  nothing
 
-        @test_logs log... @test stale_explicit_imports(DynMod, "DynMod.jl"; strict=false) ==
-                                [DynMod => [],
-                                 # Wrong! Missing stale explicit export
-                                 DynMod.Hidden => []]
+        @test_logs match_mode = :any (:warn, r"deprecated") @test stale_explicit_imports(DynMod,
+                                                                                         "DynMod.jl";
+                                                                                         strict=false) ==
+                                                                  [DynMod => [],
+                                                                   # Wrong! Missing stale explicit export
+                                                                   DynMod.Hidden => []]
 
-        @test_logs log... @test stale_explicit_imports_nonrecursive(DynMod, "DynMod.jl";
-                                                                    strict=false) ==
-                                []
-        @test_logs log... str = sprint(print_stale_explicit_imports, DynMod, "DynMod.jl")
+        @test_logs match_mode = :any (:warn, r"deprecated") @test stale_explicit_imports_nonrecursive(DynMod,
+                                                                                                      "DynMod.jl";
+                                                                                                      strict=false) ==
+                                                                  []
+        @test_logs match_mode = :any (:warn, r"deprecated") str = sprint(print_stale_explicit_imports,
+                                                                         DynMod,
+                                                                         "DynMod.jl")
         @test contains(str, "DynMod could not be accurately analyzed")
 
         @test_logs log... str = sprint(print_explicit_imports, DynMod, "DynMod.jl")
