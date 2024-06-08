@@ -37,12 +37,79 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
     return table, tainted
 end
 
+# Like `Base.require` (as invoked by `eval_import_path`), but
+# assumes the package is already loaded (so importantly, doesn't try to actually load new modules).
+# Returns `nothing` if something goes wrong.
+function __require(into, mod)
+    pkgid = Base.identify_package(into, String(mod))
+    pkgid === nothing && return nothing
+    return Base.maybe_root_module(pkgid)
+end
+
+# partial reimplementation of `eval_import_path`
+# https://github.com/JuliaLang/julia/blob/94a0ee8637b66ab67445aecc5895d79c960ab50d/src/toplevel.c#L498-L559
+function parse_module_path(w, mod_path)
+    # println("-----$w:$(mod_path)----")
+    isempty(mod_path) && return w
+    var = mod_path[1]
+    i = 2
+    if var != Symbol(".")
+        if var == :Core
+            mod = Core
+        elseif var == :Base
+            mod = Base
+        else
+            mod = __require(w, var)
+            # This can happen with `using X` behind a version-check
+            mod === nothing && return nothing
+        end
+        if i > length(mod_path)
+            return mod
+        end
+    else
+        mod = w
+        while true
+            var = mod_path[i]
+            if var != Symbol(".")
+                break
+            end
+            i += 1
+            mod = parentmodule(mod)
+        end
+    end
+
+    while true
+        # @show (i, length(mod_path), mod)
+        if i > length(mod_path)
+            break
+        end
+        var = mod_path[i]
+        # @show w mod var
+        mod = try_getglobal(mod, var)
+        mod === nothing && return nothing
+        i += 1
+    end
+    return mod
+end
+
 function process_explicitly_imported_row(row, mod)
-    current_mod = Base.binding_module(mod, row.name)
+    current_mod = parse_module_path(mod, row.explicitly_imported_by)
+
+    # this can happen for modules like `X.Y.X` if `filter_to_module`
+    # got confused about which `X` we are in and this row is actually invalid
+    current_mod === nothing && return nothing
+
+    # doesn't seem to be an import
     current_mod === mod && return nothing
 
     isempty(row.explicitly_imported_by) && return nothing
 
+    if row.explicitly_imported_by[end] != nameof(current_mod)
+        error("""
+        `row.explicitly_imported_by`=$(row.explicitly_imported_by)
+        `nameof(current_mod)`=$(nameof(current_mod))
+        """)
+    end
     # Ok, now `current_mod` should contain the actual module we imported the name from
     # This lets us query if the name is public in *that* module, get the value, etc
     value = trygetproperty(current_mod, row.name)

@@ -12,4 +12,5 @@ using LinearAlgebra: svd
 
 import ..TestModA.SubModB: exported_b
 
+import ..TestModA.SubModB: f # owned by TestModA
 end # module

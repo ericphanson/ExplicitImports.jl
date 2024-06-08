@@ -104,7 +104,11 @@ end
            :LinearAlgebra => :import_LHS,
            :svd => :import_RHS,
            :TestModA => :import_LHS,
-           :SubModB => :import_LHS, :exported_b => :import_RHS]
+           :SubModB => :import_LHS,
+           :exported_b => :import_RHS,
+           :TestModA => :import_LHS,
+           :SubModB => :import_LHS,
+           :f => :import_RHS]
 
     inds = findall(==(:import_RHS), analyze_import_type.(leaves))
     lhs_rhs_pairs = get_import_lhs.(leaves[inds]) .=> get_val.(leaves[inds])
@@ -117,19 +121,27 @@ end
                             [:LinearAlgebra] => :map,
                             [:LinearAlgebra] => :_svd!,
                             [:LinearAlgebra] => :svd,
-                            [:., :., :TestModA, :SubModB] => :exported_b]
+                            [:., :., :TestModA, :SubModB] => :exported_b,
+                            [:., :., :TestModA, :SubModB] => :f]
 
     imps = DataFrame(improper_explicit_imports_nonrecursive(ModImports, "imports.jl"))
     h_row = only(subset(imps, :name => ByRow(==(:h))))
     @test !h_row.public_import
     # Note: if this fails locally, try `include("imports.jl")` to rebuild the module
     @test h_row.whichmodule == TestModA.SubModB
+    @test h_row.importing_from == TestModA.SubModB
 
     h2_row = only(subset(imps, :name => ByRow(==(:h2))))
     @test h2_row.public_import
     @test h2_row.whichmodule === TestModA.SubModB
+    @test h2_row.importing_from == TestModA.SubModB
     _svd!_row = only(subset(imps, :name => ByRow(==(:_svd!))))
     @test !_svd!_row.public_import
+
+    f_row = only(subset(imps, :name => ByRow(==(:f))))
+    @test !f_row.public_import # not public in `TestModA.SubModB`
+    @test f_row.whichmodule == TestModA
+    @test f_row.importing_from == TestModA.SubModB
 end
 
 #####
@@ -166,7 +178,12 @@ end
 
     @test length(ret[TestQualifiedAccess]) == 2
     ABC, X = ret[TestQualifiedAccess]
+    # Can add keys, but removing them is breaking
+    @test keys(ABC) ⊆
+          [:name, :location, :value, :accessing_from, :whichmodule, :public_access,
+           :accessing_from_owns_name, :accessing_from_submodule_owns_name]
     @test ABC.name == :ABC
+    @test ABC.location isa AbstractString
     @test ABC.whichmodule == TestQualifiedAccess.Bar
     @test ABC.accessing_from == TestQualifiedAccess.FooModule
     @test ABC.public_access == false
@@ -229,6 +246,10 @@ end
     @test row.whichmodule == Exporter
 
     row1, row2 = imps[TestModA.SubModB.TestModA.TestModC]
+    # Can add keys, but removing them is breaking
+    @test keys(row1) ⊆
+          [:name, :location, :value, :importing_from, :whichmodule, :public_import,
+           :importing_from_owns_name, :importing_from_submodule_owns_name, :stale]
     @test row1.name == :exported_c
     @test row1.stale == true
     @test row2.name == :exported_d

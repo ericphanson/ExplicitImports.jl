@@ -260,7 +260,6 @@ function filter_to_module(file_analysis::FileAnalysis, mod::Module)
     # Therefore, we use `zip` for its early termination, to just match the module paths
     # to the extent they agree (starting at the earliest point).
     # This means we cannot distinguish X.Y.X from X in some cases.
-    # Don't do that!
     match = module_path -> all(Base.splat(isequal), zip(module_path, mod_path))
 
     per_usage_info = filter(file_analysis.per_usage_info) do nt
