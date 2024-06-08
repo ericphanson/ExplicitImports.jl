@@ -109,13 +109,16 @@ The keyword argument `skip` is expected to be an iterator of `importing_from => 
 
 This functionality is still in development, so the exact results may change in future non-breaking releases. Read on for the current outputs, what may change, and what will not change (without a breaking release of ExplicitImports.jl).
 
-Returns a nested structure providing information about improper explicit imports to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are either `Nothing` or a `Vector` of `NamedTuple`s with the following keys:
+Returns a nested structure providing information about improper explicit imports to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are either `nothing` or a `Vector` of `NamedTuple`s with the following keys:
 
 - `name::Symbol`: the name being imported
 - `location::String`: the location the access takes place
 - `importing_from::Module`: the module the name is being imported from (e.g. `Module.name`)
 - `whichmodule::Module`: the `Base.which` of the object
-- `public_access::Bool`: whether or not `name` is public or exported in `importing_from`. Checking if a name is marked `public` requires Julia v1.11+.
+- `public_import::Bool`: whether or not `name` is public or exported in `importing_from`. Checking if a name is marked `public` requires Julia v1.11+.
+- `importing_from_owns_name::Bool` whether or not `importing_from` matches `whichmodule` and therefore is considered to directly "own" the name
+- `importing_from_submodule_owns_name::Bool` whether or not `whichmodule` is a submdoule of `importing_from`
+- `stale::Bool`: whether or not the explicitly imported name is used
 
 If `strict=true`, then returns `nothing` if `mod` could not be fully analyzed.
 
@@ -124,7 +127,7 @@ In non-breaking releases of ExplicitImports:
 - more columns may be added to these rows
 - additional rows may be returned which qualify as some other kind of "improper" access
 
-However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns.
+However, the result will be a Tables.jl-compatible row-oriented table (for each module), with at least all of the same columns (or the value will be `nothing` if `strict=true` and the module could not be fully analyzed).
 
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, and [`improper_explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules.
 """
