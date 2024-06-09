@@ -52,16 +52,18 @@ end
     @test contains(str, "DynMod could not be accurately analyzed")
 
     # Printing via `print_stale_explicit_imports`
-    str = @test_logs (:warn, r"deprecated") sprint(print_stale_explicit_imports,
-                                                   TestModA,
-                                                   "TestModA.jl")
+    str = @test_logs (:warn, r"deprecated") sprint(io -> print_stale_explicit_imports(io,
+                                                                                      TestModA,
+                                                                                      "TestModA.jl";
+                                                                                      allow_internal_imports=false))
     @test contains(str, "TestModA has no stale explicit imports")
     @test contains(str, "TestModC has stale explicit imports for these unused names")
 
     # Printing via `print_improper_qualified_accesses`
-    str = @test_logs (:warn, r"deprecated") sprint(print_improper_qualified_accesses,
-                                                   TestQualifiedAccess,
-                                                   "test_qualified_access.jl")
+    str = @test_logs (:warn, r"deprecated") sprint(io -> print_improper_qualified_accesses(io,
+                                                                                           TestQualifiedAccess,
+                                                                                           "test_qualified_access.jl";
+                                                                                           allow_internal_accesses=false))
     @test contains(str, "accesses 1 name from non-owner modules")
     @test contains(str, "`ABC` has owner")
 

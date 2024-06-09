@@ -33,6 +33,9 @@ $SKIPS_KWARG
 $STRICT_PRINTING_KWARG
 * `show_locations=false`: whether or not to print locations of where the names are being used.
 * `linewidth=80`: format into lines of up to this length. Set to 0 to indicate one name should be printed per line.
+* `report_non_public=VERSION >= v"1.11-"`: report if there are accesses or imports of non-public names (that is, names that are not exported nor marked public). By default, only activates on Julia v1.11+.
+* `allow_internal_accesses=true`: if false, reports non-owning or non-public qualified accesses to other modules in the same package
+* `allow_internal_imports=true`: if false, reports non-owning or non-public explicit imports from other modules in the same package
 
 See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), [`check_all_qualified_accesses_via_owners`](@ref), and [`check_all_explicit_imports_via_owners`](@ref).
 """
@@ -41,11 +44,12 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 warn_implicit_imports=true,
                                 warn_improper_explicit_imports=nothing, # set to `true` once `warn_stale` is removed
                                 warn_improper_qualified_accesses=true,
-                                #TODO- document
                                 report_non_public=VERSION >= v"1.11-",
                                 strict=true,
                                 show_locations=false,
                                 linewidth=80,
+                                allow_internal_accesses=true,
+                                allow_internal_imports=true,
                                 # deprecated
                                 warn_stale=nothing,
                                 # internal kwargs
@@ -88,10 +92,25 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
         end
 
         if warn_improper_explicit_imports
-            problematic_imports = improper_explicit_imports_nonrecursive(mod, file; strict,
-                                                                         file_analysis=file_analysis[file])
-            if !isnothing(problematic_imports) && !isempty(problematic_imports)
-                stale = filter(row -> row.stale, problematic_imports)
+            problematic_imports_for_stale = improper_explicit_imports_nonrecursive(mod,
+                                                                                   file;
+                                                                                   strict,
+                                                                                   file_analysis=file_analysis[file],
+                                                                                   allow_internal_imports=false)
+
+            # separate checks for non-stale where we respect the setting for `allow_internal_imports`
+            problematic_imports = if isnothing(problematic_imports_for_stale)
+                nothing
+            elseif allow_internal_imports
+                filter(row -> !row.internal_import,
+                       problematic_imports_for_stale)
+            else
+                problematic_imports_for_stale
+            end
+
+            if !isnothing(problematic_imports_for_stale) &&
+               !isempty(problematic_imports_for_stale)
+                stale = filter(row -> row.stale, problematic_imports_for_stale)
                 if !isempty(stale)
                     println(io)
                     word = !isnothing(imports) && isempty(imports) ?
@@ -143,11 +162,12 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 end
             end
         else
-            problematic_imports = ()
+            problematic_imports_for_stale = ()
         end
         if warn_improper_qualified_accesses
             problematic = improper_qualified_accesses_nonrecursive(mod, file;
-                                                                   file_analysis=file_analysis[file])
+                                                                   file_analysis=file_analysis[file],
+                                                                   allow_internal_accesses)
 
             non_owner = filter(row -> !row.accessing_from_submodule_owns_name,
                                problematic)
@@ -155,7 +175,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
             if !isempty(non_owner)
                 println(io)
                 word = !isnothing(imports) && isempty(imports) &&
-                       isempty(problematic_imports) ?
+                       isempty(problematic_imports_for_stale) ?
                        "However" : "Additionally"
                 plural = length(non_owner) > 1 ? "s" : ""
                 println(io,
@@ -176,7 +196,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 println(io)
 
                 word = !isnothing(imports) && isempty(imports) &&
-                       isempty(problematic_imports) && isempty(non_owner) ?
+                       isempty(problematic_imports_for_stale) && isempty(non_owner) ?
                        "However" : "Additionally"
                 plural = length(non_public) > 1 ? "s" : ""
                 println(io,

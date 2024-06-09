@@ -28,7 +28,8 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
                         whichmodule::Module,
                         public_access::Bool,
                         accessing_from_owns_name::Bool,
-                        accessing_from_submodule_owns_name::Bool}[]
+                        accessing_from_submodule_owns_name::Bool,
+                        internal_access::Bool}[]
     # Now check:
     for row in qualified
         output = process_qualified_row(row, mod)
@@ -37,8 +38,10 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
         accessing_from_submodule_owns_name = has_ancestor(output.whichmodule,
                                                           output.accessing_from)
 
+        internal_access = Base.moduleroot(mod) == Base.moduleroot(output.accessing_from)
         push!(table,
-              (; output..., accessing_from_owns_name, accessing_from_submodule_owns_name))
+              (; output..., accessing_from_owns_name, accessing_from_submodule_owns_name,
+               internal_access))
     end
     # Sort first, so we get the "first" time each is used
     sort!(table; by=nt -> (; nt.name, nt.location))
@@ -81,7 +84,8 @@ function trygetproperty(x::Module, y)
 end
 
 """
-    improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod); skip=(Base => Core,))
+    improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod); skip=(Base => Core,),
+                                             allow_internal_accesses=true)
 
 
 A non-recursive version of [`improper_qualified_accesses`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details, including important caveats about stability (outputs may grow in future non-breaking releases of ExplicitImports!).
@@ -110,6 +114,7 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 """
 function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
                                                   skip=(Base => Core,),
+                                                  allow_internal_accesses=true,
                                                   # deprecated, does nothing
                                                   require_submodule_access=nothing,
                                                   # private undocumented kwarg for hoisting this analysis
@@ -129,11 +134,18 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
         end
     end
 
+    # if `allow_internal_accesses=true`, the default, then we strip out any accesses where the accessing module shares a `moduleroot` with the current module
+    if allow_internal_accesses
+        filter!(problematic) do row
+            return !row.internal_access
+        end
+    end
     return problematic
 end
 
 """
-    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,))
+    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,),
+                                allow_internal_accesses=true)
 
 Attempts do detect various kinds of "improper" qualified accesses taking place in `mod` and any submodules of `mod`.
 
@@ -141,6 +153,8 @@ Currently, only detects cases in which the name is being accessed from a module 
 
 - `name` is not exported from `mod`
 - `name` is not declared public in `mod` (requires Julia v1.11+)
+
+The keyword argument `allow_internal_accesses` determines whether or not "internal" qualified accesses to other modules in the same package (or more generally, sharing the same `Base.moduleroot`) are reported here. If `allow_internal_accesses=false`, then even such "internal" qualified accesses will be returned.
 
 The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but who have an ancestor `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
 
@@ -156,6 +170,7 @@ Returns a nested structure providing information about improper accesses to name
 - `public_access::Bool`: whether or not `name` is public or exported in `accessing_from`. Checking if a name is marked `public` requires Julia v1.11+.
 - `accessing_from_owns_name::Bool`: whether or not `accessing_from` matches `whichmodule` and therefore is considered to directly "own" the name
 - `accessing_from_submodule_owns_name::Bool`: whether or not `whichmodule` is a submodule of `accessing_from`
+- `internal_access::Bool`: whether or not the access is "internal", meaning the module it was accessed in and the module it was accessed from share the same `Base.moduleroot`.
 
 In non-breaking releases of ExplicitImports:
 
@@ -189,6 +204,7 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 ```
 """
 function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,),
+                                     allow_internal_accesses=true,
                                      # deprecated
                                      require_submodule_access=nothing)
     check_file(file)
@@ -201,6 +217,7 @@ function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base =
     return [submodule => improper_qualified_accesses_nonrecursive(submodule, path;
                                                                   file_analysis=file_analysis[path],
                                                                   skip,
-                                                                  require_submodule_access)
+                                                                  require_submodule_access,
+                                                                  allow_internal_accesses)
             for (submodule, path) in submodules]
 end

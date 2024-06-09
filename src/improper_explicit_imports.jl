@@ -18,17 +18,19 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
                         public_import::Union{Missing,Bool},
                         importing_from_owns_name::Bool,
                         importing_from_submodule_owns_name::Bool,
-                        stale::Bool}[]
+                        stale::Bool,
+                        internal_import::Bool}[]
     for row in _explicit_imports
         output = process_explicitly_imported_row(row, mod)
         output === nothing && continue
         importing_from_owns_name = output.whichmodule == output.importing_from
         importing_from_submodule_owns_name = has_ancestor(output.whichmodule,
                                                           output.importing_from)
+        internal_import = Base.moduleroot(mod) == Base.moduleroot(output.importing_from)
         stale = (; row.name, row.module_path) in stale_imports
         push!(table,
               (; output..., importing_from_owns_name, importing_from_submodule_owns_name,
-               stale))
+               stale, internal_import))
     end
 
     # Sort first, so we get the "first" time each is used
@@ -146,7 +148,8 @@ function process_explicitly_imported_row(row, mod)
 end
 
 """
-    improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,))
+    improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,),
+                                           allow_internal_imports=true)
 
 A non-recursive version of [`improper_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details, including important caveats about stability (outputs may grow in future non-breaking releases of ExplicitImports!).
 
@@ -155,6 +158,7 @@ If `strict=true`, then returns `nothing` if `mod` could not be fully analyzed.
 function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                                 skip=(Base => Core,),
                                                 strict=true,
+                                                allow_internal_imports=true,
                                                 # private undocumented kwarg for hoisting this analysis
                                                 file_analysis=get_names_used(file))
     check_file(file)
@@ -176,11 +180,19 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
         end
     end
 
+    # if `allow_internal_imports=true`, the default, then we strip out any imports where the importing module shares a `moduleroot` with the current module
+    if allow_internal_imports
+        filter!(problematic) do row
+            return !row.internal_import
+        end
+    end
+
     return problematic
 end
 
 """
-    improper_explicit_imports(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,))
+    improper_explicit_imports(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,),
+                              allow_internal_imports=true)
 
 Attempts do detect various kinds of "improper" explicit imports taking place in `mod` and any submodules of `mod`.
 
@@ -191,6 +203,8 @@ Currently detects two classes of issues:
     - here, public means either exported or declared with the `public` keyword (requires Julia v1.11+)
     - one particularly egregious type of non-public import is when a name is imported from a module which does not even "own" that name. See the returned fields `importing_from_owns_name` and `importing_from_submodule_owns_name` for two variations on this.
 
+The keyword argument `allow_internal_imports` determines whether or not "internal" explicit imports to other modules in the same package (or more generally, sharing the same `Base.moduleroot`) are reported here. If `allow_internal_imports=false`, then even such "internal" explicit imports will be returned.
+
 The keyword argument `skip` is expected to be an iterator of `importing_from => parent` pairs, where names which are imported from `importing_from` but who have an ancestor which is `parent` are ignored. By default, imports from Base to names owned by Core are skipped.
 
 This functionality is still in development, so the exact results may change in future non-breaking releases. Read on for the current outputs, what may change, and what will not change (without a breaking release of ExplicitImports.jl).
@@ -198,7 +212,7 @@ This functionality is still in development, so the exact results may change in f
 Returns a nested structure providing information about improper explicit imports to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are either `nothing` or a `Vector` of `NamedTuple`s with the following keys:
 
 - `name::Symbol`: the name being imported
-- `location::String`: the location the access takes place
+- `location::String`: the location the import takes place
 - `value::Any`: the which `name` points to in `mod`
 - `importing_from::Module`: the module the name is being imported from (e.g. in the example `using Foo.X: bar`, this would be `X`)
 - `whichmodule::Module`: the `Base.which` of the object
@@ -206,6 +220,7 @@ Returns a nested structure providing information about improper explicit imports
 - `importing_from_owns_name::Bool`: whether or not `importing_from` matches `whichmodule` and therefore is considered to directly "own" the name
 - `importing_from_submodule_owns_name::Bool`: whether or not `whichmodule` is a submodule of `importing_from`
 - `stale::Bool`: whether or not the explicitly imported name is used
+- `internal_import::Bool`: whether or not the import is "internal", meaning the module it was imported into and the module it was imported from share the same `Base.moduleroot`.
 
 If `strict=true`, then returns `nothing` if `mod` could not be fully analyzed.
 
@@ -219,13 +234,15 @@ However, the result will be a Tables.jl-compatible row-oriented table (for each 
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`improper_explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, as well as [`check_no_stale_explicit_imports`](@ref), [`check_all_explicit_imports_via_owners`](@ref), and [`check_all_explicit_imports_are_public`](@ref) for specific regression-testing helpers.
 """
 function improper_explicit_imports(mod::Module, file=pathof(mod); strict=true,
-                                   skip=(Base => Core,))
+                                   skip=(Base => Core,),
+                                   allow_internal_imports=true)
     check_file(file)
     submodules = find_submodules(mod, file)
     file_analysis = Dict{String,FileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
     return [submodule => improper_explicit_imports_nonrecursive(submodule, path; strict,
                                                                 file_analysis=file_analysis[path],
-                                                                skip)
+                                                                skip,
+                                                                allow_internal_imports)
             for (submodule, path) in submodules]
 end

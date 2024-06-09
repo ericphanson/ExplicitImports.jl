@@ -150,7 +150,8 @@ end
                             [:., :., :TestModA, :SubModB] => :exported_b,
                             [:., :., :TestModA, :SubModB] => :f]
 
-    imps = DataFrame(improper_explicit_imports_nonrecursive(ModImports, "imports.jl"))
+    imps = DataFrame(improper_explicit_imports_nonrecursive(ModImports, "imports.jl";
+                                                            allow_internal_imports=false))
     h_row = only(subset(imps, :name => ByRow(==(:h))))
     @test !h_row.public_import
     # Note: if this fails locally, try `include("imports.jl")` to rebuild the module
@@ -197,7 +198,8 @@ end
 
     # improper_qualified_accesses
     ret = Dict(improper_qualified_accesses(TestQualifiedAccess,
-                                           "test_qualified_access.jl")...)
+                                           "test_qualified_access.jl";
+                                           allow_internal_accesses=false))
     @test isempty(ret[TestQualifiedAccess.Bar])
     @test isempty(ret[TestQualifiedAccess.FooModule])
     @test !isempty(ret[TestQualifiedAccess])
@@ -205,9 +207,9 @@ end
     @test length(ret[TestQualifiedAccess]) == 2
     ABC, X = ret[TestQualifiedAccess]
     # Can add keys, but removing them is breaking
-    @test keys(ABC) ⊆
+    @test keys(ABC) ⊇
           [:name, :location, :value, :accessing_from, :whichmodule, :public_access,
-           :accessing_from_owns_name, :accessing_from_submodule_owns_name]
+           :accessing_from_owns_name, :accessing_from_submodule_owns_name, :internal_access]
     @test ABC.name == :ABC
     @test ABC.location isa AbstractString
     @test ABC.whichmodule == TestQualifiedAccess.Bar
@@ -224,12 +226,14 @@ end
     # check_all_qualified_accesses_via_owners
     ex = QualifiedAccessesFromNonOwnerException
     @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
-                                                            "test_qualified_access.jl")
+                                                            "test_qualified_access.jl";
+                                                            allow_internal_accesses=false)
 
     # Test the printing is hitting our formatted errors
     str = exception_string() do
         return check_all_qualified_accesses_via_owners(TestQualifiedAccess,
-                                                       "test_qualified_access.jl")
+                                                       "test_qualified_access.jl";
+                                                       allow_internal_accesses=false)
     end
     @test contains(str,
                    "has qualified accesses to names via modules other than their owner as determined")
@@ -237,109 +241,130 @@ end
     skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  skip) === nothing
+                                                  skip, allow_internal_accesses=false) ===
+          nothing
 
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  ignore=(:ABC,)) === nothing
+                                                  ignore=(:ABC,),
+                                                  allow_internal_accesses=false) === nothing
 
     @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                             "test_qualified_access.jl";
                                                             skip,
-                                                            require_submodule_access=true)
+                                                            require_submodule_access=true,
+                                                            allow_internal_accesses=false)
 
     skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,
             TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
                                                   skip,
-                                                  require_submodule_access=true) === nothing
+                                                  require_submodule_access=true,
+                                                  allow_internal_accesses=false) === nothing
 
     # Printing via `print_explicit_imports`
-    str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
+    str = sprint(io -> print_explicit_imports(io, TestQualifiedAccess,
+                                              "test_qualified_access.jl";
+                                              allow_internal_accesses=false))
     @test contains(str, "accesses 1 name from non-owner modules")
     @test contains(str, "`ABC` has owner")
 
     ex = NonPublicQualifiedAccessException
     @test_throws ex check_all_qualified_accesses_are_public(TestQualifiedAccess,
-                                                            "test_qualified_access.jl")
+                                                            "test_qualified_access.jl";
+                                                            allow_internal_accesses=false)
     str = exception_string() do
         return check_all_qualified_accesses_are_public(TestQualifiedAccess,
-                                                       "test_qualified_access.jl")
+                                                       "test_qualified_access.jl";
+                                                       allow_internal_accesses=false)
     end
     @test contains(str, "- `ABC` is not public in")
 
     @test check_all_qualified_accesses_are_public(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  ignore=(:X, :ABC)) === nothing
+                                                  ignore=(:X, :ABC),
+                                                  allow_internal_accesses=false) === nothing
 
     skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
 
     @test check_all_qualified_accesses_are_public(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  skip, ignore=(:X,)) === nothing
+                                                  skip, ignore=(:X,),
+                                                  allow_internal_accesses=false) === nothing
 end
 
 @testset "improper explicit imports" begin
-    imps = Dict(improper_explicit_imports(TestModA, "TestModA.jl"))
+    imps = Dict(improper_explicit_imports(TestModA, "TestModA.jl";
+                                          allow_internal_imports=false))
     row = only(imps[TestModA])
     @test row.name == :un_exported
     @test row.whichmodule == Exporter
 
     row1, row2 = imps[TestModA.SubModB.TestModA.TestModC]
     # Can add keys, but removing them is breaking
-    @test keys(row1) ⊆
+    @test keys(row1) ⊇
           [:name, :location, :value, :importing_from, :whichmodule, :public_import,
-           :importing_from_owns_name, :importing_from_submodule_owns_name, :stale]
+           :importing_from_owns_name, :importing_from_submodule_owns_name, :stale,
+           :internal_import]
     @test row1.name == :exported_c
     @test row1.stale == true
     @test row2.name == :exported_d
     @test row2.stale == true
 
-    @test check_all_explicit_imports_via_owners(TestModA, "TestModA.jl") === nothing
+    @test check_all_explicit_imports_via_owners(TestModA, "TestModA.jl";
+                                                allow_internal_imports=false) === nothing
     @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(ModImports,
                                                                                             "imports.jl")
 
     # Test the printing is hitting our formatted errors
     str = exception_string() do
         return check_all_explicit_imports_via_owners(ModImports,
-                                                     "imports.jl")
+                                                     "imports.jl";
+                                                     allow_internal_imports=false)
     end
 
     @test contains(str,
                    "explicit imports of names from modules other than their owner as determined ")
 
     @test check_all_explicit_imports_via_owners(ModImports, "imports.jl";
-                                                ignore=(:exported_b, :f, :map)) === nothing
+                                                ignore=(:exported_b, :f, :map),
+                                                allow_internal_imports=false) === nothing
 
     # We can pass `skip` to ignore non-owning explicit imports from LinearAlgebra that are owned by Base
     @test check_all_explicit_imports_via_owners(ModImports, "imports.jl";
                                                 skip=(LinearAlgebra => Base,),
-                                                ignore=(:exported_b, :f)) === nothing
+                                                ignore=(:exported_b, :f),
+                                                allow_internal_imports=false) === nothing
 
     @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(TestExplicitImports,
-                                                                                            "test_explicit_imports.jl")
+                                                                                            "test_explicit_imports.jl";
+                                                                                            allow_internal_imports=false)
 
     # test ignore
     @test check_all_explicit_imports_via_owners(TestExplicitImports,
                                                 "test_explicit_imports.jl";
-                                                ignore=(:ABC,)) === nothing
+                                                ignore=(:ABC,),
+                                                allow_internal_imports=false) === nothing
 
     # test skip
     @test check_all_explicit_imports_via_owners(TestExplicitImports,
                                                 "test_explicit_imports.jl";
-                                                skip=(TestExplicitImports.FooModule => TestExplicitImports.Bar,)) ===
+                                                skip=(TestExplicitImports.FooModule => TestExplicitImports.Bar,),
+                                                allow_internal_imports=false) ===
           nothing
 
     @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(TestExplicitImports,
                                                                                             "test_explicit_imports.jl";
                                                                                             ignore=(:ABC,),
-                                                                                            require_submodule_import=true)
+                                                                                            require_submodule_import=true,
+                                                                                            allow_internal_imports=false)
 
     @test check_all_explicit_imports_via_owners(TestExplicitImports,
                                                 "test_explicit_imports.jl";
                                                 ignore=(:ABC, :X),
-                                                require_submodule_import=true) === nothing
+                                                require_submodule_import=true,
+                                                allow_internal_imports=false) === nothing
 end
 
 @testset "structs" begin
@@ -616,14 +641,15 @@ end
     @test from_inner_file == ["using .TestModA: TestModA", "using .TestModA: f"]
 
     ret = improper_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                                 "TestModC.jl")
+                                                 "TestModC.jl";
+                                                 allow_internal_imports=false)
 
     @test [(; row.name) for row in ret if row.stale] ==
           [(; name=:exported_c), (; name=:exported_d)]
 
     # Recursive version
     lookup = Dict(improper_explicit_imports(TestModA,
-                                            "TestModA.jl"))
+                                            "TestModA.jl"; allow_internal_imports=false))
     ret = lookup[TestModA.SubModB.TestModA.TestModC]
 
     @test [(; row.name) for row in ret if row.stale] ==
@@ -655,7 +681,8 @@ end
 
     # Printing
     # should be no logs
-    str = @test_logs sprint(print_explicit_imports, TestModA, "TestModA.jl")
+    str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
+                                                         allow_internal_imports=false))
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
     @test contains(str, "using .Exporter2: Exporter2, exported_a")
     @test contains(str,
@@ -672,7 +699,8 @@ end
 
     # test `show_locations=true`
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
-                                                         show_locations=true))
+                                                         show_locations=true,
+                                                         allow_internal_imports=false))
     @test contains(str, "using .Exporter3: Exporter3 # used at TestModA.jl:")
     @test contains(str, "is unused but it was imported from Main.Exporter at TestModC.jl")
 
@@ -824,7 +852,7 @@ end
                                                                        strict=false) ==
                                 []
 
-        @test_logs log... str = sprint(print_explicit_imports, DynMod, "DynMod.jl")
+        str = @test_logs log... sprint(print_explicit_imports, DynMod, "DynMod.jl")
         @test contains(str, "DynMod could not be accurately analyzed")
 
         @test_logs log... @test check_no_implicit_imports(DynMod, "DynMod.jl";
