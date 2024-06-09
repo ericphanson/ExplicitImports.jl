@@ -15,7 +15,7 @@ ExplicitImports.jl helps detect implicit imports and mitigate issues with the al
 | Non-public import | `using LinearAlgebra: _svd!`        | `print_explicit_imports` with `report_non_public=true` | `improper_explicit_imports`   | `check_all_explicit_imports_are_public`                    |
 | Stale import      | `using LinearAlgebra: svd # unused` | `print_explicit_imports`                               | `improper_explicit_imports`   | `check_no_stale_explicit_imports`                          |
 | Non-owning access | `LinearAlgebra.map`                 | `print_explicit_imports`                               | `improper_qualified_accesses` | `check_all_qualified_accesses_via_owners`                  |
-| Non-public access | `LinearAlgebra._svd!`               | `print_explicit_imports` with `report_non_public=true` | `improper_qualified_accesses` | not yet implemented: `check_all_qualified_accesses_public` |
+| Non-public access | `LinearAlgebra._svd!`               | `print_explicit_imports` with `report_non_public=true` | `improper_qualified_accesses` | `check_all_qualified_accesses_are_public` |
 
 To understand these examples, note that:
 

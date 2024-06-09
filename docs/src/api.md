@@ -39,11 +39,13 @@ check_all_explicit_imports_via_owners
 check_all_explicit_imports_are_public
 ```
 
-Lastly, we have one check related to detecting "improper" qualified accesses to names.  [`check_all_qualified_accesses_via_owners`](@ref) checks that all qualified accesses (e.g. usage of names in the form `Foo.bar`) are such that the name being accessed is "owned" by the module it is being accessed from (just like [`check_all_explicit_imports_via_owners`](@ref)). This would detect, e.g., `LinearAlgebra.map`.
+Lastly, we have two checks related to detecting "improper" qualified accesses to names, which are analogous to checks related to improper explicit imports.  [`check_all_qualified_accesses_via_owners`](@ref) checks that all qualified accesses (e.g. usage of names in the form `Foo.bar`) are such that the name being accessed is "owned" by the module it is being accessed from (just like [`check_all_explicit_imports_via_owners`](@ref)). This would detect, e.g., `LinearAlgebra.map`. Likewise, [`check_all_qualified_accesses_are_public`](@ref) is a stricter check which verifies all qualified accesses to names are via modules in which that name is public.
 
 ```@docs
 check_all_qualified_accesses_via_owners
+check_all_qualified_accesses_are_public
 ```
+
 ## Usage with scripts (such as `runtests.jl`)
 
 We also provide a helper function to analyze scripts (rather than modules).
