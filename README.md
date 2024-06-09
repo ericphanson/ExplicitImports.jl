@@ -8,14 +8,14 @@
 
 ExplicitImports.jl helps detect implicit imports and mitigate issues with the alternatives (explicit imports and qualified accesses).
 
-| Problem           | Example                             | Interactive detection of issue                         | Programmatic detection        | Regression-testing check                                   |
-| ----------------- | ----------------------------------- | ------------------------------------------------------ | ----------------------------- | ---------------------------------------------------------- |
-| Implicit imports  | `using LinearAlgebra`               | `print_explicit_imports`                               | `implicit_imports`            | `check_no_implicit_imports`                                |
-| Non-owning import | `using LinearAlgebra: map`          | `print_explicit_imports`                               | `improper_explicit_imports`   | `check_all_explicit_imports_via_owners`                    |
-| Non-public import | `using LinearAlgebra: _svd!`        | `print_explicit_imports` with `report_non_public=true` | `improper_explicit_imports`   | `check_all_explicit_imports_are_public`                    |
-| Stale import      | `using LinearAlgebra: svd # unused` | `print_explicit_imports`                               | `improper_explicit_imports`   | `check_no_stale_explicit_imports`                          |
-| Non-owning access | `LinearAlgebra.map`                 | `print_explicit_imports`                               | `improper_qualified_accesses` | `check_all_qualified_accesses_via_owners`                  |
-| Non-public access | `LinearAlgebra._svd!`               | `print_explicit_imports` with `report_non_public=true` | `improper_qualified_accesses` | not yet implemented: `check_all_qualified_accesses_public` |
+| Problem           | Example                             | Interactive detection                                  | Programmatic detection        | Regression-testing check                  |
+| ----------------- | ----------------------------------- | ------------------------------------------------------ | ----------------------------- | ----------------------------------------- |
+| Implicit imports  | `using LinearAlgebra`               | `print_explicit_imports`                               | `implicit_imports`            | `check_no_implicit_imports`               |
+| Non-owning import | `using LinearAlgebra: map`          | `print_explicit_imports`                               | `improper_explicit_imports`   | `check_all_explicit_imports_via_owners`   |
+| Non-public import | `using LinearAlgebra: _svd!`        | `print_explicit_imports` with `report_non_public=true` | `improper_explicit_imports`   | `check_all_explicit_imports_are_public`   |
+| Stale import      | `using LinearAlgebra: svd # unused` | `print_explicit_imports`                               | `improper_explicit_imports`   | `check_no_stale_explicit_imports`         |
+| Non-owning access | `LinearAlgebra.map`                 | `print_explicit_imports`                               | `improper_qualified_accesses` | `check_all_qualified_accesses_via_owners` |
+| Non-public access | `LinearAlgebra._svd!`               | `print_explicit_imports` with `report_non_public=true` | `improper_qualified_accesses` | `check_all_qualified_accesses_are_public` |
 
 To understand these examples, note that:
 
@@ -79,11 +79,12 @@ Module ExplicitImports is relying on implicit imports for 6 names. These could b
 
 ```julia
 using AbstractTrees: AbstractTrees # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:51:10
-using AbstractTrees: Leaves # used at /Users/eph/ExplicitImports/src/get_names_used.jl:225:17
-using AbstractTrees: TreeCursor # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:107:18
-using AbstractTrees: children # used at /Users/eph/ExplicitImports/src/get_names_used.jl:161:26
-using AbstractTrees: nodevalue # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:96:34
-using JuliaSyntax: JuliaSyntax # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:103:15
+using AbstractTrees: Leaves # used at /Users/eph/ExplicitImports/src/get_names_used.jl:453:17
+using AbstractTrees: TreeCursor # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:129:18
+using AbstractTrees: children # used at /Users/eph/ExplicitImports/src/get_names_used.jl:380:26
+using AbstractTrees: nodevalue # used at /Users/eph/ExplicitImports/src/get_names_used.jl:359:16
+using JuliaSyntax: JuliaSyntax # used at /Users/eph/ExplicitImports/src/get_names_used.jl:439:53
+using JuliaSyntax: @K_str # used at /Users/eph/ExplicitImports/src/get_names_used.jl:299:33
 ```
 
 Additionally, module ExplicitImports accesses names from non-owner modules:
