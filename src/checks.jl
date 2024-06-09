@@ -1,4 +1,4 @@
-const T_Tuple{T} = NTuple{N,T} where {N}
+const TUPLE_MODULE_PAIRS = NTuple{N,Pair{Module,Module}} where {N}
 
 struct ImplicitImportsException <: Exception
     mod::Module
@@ -136,7 +136,8 @@ function check_no_stale_explicit_imports(mod::Module, file=pathof(mod); ignore::
 end
 
 """
-    check_no_implicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), ignore::Tuple=(), allow_unanalyzable::Tuple=())
+    check_no_implicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core), ignore::Tuple=(),
+                              allow_unanalyzable::Tuple=())
 
 Checks that neither `mod` nor any of its submodules is relying on implicit imports, throwing
 an `ImplicitImportsException` if so, and returning `nothing` otherwise.
@@ -225,7 +226,9 @@ function should_ignore!(::Nothing, mod; ignore)
 end
 
 """
-    check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(),skip::$(T_Tuple{Pair})=(Base => Core,), require_submodule_access=false)
+    check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(),
+                                            require_submodule_access=false,
+                                            skip::$(TUPLE_MODULE_PAIRS)=(Base => Core,))
 
 Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
 throwing an `QualifiedAccessesFromNonOwnerException` if so, and returning `nothing` otherwise.
@@ -263,7 +266,7 @@ See also: [`improper_qualified_accesses`](@ref). Note that while that function m
 """
 function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
                                                  ignore::Tuple=(),
-                                                 skip::T_Tuple{Pair}=(Base => Core,),
+                                                 skip::TUPLE_MODULE_PAIRS=(Base => Core,),
                                                  require_submodule_access=false)
     check_file(file)
     for (submodule, problematic) in improper_qualified_accesses(mod, file; skip)
@@ -288,7 +291,9 @@ function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
 end
 
 """
-    check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), skip::$(T_Tuple{Pair})=() require_submodule_import=false)
+    check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(),
+                                          require_submodule_import=false,
+                                          skip::$(TUPLE_MODULE_PAIRS)=(Base => Core,)))
 
 Checks that neither `mod` nor any of its submodules has imports to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
 throwing an `ExplicitImportsFromNonOwnerException` if so, and returning `nothing` otherwise.
@@ -332,7 +337,7 @@ See also: [`improper_explicit_imports`](@ref) for programmatic access to such im
 """
 function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
                                                ignore::Tuple=(),
-                                               skip::T_Tuple{Pair}=(Base => Core,),
+                                               skip::TUPLE_MODULE_PAIRS=(Base => Core,),
                                                require_submodule_import=false)
     check_file(file)
     # `strict=false` because unanalyzability doesn't compromise our analysis
@@ -371,8 +376,8 @@ function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
 end
 
 """
-    check_all_explicit_imports_are_public(mod::Module, file=pathof(mod);
-                                          skip::$(T_Tuple{Pair})=(Base => Core,), ignore::Tuple=())
+    check_all_explicit_imports_are_public(mod::Module, file=pathof(mod); ignore::Tuple=(),
+                                          skip::$(TUPLE_MODULE_PAIRS)=(Base => Core,))
 
 Checks that neither `mod` nor any of its submodules has imports to names which are non-public (i.e. not exported, nor declared public on Julia 1.11+)
 throwing an `NonPublicExplicitImportsException` if so, and returning `nothing` otherwise.
@@ -411,7 +416,7 @@ Note that if a module is not fully analyzable (e.g. it has dynamic `include` cal
 See also: [`improper_explicit_imports`](@ref) for programmatic access to such imports, and [`check_all_explicit_imports_via_owners`] for a weaker version of this check. Note that while `improper_explicit_imports` may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_are_public` will not.
 """
 function check_all_explicit_imports_are_public(mod::Module, file=pathof(mod);
-                                               skip::T_Tuple{Pair}=(Base => Core,),
+                                               skip::TUPLE_MODULE_PAIRS=(Base => Core,),
                                                ignore::Tuple=())
     check_file(file)
     for (submodule, problematic) in

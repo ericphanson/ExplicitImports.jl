@@ -240,7 +240,7 @@ end
                                                   skip) === nothing
 
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
-                                                  "test_qualified_access.jl",
+                                                  "test_qualified_access.jl";
                                                   ignore=(:ABC,)) === nothing
 
     @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
@@ -301,9 +301,16 @@ end
     @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(TestExplicitImports,
                                                                                             "test_explicit_imports.jl")
 
+    # test ignore
     @test check_all_explicit_imports_via_owners(TestExplicitImports,
                                                 "test_explicit_imports.jl";
                                                 ignore=(:ABC,)) === nothing
+
+    # test skip
+    @test check_all_explicit_imports_via_owners(TestExplicitImports,
+                                                "test_explicit_imports.jl";
+                                                skip=(TestExplicitImports.FooModule => TestExplicitImports.Bar,)) ===
+          nothing
 
     @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(TestExplicitImports,
                                                                                             "test_explicit_imports.jl";
@@ -748,6 +755,11 @@ end
     @test contains(str, "`_svd!` is not public in LinearAlgebra but it was imported")
     @test check_all_explicit_imports_are_public(ModImports, "imports.jl";
                                                 ignore=(:_svd!, :exported_b, :f, :h, :map)) ===
+          nothing
+
+    @test check_all_explicit_imports_are_public(ModImports, "imports.jl";
+                                                ignore=(:_svd!, :exported_b, :f, :h),
+                                                skip=(LinearAlgebra => Base,)) ===
           nothing
 
     @testset "Tainted modules" begin
