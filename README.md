@@ -110,6 +110,7 @@ Known issues:
 - multi-argument `include` calls are ignored
 - In Julia, `include` adds the included code at top-level in the module in which it is called. Here, when `include` is called within a local scope, all of the code being included is treated as being within that local scope.
 - quoted code (e.g. when building Julia expressions programmatically) may be analyzed incorrectly
+- default values in function definitions can be incorrectly treated as local variables ([#62](https://github.com/ericphanson/ExplicitImports.jl/issues/62))
 
 The consequence of these issues is that ExplicitImports may misunderstand whether or not a particular name refers to a local variable or a global one, and thus whether or not some particular implicitly-available name (exported by some module) is in fact being used. This could cause it to suggest an unnecessary explicit import, fail to suggest an explicit import, or to falsely claim that an explicit import is stale.
 

@@ -6,7 +6,8 @@ using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        module_path, explicit_imports_nonrecursive,
                        inspect_session, get_parent, choose_exporter,
                        get_import_lhs, analyze_import_type,
-                       analyze_explicitly_imported_names, owner_mod_for_printing
+                       analyze_explicitly_imported_names, owner_mod_for_printing,
+                       get_names_used
 using Test
 using DataFrames
 using Aqua
@@ -91,6 +92,14 @@ if VERSION > v"1.9-"
                               (; name=:DataFrame, source=DataFrames),
                               (; name=:groupby, source=DataFrames)]
     end
+end
+
+@testset "function arg bug" begin
+    # https://github.com/ericphanson/ExplicitImports.jl/issues/62
+    df = DataFrame(get_names_used("test_mods.jl").per_usage_info)
+    subset!(df, :name => ByRow(==(:norm)), :module_path => ByRow(==([:TestMod13])))
+
+    @test_broken check_no_stale_explicit_imports(TestMod13, "test_mods.jl") === nothing
 end
 
 @testset "owner_mod_for_printing" begin
