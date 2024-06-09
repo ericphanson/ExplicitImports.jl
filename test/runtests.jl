@@ -345,8 +345,14 @@ end
     @test check_all_explicit_imports_via_owners(TestModA, "TestModA.jl";
                                                 allow_internal_imports=false) === nothing
     @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(ModImports,
-                                                                                            "imports.jl")
+                                                                                            "imports.jl";
+                                                                                            allow_internal_imports=false)
 
+    # allow_internal_imports=true
+    @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(ModImports,
+                                                                                            "imports.jl";)
+    @test check_all_explicit_imports_via_owners(ModImports,
+                                                "imports.jl"; ignore=(:map,)) === nothing
     # Test the printing is hitting our formatted errors
     str = exception_string() do
         return check_all_explicit_imports_via_owners(ModImports,
@@ -395,6 +401,13 @@ end
                                                 ignore=(:ABC, :X),
                                                 require_submodule_import=true,
                                                 allow_internal_imports=false) === nothing
+
+    # allow_internal_imports = true
+    @test_throws NonPublicExplicitImportsException check_all_explicit_imports_are_public(ModImports,
+                                                                                         "imports.jl";)
+    @test check_all_explicit_imports_are_public(ModImports,
+                                                "imports.jl"; ignore=(:map, :_svd!)) ===
+          nothing
 end
 
 @testset "structs" begin
