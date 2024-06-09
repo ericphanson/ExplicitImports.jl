@@ -34,7 +34,7 @@ $STRICT_PRINTING_KWARG
 * `show_locations=false`: whether or not to print locations of where the names are being used.
 * `linewidth=80`: format into lines of up to this length. Set to 0 to indicate one name should be printed per line.
 
-See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), and [`check_all_qualified_accesses_via_owners`](@ref).
+See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), [`check_all_qualified_accesses_via_owners`](@ref), and [`check_all_explicit_imports_via_owners`](@ref).
 """
 function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core),
