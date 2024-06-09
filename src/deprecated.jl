@@ -28,11 +28,12 @@ function print_stale_explicit_imports(mod::Module, file=pathof(mod); kw...)
 end
 
 function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); strict=true,
-                                      show_locations=false)
+                                      show_locations=false, allow_internal_imports=true)
     @warn "[print_stale_explicit_imports] deprecated in favor of `print_explicit_imports`" maxlog = 1
 
     check_file(file)
-    for (i, (mod, stale_imports)) in enumerate(improper_explicit_imports(mod, file; strict))
+    for (i, (mod, stale_imports)) in
+        enumerate(improper_explicit_imports(mod, file; strict, allow_internal_imports))
         if !isnothing(stale_imports)
             filter!(row -> row.stale, stale_imports)
         end
@@ -57,17 +58,20 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
     end
 end
 
-function print_improper_qualified_accesses(mod::Module, file=pathof(mod))
-    return print_improper_qualified_accesses(stdout, mod, file)
+function print_improper_qualified_accesses(mod::Module, file=pathof(mod);
+                                           allow_internal_accesses=true)
+    return print_improper_qualified_accesses(stdout, mod, file; allow_internal_accesses)
 end
 
 function print_improper_qualified_accesses(io::IO, mod::Module, file=pathof(mod);
-                                           report_non_public=VERSION >= v"1.11-")
+                                           report_non_public=VERSION >= v"1.11-",
+                                           allow_internal_accesses=true)
     @warn "[print_improper_qualified_accesses] deprecated in favor of `print_explicit_imports`" maxlog = 1
     print_explicit_imports(io, mod, file;
                            warn_improper_qualified_accesses=true,
                            warn_improper_explicit_imports=false,
                            warn_implicit_imports=false,
+                           allow_internal_accesses,
                            report_non_public)
     # We leave this so we can have non-trivial printout when running this function on ExplicitImports:
     ExplicitImports.parent
