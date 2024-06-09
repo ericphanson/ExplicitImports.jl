@@ -306,7 +306,7 @@ If `require_submodule_import=true`, then an error will be thrown if the name is 
 
 Note that if a module is not fully analyzable (e.g. it has dynamic `include` calls), explicit imports of non-public names which could not be analyzed will be missed. Unlike [`check_no_stale_explicit_imports`](@ref) and [`check_no_implicit_imports`](@ref), this function will *not* throw an `UnanalyzableModuleException` in such cases.
 
-See also: [`improper_explicit_imports`](@ref). Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_via_owners` will not.
+See also: [`improper_explicit_imports`](@ref) for programmatic access to such imports and [`check_all_explicit_imports_are_public`](@ref) for a stricter version of this check. Note that while `improper_explicit_imports` may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_via_owners` will not.
 """
 function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
                                                ignore::Tuple=(),
@@ -375,7 +375,7 @@ would check there were no non-public explicit imports besides that of the name `
 
 Note that if a module is not fully analyzable (e.g. it has dynamic `include` calls), explicit imports of non-public names which could not be analyzed will be missed. Unlike [`check_no_stale_explicit_imports`](@ref) and [`check_no_implicit_imports`](@ref), this function will *not* throw an `UnanalyzableModuleException` in such cases.
 
-See also: [`improper_explicit_imports`](@ref) and [`check_all_explicit_imports_via_owners`]. Note that while `improper_explicit_imports` may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_are_public` will not.
+See also: [`improper_explicit_imports`](@ref) for programmatic access to such imports, and [`check_all_explicit_imports_via_owners`] for a weaker version of this check. Note that while `improper_explicit_imports` may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_are_public` will not.
 """
 function check_all_explicit_imports_are_public(mod::Module, file=pathof(mod);
                                                ignore::Tuple=())
