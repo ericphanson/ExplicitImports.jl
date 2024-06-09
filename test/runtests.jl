@@ -69,6 +69,10 @@ include("imports.jl")
 include("test_qualified_access.jl")
 include("test_explicit_imports.jl")
 
+@testset "deprecations" begin
+    include("deprecated.jl")
+end
+
 # package extension support needs Julia 1.9+
 if VERSION > v"1.9-"
     @testset "Extensions" begin
@@ -212,20 +216,18 @@ end
     @test X.public_access == false
     @test X.accessing_from_submodule_owns_name == true
 
-    # test require_submodule_access=true
-    ret = improper_qualified_accesses_nonrecursive(TestQualifiedAccess,
-                                                   "test_qualified_access.jl";
-                                                   require_submodule_access=true)
-    @test length(ret) == 2
-    ABC, X = ret
-    @test ABC.name == :ABC
-    @test X.name == :X
-    @test X.whichmodule == TestQualifiedAccess.FooModule.FooSub
-
     # check_all_qualified_accesses_via_owners
     ex = QualifiedAccessesFromNonOwnerException
     @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                             "test_qualified_access.jl")
+
+    # Test the printing is hitting our formatted errors
+    str = exception_string() do
+        return check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                       "test_qualified_access.jl")
+    end
+    @test contains(str,
+                   "has qualified accesses to names via modules other than their owner as determined")
 
     ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
@@ -243,12 +245,6 @@ end
                                                   "test_qualified_access.jl";
                                                   ignore,
                                                   require_submodule_access=true) === nothing
-
-    # Printing via `print_improper_qualified_accesses`
-    str = sprint(print_improper_qualified_accesses, TestQualifiedAccess,
-                 "test_qualified_access.jl")
-    @test contains(str, "accesses 1 name from non-owner modules")
-    @test contains(str, "`ABC` has owner")
 
     # Printing via `print_explicit_imports`
     str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
@@ -495,10 +491,12 @@ function get_per_scope(per_usage_info)
 end
 
 @testset "file not found" begin
-    for f in (check_no_implicit_imports, check_no_stale_explicit_imports, explicit_imports,
+    for f in (check_no_implicit_imports, check_no_stale_explicit_imports,
+              check_all_explicit_imports_via_owners, check_all_qualified_accesses_via_owners,
+              explicit_imports,
               explicit_imports_nonrecursive, print_explicit_imports,
-              print_stale_explicit_imports, stale_explicit_imports,
-              stale_explicit_imports_nonrecursive)
+              improper_explicit_imports, improper_explicit_imports_nonrecursive,
+              improper_qualified_accesses, improper_qualified_accesses_nonrecursive)
         @test_throws FileNotFoundException f(TestModA)
     end
     str = sprint(Base.showerror, FileNotFoundException())
@@ -577,15 +575,20 @@ end
 
     @test from_inner_file == ["using .TestModA: TestModA", "using .TestModA: f"]
 
-    @test only_name_source(stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
-                                                               "TestModC.jl")) ==
+    ret = improper_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
+                                                 "TestModC.jl")
+
+    @test [(; row.name) for row in ret if row.stale] ==
           [(; name=:exported_c), (; name=:exported_d)]
 
     # Recursive version
-    lookup = Dict(only_name_source(stale_explicit_imports(TestModA, "TestModA.jl")))
-    @test lookup[TestModA.SubModB.TestModA.TestModC] ==
+    lookup = Dict(improper_explicit_imports(TestModA,
+                                            "TestModA.jl"))
+    ret = lookup[TestModA.SubModB.TestModA.TestModC]
+
+    @test [(; row.name) for row in ret if row.stale] ==
           [(; name=:exported_c), (; name=:exported_d)]
-    @test isempty(lookup[TestModA])
+    @test isempty((row for row in lookup[TestModA] if row.stale))
 
     per_usage_info, _ = analyze_all_names("TestModC.jl")
     testmodc = DataFrame(per_usage_info)
@@ -595,11 +598,6 @@ end
 
     qualified_row2 = only(subset(testmodc, :name => ByRow(==(:h))))
     @test qualified_row2.qualified_by == [:TestModA, :SubModB]
-
-    # Printing
-    str = sprint(print_stale_explicit_imports, TestModA, "TestModA.jl")
-    @test contains(str, "TestModA has no stale explicit imports")
-    @test contains(str, "TestModC has stale explicit imports for these unused names")
 
     @test using_statement.(explicit_imports_nonrecursive(TestMod1,
                                                          "test_mods.jl")) ==
@@ -803,6 +801,14 @@ end
 
         str = sprint(Base.showerror, UnanalyzableModuleException(DynMod))
         @test contains(str, "was found to be unanalyzable")
+
+        @test_logs log... @test check_no_implicit_imports(DynMod, "DynMod.jl";
+                                                          allow_unanalyzable=(DynMod,
+                                                                              DynMod.Hidden)) ===
+                                nothing
+
+        @test_logs log... @test_throws e check_no_implicit_imports(DynMod, "DynMod.jl";
+                                                                   allow_unanalyzable=(DynMod,))
     end
 end
 
