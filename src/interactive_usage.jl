@@ -182,7 +182,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                         "$word, $(name_fn(mod)) has $(length(self_qualified)) self-qualified access$plural:")
                 for row in self_qualified
                     println(io,
-                            "- `$(row.name)` was accessed as $(mod).$(row.name) inside $(mod) at $(row.location)")
+                            "- `$(row.name)` was accessed as `$(mod).$(row.name)` inside $(mod) at $(row.location)")
                 end
             end
 

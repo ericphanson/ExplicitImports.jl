@@ -259,6 +259,10 @@ end
                                            "test_qualified_access.jl"; ignore=(:x,)) ===
           nothing
 
+    str = sprint(print_explicit_imports, TestQualifiedAccess,
+    "test_qualified_access.jl")
+    @test contains(str, "self-qualified")
+
     # check_all_qualified_accesses_via_owners
     ex = QualifiedAccessesFromNonOwnerException
     @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
