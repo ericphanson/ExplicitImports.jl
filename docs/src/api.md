@@ -23,15 +23,27 @@ improper_qualified_accesses
 
 ## Checks to use in testing
 
-ExplicitImports.jl provides three functions which can be used to regression test that there is no reliance on implicit imports, no stale explicit imports, and no qualified accesses to names from modules other than their owner as determined by `Base.which`:
+ExplicitImports.jl provides several functions (all starting with `check_`) which introspect a module for various kinds of potential issues, and throws errors if these issues are encountered. These "check" functions are designed to be narrowly scoped to detect one specific type of issue, and stable so that they can be used in testing environments (with the aim that non-breaking releases of ExplicitExports.jl will generally not cause new test failures).
+
+The first such check is [`check_no_implicit_imports`](@ref) which aims to ensure there are no implicit exports used in the package.
 
 ```@docs
 check_no_implicit_imports
-check_no_stale_explicit_imports
-check_all_qualified_accesses_via_owners
-check_all_explicit_imports_via_owners
 ```
 
+Next, we have several checks related to detecting "improper" explicit imports. The function [`check_no_stale_explicit_imports`](@ref) checks that a module has no "stale" (unused) explicit imports. Next [`check_all_explicit_imports_via_owners`](@ref) and [`check_all_explicit_imports_are_public`](@ref) provide related checks. [`check_all_explicit_imports_via_owners`](@ref) is a weaker check which errors for particularly problematic imports of non-public names, namely those for which the module they are being imported from does not "own" the name (since it was not defined there). The typical scenario here is that the name may be public in some other module, but just happens to be present in the namespace of that module (consider `using LinearAlgebra: map` which imports Base's `map` function). Next, [`check_all_explicit_imports_are_public`](@ref) provides a stricter check that all names being explicitly imported are in fact public in the module they are being imported from, whether or not they are "owned" by that module.
+
+```@docs
+check_no_stale_explicit_imports
+check_all_explicit_imports_via_owners
+check_all_explicit_imports_are_public
+```
+
+Lastly, we have one check related to detecting "improper" qualified accesses to names.  [`check_all_qualified_accesses_via_owners`](@ref) checks that all qualified accesses (e.g. usage of names in the form `Foo.bar`) are such that the name being accessed is "owned" by the module it is being accessed from (just like [`check_all_explicit_imports_via_owners`](@ref)). This would detect, e.g., `LinearAlgebra.map`.
+
+```@docs
+check_all_qualified_accesses_via_owners
+```
 ## Usage with scripts (such as `runtests.jl`)
 
 We also provide a helper function to analyze scripts (rather than modules).

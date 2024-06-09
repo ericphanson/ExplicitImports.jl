@@ -234,21 +234,25 @@ end
     @test contains(str,
                    "has qualified accesses to names via modules other than their owner as determined")
 
-    ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
+    skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  ignore) === nothing
+                                                  skip) === nothing
+
+    @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  ignore=(:ABC,)) === nothing
 
     @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                             "test_qualified_access.jl";
-                                                            ignore,
+                                                            skip,
                                                             require_submodule_access=true)
 
-    ignore = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,
-              TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub)
+    skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,
+            TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  ignore,
+                                                  skip,
                                                   require_submodule_access=true) === nothing
 
     # Printing via `print_explicit_imports`
@@ -289,12 +293,24 @@ end
     @test check_all_explicit_imports_via_owners(ModImports, "imports.jl";
                                                 ignore=(:exported_b, :f, :map)) === nothing
 
+    # We can pass `skip` to ignore non-owning explicit imports from LinearAlgebra that are owned by Base
+    @test check_all_explicit_imports_via_owners(ModImports, "imports.jl";
+                                                skip=(LinearAlgebra => Base,),
+                                                ignore=(:exported_b, :f)) === nothing
+
     @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(TestExplicitImports,
                                                                                             "test_explicit_imports.jl")
 
+    # test ignore
     @test check_all_explicit_imports_via_owners(TestExplicitImports,
                                                 "test_explicit_imports.jl";
                                                 ignore=(:ABC,)) === nothing
+
+    # test skip
+    @test check_all_explicit_imports_via_owners(TestExplicitImports,
+                                                "test_explicit_imports.jl";
+                                                skip=(TestExplicitImports.FooModule => TestExplicitImports.Bar,)) ===
+          nothing
 
     @test_throws ExplicitImportsFromNonOwnerException check_all_explicit_imports_via_owners(TestExplicitImports,
                                                                                             "test_explicit_imports.jl";
@@ -729,6 +745,22 @@ end
                                                "TestModC.jl")
     end
     @test contains(str, "has stale (unused) explicit imports for:")
+
+    @test check_all_explicit_imports_are_public(TestMod1, "test_mods.jl") === nothing
+    @test_throws NonPublicExplicitImportsException check_all_explicit_imports_are_public(ModImports,
+                                                                                         "imports.jl")
+    str = exception_string() do
+        return check_all_explicit_imports_are_public(ModImports, "imports.jl")
+    end
+    @test contains(str, "`_svd!` is not public in LinearAlgebra but it was imported")
+    @test check_all_explicit_imports_are_public(ModImports, "imports.jl";
+                                                ignore=(:_svd!, :exported_b, :f, :h, :map)) ===
+          nothing
+
+    @test check_all_explicit_imports_are_public(ModImports, "imports.jl";
+                                                ignore=(:_svd!, :exported_b, :f, :h),
+                                                skip=(LinearAlgebra => Base,)) ===
+          nothing
 
     @testset "Tainted modules" begin
         # 3 dynamic include statements

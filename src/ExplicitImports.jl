@@ -10,10 +10,10 @@ export print_explicit_imports_script
 export improper_qualified_accesses,
        improper_qualified_accesses_nonrecursive, check_all_qualified_accesses_via_owners
 export improper_explicit_imports, improper_explicit_imports_nonrecursive,
-       check_all_explicit_imports_via_owners
+       check_all_explicit_imports_via_owners, check_all_explicit_imports_are_public
 export ImplicitImportsException, UnanalyzableModuleException,
        FileNotFoundException, QualifiedAccessesFromNonOwnerException,
-       ExplicitImportsFromNonOwnerException
+       ExplicitImportsFromNonOwnerException, NonPublicExplicitImportsException
 export StaleImportsException, check_no_stale_explicit_imports
 
 # deprecated
