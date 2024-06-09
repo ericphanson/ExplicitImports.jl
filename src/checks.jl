@@ -367,7 +367,7 @@ function check_all_qualified_accesses_are_public(mod::Module, file=pathof(mod);
 
         # Discard imports from names that are public in their module; that's OK
         filter!(problematic) do nt
-            return !nt.public_import
+            return !nt.public_access
         end
 
         # drop unnecessary columns

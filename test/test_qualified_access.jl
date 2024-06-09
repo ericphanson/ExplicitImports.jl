@@ -42,7 +42,7 @@ FooModule.HIJ
 # Accessing it again does not affect results (we only report one)
 FooModule.DEF
 
-# This is allowed unless `require_submodule_access=true`
+# This is allowed unless `require_submodule_access=true` or we are detecting any non-public access
 FooModule.X
 
 end # TestQualifiedAccess

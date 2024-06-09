@@ -259,6 +259,25 @@ end
     str = sprint(print_explicit_imports, TestQualifiedAccess, "test_qualified_access.jl")
     @test contains(str, "accesses 1 name from non-owner modules")
     @test contains(str, "`ABC` has owner")
+
+    ex = NonPublicQualifiedAccessException
+    @test_throws ex check_all_qualified_accesses_are_public(TestQualifiedAccess,
+                                                            "test_qualified_access.jl")
+    str = exception_string() do
+        return check_all_qualified_accesses_are_public(TestQualifiedAccess,
+                                                       "test_qualified_access.jl")
+    end
+    @test contains(str, "- `ABC` is not public in")
+
+    @test check_all_qualified_accesses_are_public(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  ignore=(:X, :ABC)) === nothing
+
+    skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
+
+    @test check_all_qualified_accesses_are_public(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  skip, ignore=(:X,)) === nothing
 end
 
 @testset "improper explicit imports" begin
