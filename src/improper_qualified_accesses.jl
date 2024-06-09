@@ -115,6 +115,9 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
                                                   # private undocumented kwarg for hoisting this analysis
                                                   file_analysis=get_names_used(file))
     check_file(file)
+    if require_submodule_access !== nothing
+        @warn "[improper_qualified_accesses_nonrecursive] `require_submodule_access` is deprecated and unused" _id = :explicit_imports_improper_qualified_accesses_require_submodule_access maxlog = 1
+    end
     problematic = analyze_qualified_names(mod, file; file_analysis)
 
     # Report non-public accesses
@@ -190,7 +193,7 @@ function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base =
                                      require_submodule_access=nothing)
     check_file(file)
     if require_submodule_access !== nothing
-        @warn "[improper_qualified_accesses] `require_submodule_access` is deprecated and unused" maxlog = 1
+        @warn "[improper_qualified_accesses] `require_submodule_access` is deprecated and unused" _id = :explicit_imports_improper_qualified_accesses_require_submodule_access maxlog = 1
     end
     submodules = find_submodules(mod, file)
     file_analysis = Dict{String,FileAnalysis}()

@@ -1,6 +1,6 @@
 function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
     check_file(file)
-    @warn "[stale_explicit_imports] deprecated in favor of `improper_explicit_imports`" maxlog = 1
+    @warn "[stale_explicit_imports] deprecated in favor of `improper_explicit_imports`" _id = :explicit_imports_stale_explicit_imports maxlog = 1
     submodules = find_submodules(mod, file)
     file_analysis = Dict{String,FileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
@@ -15,7 +15,7 @@ function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                              # private undocumented kwarg for hoisting this analysis
                                              file_analysis=get_names_used(file))
     check_file(file)
-    @warn "[stale_explicit_imports_nonrecursive] deprecated in favor of `improper_explicit_imports_nonrecursive`" maxlog = 1
+    @warn "[stale_explicit_imports_nonrecursive] deprecated in favor of `improper_explicit_imports_nonrecursive`" _id = :explicit_imports_stale_explicit_imports maxlog = 1
 
     (; unnecessary_explicit_import, tainted) = filter_to_module(file_analysis, mod)
     tainted && strict && return nothing
@@ -32,7 +32,10 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
     @warn "[print_stale_explicit_imports] deprecated in favor of `print_explicit_imports`" maxlog = 1
 
     check_file(file)
-    for (i, (mod, stale_imports)) in enumerate(stale_explicit_imports(mod, file; strict))
+    for (i, (mod, stale_imports)) in enumerate(improper_explicit_imports(mod, file; strict))
+        if !isnothing(stale_imports)
+            filter!(row -> row.stale, stale_imports)
+        end
         i == 1 || println(io)
         if isnothing(stale_imports)
             println(io,

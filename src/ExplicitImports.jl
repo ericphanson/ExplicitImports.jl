@@ -109,6 +109,10 @@ function explicit_imports(mod::Module, file=pathof(mod); skip=(mod, Base, Core),
                           # private undocumented kwarg for hoisting this analysis
                           file_analysis=Dict())
     check_file(file)
+    if warn_stale !== nothing
+        @warn "[explicit_imports] keyword argument `warn_stale` is deprecated and does nothing" _id = :explicit_imports_explicit_imports_warn_stale maxlog = 1
+    end
+
     submodules = find_submodules(mod, file)
     fill_cache!(file_analysis, last.(submodules))
     return [submodule => explicit_imports_nonrecursive(submodule, path; skip, warn_stale,
@@ -179,7 +183,7 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                        file_analysis=get_names_used(file))
     check_file(file)
     if warn_stale !== nothing
-        @warn "[explicit_imports_nonrecursive] keyword argument `warn_stale` is deprecated and does nothing" maxlog = 1
+        @warn "[explicit_imports_nonrecursive] keyword argument `warn_stale` is deprecated and does nothing" _id = :explicit_imports_explicit_imports_warn_stale maxlog = 1
     end
     all_implicit_imports = find_implicit_imports(mod; skip)
 

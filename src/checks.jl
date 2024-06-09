@@ -43,8 +43,8 @@ end
 struct ExplicitImportsFromNonOwnerException <: Exception
     mod::Module
     bad_imports::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
-                                 importing_from::Module,
-                                 whichmodule::Module}}
+                                    importing_from::Module,
+                                    whichmodule::Module}}
 end
 
 function Base.showerror(io::IO, e::ExplicitImportsFromNonOwnerException)
@@ -258,7 +258,6 @@ function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
     end
     return nothing
 end
-
 
 """
     check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), allow_unanalyzable::Tuple=(), require_submodule_import=false)
