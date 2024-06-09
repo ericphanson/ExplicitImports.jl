@@ -201,8 +201,8 @@ end
 @testset "qualified access" begin
     # analyze_qualified_names
     qualified = analyze_qualified_names(TestQualifiedAccess, "test_qualified_access.jl")
-    @test length(qualified) == 5
-    ABC, DEF, HIJ, X, map = qualified
+    @test length(qualified) == 6
+    ABC, DEF, HIJ, X, map, x = qualified
     @test ABC.name == :ABC
     @test DEF.public_access
     @test HIJ.public_access
@@ -210,6 +210,8 @@ end
     @test HIJ.name == :HIJ
     @test X.name == :X
     @test map.name == :map
+    @test x.name == :x
+    @test x.self_qualified
 
     # improper_qualified_accesses
     ret = Dict(improper_qualified_accesses(TestQualifiedAccess,
@@ -219,8 +221,8 @@ end
     @test isempty(ret[TestQualifiedAccess.FooModule])
     @test !isempty(ret[TestQualifiedAccess])
 
-    @test length(ret[TestQualifiedAccess]) == 3
-    ABC, X, map = ret[TestQualifiedAccess]
+    @test length(ret[TestQualifiedAccess]) == 4
+    ABC, X, map, x = ret[TestQualifiedAccess]
     # Can add keys, but removing them is breaking
     @test keys(ABC) ⊇
           [:name, :location, :value, :accessing_from, :whichmodule, :public_access,
@@ -240,11 +242,34 @@ end
 
     @test map.name == :map
 
+    @test x.name == :x
+    @test x.self_qualified
+
     imps = DataFrame(improper_qualified_accesses_nonrecursive(TestQualifiedAccess,
                                                               "test_qualified_access.jl";
                                                               allow_internal_accesses=true))
+    subset!(imps, :self_qualified => ByRow(!)) # drop self-qualified
     # in this case we rule out all the `Main` ones, so only LinearAlgebra is left:
     @test all(==(LinearAlgebra), imps.accessing_from)
+
+    # check_no_self_qualified_accesses
+    ex = SelfQualifiedAccessException
+    @test_throws ex check_no_self_qualified_accesses(TestQualifiedAccess,
+                                                     "test_qualified_access.jl")
+
+    str = exception_string() do
+        return check_no_self_qualified_accesses(TestQualifiedAccess,
+                                                "test_qualified_access.jl")
+    end
+    @test contains(str, "has self-qualified accesses:\n- `x` was accessed as")
+
+    @test check_no_self_qualified_accesses(TestQualifiedAccess,
+                                           "test_qualified_access.jl"; ignore=(:x,)) ===
+          nothing
+
+    str = sprint(print_explicit_imports, TestQualifiedAccess,
+                 "test_qualified_access.jl")
+    @test contains(str, "has 1 self-qualified access:\n- `x` was accessed as")
 
     # check_all_qualified_accesses_via_owners
     ex = QualifiedAccessesFromNonOwnerException
