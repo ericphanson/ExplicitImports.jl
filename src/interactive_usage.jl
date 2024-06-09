@@ -169,9 +169,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                                                    file_analysis=file_analysis[file],
                                                                    allow_internal_accesses)
 
-            self_qualified = filter(row -> !row.self_qualified,
-                                    problematic)
-
+            self_qualified = filter(row -> row.self_qualified, problematic)
             if !isempty(self_qualified)
                 println(io)
                 word = !isnothing(imports) && isempty(imports) &&

@@ -261,8 +261,7 @@ end
         return check_no_self_qualified_accesses(TestQualifiedAccess,
                                                 "test_qualified_access.jl")
     end
-    @test contains(str, "`x` was accessed as")
-    @test contains(str, "had self-qualified accesses")
+    @test contains(str, "has 1 self-qualified access:\n- `x` was accessed as")
 
     @test check_no_self_qualified_accesses(TestQualifiedAccess,
                                            "test_qualified_access.jl"; ignore=(:x,)) ===
@@ -270,7 +269,7 @@ end
 
     str = sprint(print_explicit_imports, TestQualifiedAccess,
                  "test_qualified_access.jl")
-    @test contains(str, "self-qualified")
+    @test contains(str, "has 1 self-qualified access:\n- `x` was accessed as")
 
     # check_all_qualified_accesses_via_owners
     ex = QualifiedAccessesFromNonOwnerException
