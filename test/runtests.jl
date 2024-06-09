@@ -317,6 +317,11 @@ end
                                                   "test_qualified_access.jl";
                                                   skip, ignore=(:X, :map),
                                                   allow_internal_accesses=false) === nothing
+
+    # allow_internal_accesses=true
+    @test check_all_qualified_accesses_are_public(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  ignore=(:map,)) === nothing
 end
 
 @testset "improper explicit imports" begin
