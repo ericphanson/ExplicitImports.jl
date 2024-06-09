@@ -49,4 +49,9 @@ using LinearAlgebra: LinearAlgebra
 
 LinearAlgebra.map
 
+x = 1
+
+# self-qualified access
+TestQualifiedAccess.x
+
 end # TestQualifiedAccess

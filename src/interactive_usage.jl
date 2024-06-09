@@ -169,13 +169,30 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                                                    file_analysis=file_analysis[file],
                                                                    allow_internal_accesses)
 
+            self_qualified = filter(row -> !row.self_qualified,
+                                    problematic)
+
+            if !isempty(self_qualified)
+                println(io)
+                word = !isnothing(imports) && isempty(imports) &&
+                       isempty(problematic_imports_for_stale) ?
+                       "However" : "Additionally"
+                plural = length(self_qualified) > 1 ? "es" : ""
+                println(io,
+                        "$word, $(name_fn(mod)) has $(length(self_qualified)) self-qualified access$plural:")
+                for row in self_qualified
+                    println(io,
+                            "- `$(row.name)` was accessed as $(mod).$(row.name) inside $(mod) at $(row.location)")
+                end
+            end
+
             non_owner = filter(row -> !row.accessing_from_submodule_owns_name,
                                problematic)
 
             if !isempty(non_owner)
                 println(io)
                 word = !isnothing(imports) && isempty(imports) &&
-                       isempty(problematic_imports_for_stale) ?
+                       isempty(problematic_imports_for_stale) && isempty(self_qualified) ?
                        "However" : "Additionally"
                 plural = length(non_owner) > 1 ? "s" : ""
                 println(io,
@@ -196,7 +213,8 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                 println(io)
 
                 word = !isnothing(imports) && isempty(imports) &&
-                       isempty(problematic_imports_for_stale) && isempty(non_owner) ?
+                       isempty(problematic_imports_for_stale) && isempty(self_qualified) &&
+                       isempty(non_owner) ?
                        "However" : "Additionally"
                 plural = length(non_public) > 1 ? "s" : ""
                 println(io,

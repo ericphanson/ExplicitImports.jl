@@ -29,7 +29,8 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
                         public_access::Bool,
                         accessing_from_owns_name::Bool,
                         accessing_from_submodule_owns_name::Bool,
-                        internal_access::Bool}[]
+                        internal_access::Bool,
+                        self_qualified::Bool}[]
     # Now check:
     for row in qualified
         output = process_qualified_row(row, mod)
@@ -39,9 +40,10 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
                                                           output.accessing_from)
 
         internal_access = Base.moduleroot(mod) == Base.moduleroot(output.accessing_from)
+        self_qualified = output.accessing_from == mod
         push!(table,
               (; output..., accessing_from_owns_name, accessing_from_submodule_owns_name,
-               internal_access))
+               internal_access, self_qualified))
     end
     # Sort first, so we get the "first" time each is used
     sort!(table; by=nt -> (; nt.name, nt.location))
@@ -125,8 +127,8 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
     end
     problematic = analyze_qualified_names(mod, file; file_analysis)
 
-    # Report non-public accesses
-    filter!(row -> !row.public_access, problematic)
+    # Report only non-public accesses or self-qualified ones
+    filter!(row -> !row.public_access || row.self_qualified, problematic)
 
     for (from, parent) in skip
         filter!(problematic) do row
@@ -134,10 +136,11 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
         end
     end
 
-    # if `allow_internal_accesses=true`, the default, then we strip out any accesses where the accessing module shares a `moduleroot` with the current module
+    # if `allow_internal_accesses=true`, the default, then we strip out any accesses where the accessing module shares a `moduleroot` with the current module,
+    # unless it is self-qualified
     if allow_internal_accesses
         filter!(problematic) do row
-            return !row.internal_access
+            return !row.internal_access || row.self_qualified
         end
     end
     return problematic
@@ -152,9 +155,10 @@ Attempts do detect various kinds of "improper" qualified accesses taking place i
 Currently, only detects cases in which the name is being accessed from a module `mod` for which:
 
 - `name` is not exported from `mod`
-- `name` is not declared public in `mod` (requires Julia v1.11+)
+- or `name` is not declared public in `mod` (requires Julia v1.11+)
+- or `name` is "self-qualified": i.e. in the module `Foo`, `Foo.name` is being accessed.
 
-The keyword argument `allow_internal_accesses` determines whether or not "internal" qualified accesses to other modules in the same package (or more generally, sharing the same `Base.moduleroot`) are reported here. If `allow_internal_accesses=false`, then even such "internal" qualified accesses will be returned.
+The keyword argument `allow_internal_accesses` determines whether or not "internal" qualified accesses to other modules in the same package (or more generally, sharing the same `Base.moduleroot`) are reported here. If `allow_internal_accesses=false`, then even such "internal" qualified accesses will be returned. Note self-qualified accesses are reported regardless of the setting of `allow_internal_accesses`.
 
 The keyword argument `skip` is expected to be an iterator of `accessing_from => parent` pairs, where names which are accessed from `accessing_from` but who have an ancestor `parent` are ignored. By default, accesses from Base to names owned by Core are skipped.
 
@@ -171,6 +175,7 @@ Returns a nested structure providing information about improper accesses to name
 - `accessing_from_owns_name::Bool`: whether or not `accessing_from` matches `whichmodule` and therefore is considered to directly "own" the name
 - `accessing_from_submodule_owns_name::Bool`: whether or not `whichmodule` is a submodule of `accessing_from`
 - `internal_access::Bool`: whether or not the access is "internal", meaning the module it was accessed in and the module it was accessed from share the same `Base.moduleroot`.
+- `self_qualified::Bool`: whether or not the access is "self-qualified", meaning the module it was accessed in and the module it is accessed from are the same module.
 
 In non-breaking releases of ExplicitImports:
 
