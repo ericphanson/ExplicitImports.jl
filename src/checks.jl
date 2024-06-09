@@ -57,6 +57,22 @@ function Base.showerror(io::IO, e::ExplicitImportsFromNonOwnerException)
     end
 end
 
+struct NonPublicExplicitImportsException <: Exception
+    mod::Module
+    bad_imports::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
+                                    importing_from::Module}}
+end
+
+function Base.showerror(io::IO, e::NonPublicExplicitImportsException)
+    println(io, "NonPublicExplicitImportsException")
+    println(io,
+            "Module `$(e.mod)` has explicit imports of names from modules in which they are not public (i.e. exported or declared public in Julia 1.11+):")
+    for row in e.bad_imports
+        println(io,
+                "- `$(row.name)` is not public in $(row.importing_from) but it was imported from $(row.importing_from) at $(row.location)")
+    end
+end
+
 struct StaleImportsException <: Exception
     mod::Module
     names::Vector{@NamedTuple{name::Symbol,location::String}}
@@ -260,7 +276,7 @@ function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
 end
 
 """
-    check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), allow_unanalyzable::Tuple=(), require_submodule_import=false)
+    check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), require_submodule_import=false)
 
 Checks that neither `mod` nor any of its submodules has imports to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
 throwing an `ExplicitImportsFromNonOwnerException` if so, and returning `nothing` otherwise.
@@ -270,11 +286,6 @@ This can be used in a package's tests, e.g.
 ```julia
 @test check_all_explicit_imports_via_owners(MyPackage) === nothing
 ```
-
-## Allowing some submodules to be unanalyzable
-
-Pass `allow_unanalyzable` as a tuple of submodules which are allowed to be unanalyzable.
-Any other submodules found to be unanalyzable will result in an `UnanalyzableModuleException` being thrown.
 
 ## Allowing some explicit imports via non-owner modules
 
@@ -291,20 +302,25 @@ would check there were no explicit imports from non-owner modules besides that o
 
 If `require_submodule_import=true`, then an error will be thrown if the name is imported from a non-owner module even if it is imported from a parent module of the owner module. For example, in June 2024, `JSON.parse` is actually defined in the submodule `JSON.Parser` and is not declared public inside `JSON`, but the name is present within the module `JSON`. If `require_submodule_import=false`, the default, in this scenario the access `using JSON: parse` will not trigger an error, since the name is being accessed by a parent of the owner. If `require_submodule_import=false`, then accessing the function as `using JSON.Parser: parse` will be required to avoid an error.
 
+## non-fully-analyzable modules do not cause exceptions
+
+Note that if a module is not fully analyzable (e.g. it has dynamic `include` calls), explicit imports of non-public names which could not be analyzed will be missed. Unlike [`check_no_stale_explicit_imports`](@ref) and [`check_no_implicit_imports`](@ref), this function will *not* throw an `UnanalyzableModuleException` in such cases.
+
 See also: [`improper_explicit_imports`](@ref). Note that while that function may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_via_owners` will not.
 """
 function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
                                                ignore::Tuple=(),
-                                               allow_unanalyzable::Tuple=(),
                                                require_submodule_import=false)
     check_file(file)
+    # `strict=false` because unanalyzability doesn't compromise our analysis
+    # that much, unlike in the stale case (in which we might miss usages of the
+    # "stale" name, making it not-stale). Here we might just miss bad imports
+    # hidden behind a dynamic include or such. IMO it's sufficient to have
+    # `check_no_stale_explicit_imports` or `check_no_implicit_imports`
+    # throw by default there and not require this function to also throw
+    # in the exact same cases.
     for (submodule, problematic) in
-        improper_explicit_imports(mod, file)
-        if isnothing(problematic)
-            submodule in allow_unanalyzable && continue
-            throw(UnanalyzableModuleException(submodule))
-        end
-
+        improper_explicit_imports(mod, file; strict=false)
         filter!(problematic) do nt
             return nt.name ∉ ignore
         end
@@ -326,6 +342,59 @@ function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
         problematic = NamedTuple{(:name, :location, :value, :importing_from, :whichmodule)}.(problematic)
         if !isempty(problematic)
             throw(ExplicitImportsFromNonOwnerException(submodule, problematic))
+        end
+    end
+    return nothing
+end
+
+"""
+    check_all_explicit_imports_are_public(mod::Module, file=pathof(mod);
+                                          ignore::Tuple=())
+
+Checks that neither `mod` nor any of its submodules has imports to names which are non-public (i.e. not exported, nor declared public on Julia 1.11+)
+throwing an `NonPublicExplicitImportsException` if so, and returning `nothing` otherwise.
+
+This can be used in a package's tests, e.g.
+
+```julia
+@test check_all_explicit_imports_are_public(MyPackage) === nothing
+```
+
+## Allowing some non-public explicit imports
+
+If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
+that are allowed to be imported from modules in which they are not public. For example,
+
+```julia
+@test check_all_explicit_imports_are_public(MyPackage; ignore=(:DataFrame,)) === nothing
+```
+
+would check there were no non-public explicit imports besides that of the name `DataFrame`.
+
+## non-fully-analyzable modules do not cause exceptions
+
+Note that if a module is not fully analyzable (e.g. it has dynamic `include` calls), explicit imports of non-public names which could not be analyzed will be missed. Unlike [`check_no_stale_explicit_imports`](@ref) and [`check_no_implicit_imports`](@ref), this function will *not* throw an `UnanalyzableModuleException` in such cases.
+
+See also: [`improper_explicit_imports`](@ref) and [`check_all_explicit_imports_via_owners`]. Note that while `improper_explicit_imports` may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_are_public` will not.
+"""
+function check_all_explicit_imports_are_public(mod::Module, file=pathof(mod);
+                                               ignore::Tuple=())
+    check_file(file)
+    for (submodule, problematic) in
+        improper_explicit_imports(mod, file; strict=false)
+        filter!(problematic) do nt
+            return nt.name ∉ ignore
+        end
+
+        # Discard imports from names that are public in their module; that's OK
+        filter!(problematic) do nt
+            return !nt.public_import
+        end
+
+        # drop unnecessary columns
+        problematic = NamedTuple{(:name, :location, :value, :importing_from)}.(problematic)
+        if !isempty(problematic)
+            throw(NonPublicExplicitImportsException(submodule, problematic))
         end
     end
     return nothing
