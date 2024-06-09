@@ -64,7 +64,7 @@ end
                                                                                            TestQualifiedAccess,
                                                                                            "test_qualified_access.jl";
                                                                                            allow_internal_accesses=false))
-    @test contains(str, "accesses 1 name from non-owner modules")
+    @test contains(str, "accesses 2 names from non-owner modules")
     @test contains(str, "`ABC` has owner")
 
     @test_logs (:warn, r"deprecated") @test only_name_source(stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,

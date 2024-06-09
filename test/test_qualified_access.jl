@@ -45,4 +45,8 @@ FooModule.DEF
 # This is allowed unless `require_submodule_access=true` or we are detecting any non-public access
 FooModule.X
 
+using LinearAlgebra: LinearAlgebra
+
+LinearAlgebra.map
+
 end # TestQualifiedAccess

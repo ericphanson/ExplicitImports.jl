@@ -169,6 +169,11 @@ end
     @test !f_row.public_import # not public in `TestModA.SubModB`
     @test f_row.whichmodule == TestModA
     @test f_row.importing_from == TestModA.SubModB
+
+    imps = DataFrame(improper_explicit_imports_nonrecursive(ModImports, "imports.jl";
+                                                            allow_internal_imports=true))
+    # in this case we rule out all the `Main` ones, so only LinearAlgebra is left:
+    @test all(==(LinearAlgebra), imps.importing_from)
 end
 
 #####
@@ -187,14 +192,15 @@ end
 @testset "qualified access" begin
     # analyze_qualified_names
     qualified = analyze_qualified_names(TestQualifiedAccess, "test_qualified_access.jl")
-    @test length(qualified) == 4
-    ABC, DEF, HIJ, X = qualified
+    @test length(qualified) == 5
+    ABC, DEF, HIJ, X, map = qualified
     @test ABC.name == :ABC
     @test DEF.public_access
     @test HIJ.public_access
     @test DEF.name == :DEF
     @test HIJ.name == :HIJ
     @test X.name == :X
+    @test map.name == :map
 
     # improper_qualified_accesses
     ret = Dict(improper_qualified_accesses(TestQualifiedAccess,
@@ -204,8 +210,8 @@ end
     @test isempty(ret[TestQualifiedAccess.FooModule])
     @test !isempty(ret[TestQualifiedAccess])
 
-    @test length(ret[TestQualifiedAccess]) == 2
-    ABC, X = ret[TestQualifiedAccess]
+    @test length(ret[TestQualifiedAccess]) == 3
+    ABC, X, map = ret[TestQualifiedAccess]
     # Can add keys, but removing them is breaking
     @test keys(ABC) ⊇
           [:name, :location, :value, :accessing_from, :whichmodule, :public_access,
@@ -222,6 +228,14 @@ end
     @test X.accessing_from == TestQualifiedAccess.FooModule
     @test X.public_access == false
     @test X.accessing_from_submodule_owns_name == true
+
+    @test map.name == :map
+
+    imps = DataFrame(improper_qualified_accesses_nonrecursive(TestQualifiedAccess,
+                                                              "test_qualified_access.jl";
+                                                              allow_internal_accesses=true))
+    # in this case we rule out all the `Main` ones, so only LinearAlgebra is left:
+    @test all(==(LinearAlgebra), imps.accessing_from)
 
     # check_all_qualified_accesses_via_owners
     ex = QualifiedAccessesFromNonOwnerException
@@ -241,13 +255,23 @@ end
     skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  skip, allow_internal_accesses=false) ===
+                                                  skip, ignore=(:map,),
+                                                  allow_internal_accesses=false) ===
           nothing
 
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  ignore=(:ABC,),
+                                                  ignore=(:ABC, :map),
                                                   allow_internal_accesses=false) === nothing
+
+    # allow_internal_accesses=true
+    @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                            "test_qualified_access.jl",
+                                                            ignore=(:ABC,))
+
+    @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
+                                                  "test_qualified_access.jl";
+                                                  ignore=(:ABC, :map)) === nothing
 
     @test_throws ex check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                             "test_qualified_access.jl";
@@ -256,7 +280,8 @@ end
                                                             allow_internal_accesses=false)
 
     skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,
-            TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub)
+            TestQualifiedAccess.FooModule => TestQualifiedAccess.FooModule.FooSub,
+            LinearAlgebra => Base)
     @test check_all_qualified_accesses_via_owners(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
                                                   skip,
@@ -267,7 +292,7 @@ end
     str = sprint(io -> print_explicit_imports(io, TestQualifiedAccess,
                                               "test_qualified_access.jl";
                                               allow_internal_accesses=false))
-    @test contains(str, "accesses 1 name from non-owner modules")
+    @test contains(str, "accesses 2 names from non-owner modules")
     @test contains(str, "`ABC` has owner")
 
     ex = NonPublicQualifiedAccessException
@@ -283,14 +308,14 @@ end
 
     @test check_all_qualified_accesses_are_public(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  ignore=(:X, :ABC),
+                                                  ignore=(:X, :ABC, :map),
                                                   allow_internal_accesses=false) === nothing
 
     skip = (TestQualifiedAccess.FooModule => TestQualifiedAccess.Bar,)
 
     @test check_all_qualified_accesses_are_public(TestQualifiedAccess,
                                                   "test_qualified_access.jl";
-                                                  skip, ignore=(:X,),
+                                                  skip, ignore=(:X, :map),
                                                   allow_internal_accesses=false) === nothing
 end
 
