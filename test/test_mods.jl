@@ -209,3 +209,13 @@ function foo(f)
 end
 
 end # TestMod12
+
+
+# https://github.com/ericphanson/ExplicitImports.jl/issues/62
+module TestMod13
+
+using LinearAlgebra: norm
+
+f(norm=norm) = 1
+
+end # TestMod13
