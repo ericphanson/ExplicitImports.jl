@@ -1,3 +1,5 @@
+const T_Tuple{T} = NTuple{N,T} where {N}
+
 struct ImplicitImportsException <: Exception
     mod::Module
     names::Vector{@NamedTuple{name::Symbol,source::Module,exporters::Vector{Module},
@@ -223,7 +225,7 @@ function should_ignore!(::Nothing, mod; ignore)
 end
 
 """
-    check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), require_submodule_access=false)
+    check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(),skip::$(T_Tuple{Pair})=(Base => Core,), require_submodule_access=false)
 
 Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
 throwing an `QualifiedAccessesFromNonOwnerException` if so, and returning `nothing` otherwise.
@@ -235,6 +237,16 @@ This can be used in a package's tests, e.g.
 ```
 
 ## Allowing some qualified accesses via non-owner modules
+
+The `skip` keyword argument can be passed to allow non-owning accesses via some modules (and their submodules). One pases a tuple of `accessing_from => parent` pairs, allowing cases in which a name is being imported from the module `accessing_from`, but is owned by the module `parent`. By default, `skip` is set to `(Base => Core,)`, meaning that names which are accessed from Base but are owned by Core are not flagged.
+
+For example:
+
+```julia
+@test check_all_qualified_accesses_via_owners(MyPackage; skip=(Base => Core, DataFrames => PrettyTables)) === nothing
+```
+
+would allow explicitly accessing names which are owned by PrettyTables from DataFrames.
 
 If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
 that are allowed to be accessed from non-owner modules. For example,
@@ -251,10 +263,10 @@ See also: [`improper_qualified_accesses`](@ref). Note that while that function m
 """
 function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
                                                  ignore::Tuple=(),
+                                                 skip::T_Tuple{Pair}=(Base => Core,),
                                                  require_submodule_access=false)
     check_file(file)
-    for (submodule, problematic) in
-        improper_qualified_accesses(mod, file; skip=ignore)
+    for (submodule, problematic) in improper_qualified_accesses(mod, file; skip)
         filter!(problematic) do nt
             return nt.name ∉ ignore
         end
@@ -276,7 +288,7 @@ function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
 end
 
 """
-    check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), require_submodule_import=false)
+    check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(), skip::$(T_Tuple{Pair})=() require_submodule_import=false)
 
 Checks that neither `mod` nor any of its submodules has imports to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
 throwing an `ExplicitImportsFromNonOwnerException` if so, and returning `nothing` otherwise.
@@ -288,6 +300,16 @@ This can be used in a package's tests, e.g.
 ```
 
 ## Allowing some explicit imports via non-owner modules
+
+The `skip` keyword argument can be passed to allow non-owning imports from some modules (and their submodules). One pases a tuple of `importing_from => parent` pairs, allowing cases in which a name is being imported from the module `importing_from`, but is owned by the module `parent`. By default, `skip` is set to `(Base => Core,)`, meaning that names which are imported from Base but are owned by Core are not flagged.
+
+For example:
+
+```julia
+@test check_all_explicit_imports_are_public(MyPackage; skip=(Base => Core, DataFrames => PrettyTables)) === nothing
+```
+
+would allow explicitly importing names which are owned by PrettyTables from DataFrames.
 
 If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
 that are allowed to be accessed from non-owner modules. For example,
@@ -310,6 +332,7 @@ See also: [`improper_explicit_imports`](@ref) for programmatic access to such im
 """
 function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
                                                ignore::Tuple=(),
+                                               skip::T_Tuple{Pair}=(Base => Core,),
                                                require_submodule_import=false)
     check_file(file)
     # `strict=false` because unanalyzability doesn't compromise our analysis
@@ -320,7 +343,7 @@ function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
     # throw by default there and not require this function to also throw
     # in the exact same cases.
     for (submodule, problematic) in
-        improper_explicit_imports(mod, file; strict=false)
+        improper_explicit_imports(mod, file; strict=false, skip)
         filter!(problematic) do nt
             return nt.name ∉ ignore
         end
@@ -349,7 +372,7 @@ end
 
 """
     check_all_explicit_imports_are_public(mod::Module, file=pathof(mod);
-                                          ignore::Tuple=())
+                                          skip::$(T_Tuple{Pair})=(Base => Core,), ignore::Tuple=())
 
 Checks that neither `mod` nor any of its submodules has imports to names which are non-public (i.e. not exported, nor declared public on Julia 1.11+)
 throwing an `NonPublicExplicitImportsException` if so, and returning `nothing` otherwise.
@@ -361,6 +384,16 @@ This can be used in a package's tests, e.g.
 ```
 
 ## Allowing some non-public explicit imports
+
+The `skip` keyword argument can be passed to allow non-public imports from some modules (and their submodules). One pases a tuple of `importing_from => pub` pairs, allowing cases in which a name is being imported from the module `importing_from`, but is public in the module `pub`. By default, `skip` is set to `(Base => Core,)`, meaning that names which are imported from Base but are public in Core are not flagged.
+
+For example:
+
+```julia
+@test check_all_explicit_imports_are_public(MyPackage; skip=(Base => Core, DataFrames => PrettyTables)) === nothing
+```
+
+would allow explicitly importing names which are public in PrettyTables from DataFrames.
 
 If `ignore` is supplied, it should be a tuple of `Symbol`s, representing names
 that are allowed to be imported from modules in which they are not public. For example,
@@ -378,12 +411,22 @@ Note that if a module is not fully analyzable (e.g. it has dynamic `include` cal
 See also: [`improper_explicit_imports`](@ref) for programmatic access to such imports, and [`check_all_explicit_imports_via_owners`] for a weaker version of this check. Note that while `improper_explicit_imports` may increase in scope and report other kinds of improper accesses, `check_all_explicit_imports_are_public` will not.
 """
 function check_all_explicit_imports_are_public(mod::Module, file=pathof(mod);
+                                               skip::T_Tuple{Pair}=(Base => Core,),
                                                ignore::Tuple=())
     check_file(file)
     for (submodule, problematic) in
-        improper_explicit_imports(mod, file; strict=false)
+        # We pass `skip=()` since we will do our own filtering after
+        improper_explicit_imports(mod, file; strict=false, skip=())
         filter!(problematic) do nt
             return nt.name ∉ ignore
+        end
+
+        # We don't just pass `skip` to `improper_explicit_imports`
+        # since that works by "ownership" rather than publicness
+        for (from, pub) in skip
+            filter!(problematic) do row
+                return !(row.importing_from == from && public_or_exported(pub, row.name))
+            end
         end
 
         # Discard imports from names that are public in their module; that's OK
