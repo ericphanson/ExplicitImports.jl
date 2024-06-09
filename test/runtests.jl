@@ -260,7 +260,7 @@ end
           nothing
 
     str = sprint(print_explicit_imports, TestQualifiedAccess,
-    "test_qualified_access.jl")
+                 "test_qualified_access.jl")
     @test contains(str, "self-qualified")
 
     # check_all_qualified_accesses_via_owners
