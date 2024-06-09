@@ -51,7 +51,7 @@ end
 function Base.showerror(io::IO, e::SelfQualifiedAccessException)
     println(io, "SelfQualifiedAccessException")
     println(io,
-            "Module `$(e.mod)` had self-qualified accesses:")
+            "Module `$(e.mod)` has self-qualified accesses:")
     for row in e.accesses
         println(io,
                 "- `$(row.name)` was accessed as $(e.mod).$(row.name) inside $(e.mod) at $(row.location)")

@@ -210,7 +210,6 @@ end
 
 end # TestMod12
 
-
 # https://github.com/ericphanson/ExplicitImports.jl/issues/62
 module TestMod13
 

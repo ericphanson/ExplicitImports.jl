@@ -261,7 +261,7 @@ end
         return check_no_self_qualified_accesses(TestQualifiedAccess,
                                                 "test_qualified_access.jl")
     end
-    @test contains(str, "has 1 self-qualified access:\n- `x` was accessed as")
+    @test contains(str, "has self-qualified accesses:\n- `x` was accessed as")
 
     @test check_no_self_qualified_accesses(TestQualifiedAccess,
                                            "test_qualified_access.jl"; ignore=(:x,)) ===
