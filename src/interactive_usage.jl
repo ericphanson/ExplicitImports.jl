@@ -32,6 +32,7 @@ $SKIPS_KWARG
 * `warn_improper_qualified_accesses=true`: if set, this function will also print information about any "improper" qualified accesses to names from other modules.
 $STRICT_PRINTING_KWARG
 * `show_locations=false`: whether or not to print locations of where the names are being used.
+* `separate_lines=false`: whether or not to print each `using` statement on a separate line. Automatically occurs when `show_locations=true`.
 * `linewidth=80`: format into lines of up to this length. Set to 0 to indicate one name should be printed per line.
 * `report_non_public=VERSION >= v"1.11-"`: report if there are accesses or imports of non-public names (that is, names that are not exported nor marked public). By default, only activates on Julia v1.11+.
 * `allow_internal_accesses=true`: if false, reports non-owning or non-public qualified accesses to other modules in the same package
@@ -47,6 +48,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 report_non_public=VERSION >= v"1.11-",
                                 strict=true,
                                 show_locations=false,
+                                separate_lines=false,
                                 linewidth=80,
                                 allow_internal_accesses=true,
                                 allow_internal_imports=true,
@@ -85,7 +87,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                             "$(plural2) could be explicitly imported as follows:")
                     println(io)
                     println(io, "```julia")
-                    using_statements(io, imports; linewidth, show_locations)
+                    using_statements(io, imports; linewidth, show_locations, separate_lines)
                     println(io, "```")
                 end
             end
