@@ -56,7 +56,7 @@ end
 end # TestMod5
 
 @static if VERSION >= v"1.7-"
-    module TestMod6
+    @eval module TestMod6
 
     using LinearAlgebra
     using Compat: @compat
@@ -111,7 +111,7 @@ foo(::QR) = ()
 end # TestMod8
 
 @static if VERSION >= v"1.7-"
-    module TestMod9
+    @eval module TestMod9
 
     using LinearAlgebra
 
@@ -155,7 +155,7 @@ end
 end # TestMod10
 
 @static if VERSION > v"1.7-"
-    module TestMod11
+    @eval module TestMod11
 
     using LinearAlgebra
 
