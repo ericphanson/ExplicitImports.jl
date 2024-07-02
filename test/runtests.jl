@@ -109,6 +109,20 @@ end
     @test owner_mod_for_printing(Core, :println, Core.println) == Core
 end
 
+if VERSION >= v"1.7-"
+    @testset "Compat skipping" begin
+        @test check_all_explicit_imports_via_owners(TestMod14, "test_mods.jl") === nothing
+        @test check_all_qualified_accesses_via_owners(TestMod14, "test_mods.jl") === nothing
+
+        @test isempty(improper_explicit_imports_nonrecursive(TestMod14, "test_mods.jl"))
+        @test isempty(improper_explicit_imports(TestMod14, "test_mods.jl")[1][2])
+
+        @test isempty(improper_qualified_accesses_nonrecursive(TestMod14, "test_mods.jl"))
+
+        @test isempty(improper_qualified_accesses(TestMod14, "test_mods.jl")[1][2])
+    end
+end
+
 @testset "imports" begin
     cursor = TreeCursor(SyntaxNodeWrapper("imports.jl"))
     leaves = collect(Leaves(cursor))

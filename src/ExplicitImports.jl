@@ -3,7 +3,7 @@ module ExplicitImports
 using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
 using TOML: parsefile
-using Compat: @compat
+using Compat: Compat, @compat
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
@@ -132,7 +132,8 @@ function choose_exporter(name, exporters)
     return first(sorted)
 end
 
-function using_statements(io::IO, rows; linewidth=80, show_locations=false, separate_lines=false)
+function using_statements(io::IO, rows; linewidth=80, show_locations=false,
+                          separate_lines=false)
     chosen = (choose_exporter(row.name, row.exporters) for row in rows)
     prev_mod = nothing
     cur_line_width = 0

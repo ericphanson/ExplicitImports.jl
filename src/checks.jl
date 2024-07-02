@@ -263,7 +263,9 @@ end
 """
     check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(),
                                             require_submodule_access=false,
-                                            skip::$(TUPLE_MODULE_PAIRS)=(Base => Core,),
+                                            skip::$(TUPLE_MODULE_PAIRS)=(Base => Core,
+                                                                           Compat => Base,
+                                                                           Compat => Core),
                                             allow_internal_accesses=true)
 
 Checks that neither `mod` nor any of its submodules has accesses to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
@@ -303,7 +305,9 @@ See also: [`improper_qualified_accesses`](@ref) for programmatic access and the 
 """
 function check_all_qualified_accesses_via_owners(mod::Module, file=pathof(mod);
                                                  ignore::Tuple=(),
-                                                 skip::TUPLE_MODULE_PAIRS=(Base => Core,),
+                                                 skip::TUPLE_MODULE_PAIRS=(Base => Core,
+                                                                           Compat => Base,
+                                                                           Compat => Core),
                                                  require_submodule_access=false,
                                                  allow_internal_accesses=true)
     check_file(file)
@@ -471,7 +475,9 @@ end
 """
     check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod); ignore::Tuple=(),
                                           require_submodule_import=false,
-                                          skip::$(TUPLE_MODULE_PAIRS)=(Base => Core,)),
+                                          skip::$(TUPLE_MODULE_PAIRS)=(Base => Core,
+                                                                         Compat => Base,
+                                                                         Compat => Core)),
                                           allow_internal_imports=true)
 
 Checks that neither `mod` nor any of its submodules has imports to names via modules other than their owner as determined by `Base.which` (unless the name is public or exported in that module),
@@ -516,7 +522,9 @@ See also: [`improper_explicit_imports`](@ref) for programmatic access to such im
 """
 function check_all_explicit_imports_via_owners(mod::Module, file=pathof(mod);
                                                ignore::Tuple=(),
-                                               skip::TUPLE_MODULE_PAIRS=(Base => Core,),
+                                               skip::TUPLE_MODULE_PAIRS=(Base => Core,
+                                                                         Compat => Base,
+                                                                         Compat => Core),
                                                allow_internal_imports=true,
                                                require_submodule_import=false)
     check_file(file)
