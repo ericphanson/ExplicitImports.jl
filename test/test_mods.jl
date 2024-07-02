@@ -225,3 +225,12 @@ using LinearAlgebra: norm
 f(norm=norm) = 1
 
 end # TestMod13
+
+if VERSION >= v"1.7-"
+    @eval module TestMod14
+
+    using Compat: Compat, Returns
+    Compat.Returns
+
+    end # TestMod14
+end

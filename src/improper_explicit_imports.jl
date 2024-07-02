@@ -3,7 +3,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
                                            file_analysis=get_names_used(file))
     check_file(file)
     @compat (; per_usage_info, unnecessary_explicit_import, tainted) = filter_to_module(file_analysis,
-                                                                                mod)
+                                                                                        mod)
     stale_imports = Set((; nt.name, nt.module_path) for nt in unnecessary_explicit_import)
 
     _explicit_imports = filter(per_usage_info) do row
@@ -148,7 +148,9 @@ function process_explicitly_imported_row(row, mod)
 end
 
 """
-    improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,),
+    improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,
+                                                                         Compat => Base,
+                                                                         Compat => Core),
                                            allow_internal_imports=true)
 
 A non-recursive version of [`improper_explicit_imports`](@ref), meaning it only analyzes the module `mod` itself, not any of its submodules; see that function for details, including important caveats about stability (outputs may grow in future non-breaking releases of ExplicitImports!).
@@ -156,7 +158,9 @@ A non-recursive version of [`improper_explicit_imports`](@ref), meaning it only 
 If `strict=true`, then returns `nothing` if `mod` could not be fully analyzed.
 """
 function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
-                                                skip=(Base => Core,),
+                                                skip=(Base => Core,
+                                                      Compat => Base,
+                                                      Compat => Core),
                                                 strict=true,
                                                 allow_internal_imports=true,
                                                 # private undocumented kwarg for hoisting this analysis
@@ -191,7 +195,9 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
 end
 
 """
-    improper_explicit_imports(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,),
+    improper_explicit_imports(mod::Module, file=pathof(mod); strict=true, skip=(Base => Core,
+                                                                         Compat => Base,
+                                                                         Compat => Core),
                               allow_internal_imports=true)
 
 Attempts do detect various kinds of "improper" explicit imports taking place in `mod` and any submodules of `mod`.
@@ -234,7 +240,9 @@ However, the result will be a Tables.jl-compatible row-oriented table (for each 
 See also [`print_explicit_imports`](@ref) to easily compute and print these results, [`improper_explicit_imports_nonrecursive`](@ref) for a non-recursive version which ignores submodules, as well as [`check_no_stale_explicit_imports`](@ref), [`check_all_explicit_imports_via_owners`](@ref), and [`check_all_explicit_imports_are_public`](@ref) for specific regression-testing helpers.
 """
 function improper_explicit_imports(mod::Module, file=pathof(mod); strict=true,
-                                   skip=(Base => Core,),
+                                   skip=(Base => Core,
+                                         Compat => Base,
+                                         Compat => Core),
                                    allow_internal_imports=true)
     check_file(file)
     submodules = find_submodules(mod, file)

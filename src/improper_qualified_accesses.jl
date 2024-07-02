@@ -86,7 +86,9 @@ function trygetproperty(x::Module, y)
 end
 
 """
-    improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod); skip=(Base => Core,),
+    improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod); skip=(Base => Core,
+                                                                         Compat => Base,
+                                                                         Compat => Core),
                                              allow_internal_accesses=true)
 
 
@@ -115,7 +117,9 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 ```
 """
 function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
-                                                  skip=(Base => Core,),
+                                                  skip=(Base => Core,
+                                                        Compat => Base,
+                                                        Compat => Core),
                                                   allow_internal_accesses=true,
                                                   # deprecated, does nothing
                                                   require_submodule_access=nothing,
@@ -147,7 +151,9 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
 end
 
 """
-    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,),
+    improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,
+                                                                         Compat => Base,
+                                                                         Compat => Core),
                                 allow_internal_accesses=true)
 
 Attempts do detect various kinds of "improper" qualified accesses taking place in `mod` and any submodules of `mod`.
@@ -208,7 +214,10 @@ julia> (; row.name, row.accessing_from, row.whichmodule)
 (name = :sum, accessing_from = LinearAlgebra, whichmodule = Base)
 ```
 """
-function improper_qualified_accesses(mod::Module, file=pathof(mod); skip=(Base => Core,),
+function improper_qualified_accesses(mod::Module, file=pathof(mod);
+                                     skip=(Base => Core,
+                                           Compat => Base,
+                                           Compat => Core),
                                      allow_internal_accesses=true,
                                      # deprecated
                                      require_submodule_access=nothing)
