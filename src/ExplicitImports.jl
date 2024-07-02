@@ -131,7 +131,7 @@ function choose_exporter(name, exporters)
     return first(sorted)
 end
 
-function using_statements(io::IO, rows; linewidth=80, show_locations=false)
+function using_statements(io::IO, rows; linewidth=80, show_locations=false, separate_lines=false)
     chosen = (choose_exporter(row.name, row.exporters) for row in rows)
     prev_mod = nothing
     cur_line_width = 0
@@ -139,7 +139,7 @@ function using_statements(io::IO, rows; linewidth=80, show_locations=false)
     first = true
     for (mod, row) in zip(chosen, rows)
         (; name, location) = row
-        if show_locations || mod !== prev_mod
+        if show_locations || mod !== prev_mod || separate_lines
             cur_line_width = 0
             loc = show_locations ? " # used at $(location)" : ""
             # skip `Main.X`, just do `.X`

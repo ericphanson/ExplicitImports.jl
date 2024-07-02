@@ -781,6 +781,12 @@ end
     @test contains(str, "using .Exporter3: Exporter3 # used at TestModA.jl:")
     @test contains(str, "is unused but it was imported from Main.Exporter at TestModC.jl")
 
+    # test `separate_lines=true``
+    str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
+                                                         separate_lines=true,
+                                                         allow_internal_imports=false))
+    @test contains(str, "using .Exporter3: Exporter3\nusing .Exporter3: exported_b")
+
     # `warn_improper_explicit_imports=false` does something (also still no logs)
     str_no_warn = @test_logs sprint(io -> print_explicit_imports(io, TestModA,
                                                                  "TestModA.jl";
