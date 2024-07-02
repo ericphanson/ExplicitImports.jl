@@ -19,7 +19,8 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.7' # earliest supported version
+          - '1.6' # earliest supported version
+          - '1.7' # earliest version all tests run on
           - '1' # current release
           - 'beta'
           - 'nightly'

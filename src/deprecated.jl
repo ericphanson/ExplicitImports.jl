@@ -17,7 +17,7 @@ function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     check_file(file)
     @warn "[stale_explicit_imports_nonrecursive] deprecated in favor of `improper_explicit_imports_nonrecursive`" _id = :explicit_imports_stale_explicit_imports maxlog = 1
 
-    (; unnecessary_explicit_import, tainted) = filter_to_module(file_analysis, mod)
+    @compat (; unnecessary_explicit_import, tainted) = filter_to_module(file_analysis, mod)
     tainted && strict && return nothing
     ret = [(; nt.name, nt.location) for nt in unnecessary_explicit_import]
     return unique!(nt -> nt.name, sort!(ret))
@@ -46,7 +46,9 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
         else
             println(io,
                     "Module $mod has stale explicit imports for these unused names:")
-            for (; name, location) in stale_imports
+            for row in stale_imports
+                name = row.name
+                location = row.location
                 if show_locations
                     proof = " (imported at $(location))"
                 else

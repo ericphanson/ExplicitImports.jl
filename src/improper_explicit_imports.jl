@@ -2,7 +2,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
                                            # private undocumented kwarg for hoisting this analysis
                                            file_analysis=get_names_used(file))
     check_file(file)
-    (; per_usage_info, unnecessary_explicit_import, tainted) = filter_to_module(file_analysis,
+    @compat (; per_usage_info, unnecessary_explicit_import, tainted) = filter_to_module(file_analysis,
                                                                                 mod)
     stale_imports = Set((; nt.name, nt.module_path) for nt in unnecessary_explicit_import)
 

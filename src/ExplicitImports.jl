@@ -3,6 +3,7 @@ module ExplicitImports
 using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
 using TOML: parsefile
+using Compat: @compat
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
@@ -138,7 +139,7 @@ function using_statements(io::IO, rows; linewidth=80, show_locations=false, sepa
     indent = 0
     first = true
     for (mod, row) in zip(chosen, rows)
-        (; name, location) = row
+        @compat (; name, location) = row
         if show_locations || mod !== prev_mod || separate_lines
             cur_line_width = 0
             loc = show_locations ? " # used at $(location)" : ""
