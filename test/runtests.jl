@@ -38,7 +38,9 @@ end
 
 # old definition for simple 1-line using statement
 # (now we do linelength aware printing)
-function using_statement((; name, exporters))
+function using_statement(row)
+    name = row.name
+    exporters = row.exporters
     # skip `Main.X`, just do `.X`
     e = choose_exporter(name, exporters)
     v = replace(string(e), "Main" => "")
@@ -456,14 +458,16 @@ end
           ["using LinearAlgebra: LinearAlgebra"]
 end
 
-@testset "loops" begin
-    cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
-    leaves = collect(Leaves(cursor))
-    @test map(get_val, filter(is_for_arg, leaves)) == [:i, :I, :j, :k, :k, :j, :xi, :yi]
+if VERSION >= v"1.7-"
+    @testset "loops" begin
+        cursor = TreeCursor(SyntaxNodeWrapper("test_mods.jl"))
+        leaves = collect(Leaves(cursor))
+        @test map(get_val, filter(is_for_arg, leaves)) == [:i, :I, :j, :k, :k, :j, :xi, :yi]
 
-    # Tests #35
-    @test using_statement.(explicit_imports_nonrecursive(TestMod6, "test_mods.jl")) ==
-          ["using LinearAlgebra: LinearAlgebra"]
+        # Tests #35
+        @test using_statement.(explicit_imports_nonrecursive(TestMod6, "test_mods.jl")) ==
+              ["using LinearAlgebra: LinearAlgebra"]
+    end
 end
 
 @testset "nested local scope" begin
@@ -489,13 +493,15 @@ end
     @test map(get_val, filter(is_generator_arg, leaves)) ==
           [v; v; w; w; w; w; w]
 
-    @test using_statement.(explicit_imports_nonrecursive(TestMod9, "test_mods.jl")) ==
-          ["using LinearAlgebra: LinearAlgebra"]
+    if VERSION >= v"1.7-"
+        @test using_statement.(explicit_imports_nonrecursive(TestMod9, "test_mods.jl")) ==
+              ["using LinearAlgebra: LinearAlgebra"]
 
-    per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(per_usage_info)
-    subset!(df, :module_path => ByRow(==([:TestMod9])), :name => ByRow(==(:i1)))
-    @test all(==(ExplicitImports.InternalGenerator), df.analysis_code)
+        per_usage_info, _ = analyze_all_names("test_mods.jl")
+        df = DataFrame(per_usage_info)
+        subset!(df, :module_path => ByRow(==([:TestMod9])), :name => ByRow(==(:i1)))
+        @test all(==(ExplicitImports.InternalGenerator), df.analysis_code)
+    end
 end
 
 @testset "while loops" begin
@@ -509,25 +515,28 @@ end
     @test df.analysis_code == [ExplicitImports.InternalAssignment, ExplicitImports.External]
 end
 
-@testset "do- syntax" begin
-    @test using_statement.(explicit_imports_nonrecursive(TestMod11, "test_mods.jl")) ==
-          ["using LinearAlgebra: LinearAlgebra",
-           "using LinearAlgebra: Hermitian",
-           "using LinearAlgebra: svd"]
+if VERSION >= v"1.7-"
+    @testset "do- syntax" begin
+        @test using_statement.(explicit_imports_nonrecursive(TestMod11, "test_mods.jl")) ==
+              ["using LinearAlgebra: LinearAlgebra",
+               "using LinearAlgebra: Hermitian",
+               "using LinearAlgebra: svd"]
 
-    per_usage_info, _ = analyze_all_names("test_mods.jl")
-    df = DataFrame(per_usage_info)
-    subset!(df, :module_path => ByRow(==([:TestMod11])))
+        per_usage_info, _ = analyze_all_names("test_mods.jl")
+        df = DataFrame(per_usage_info)
+        subset!(df, :module_path => ByRow(==([:TestMod11])))
 
-    I_codes = subset(df, :name => ByRow(==(:I))).analysis_code
-    @test I_codes == [ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
-                      ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
-                      ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
-                      ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst]
-    svd_codes = subset(df, :name => ByRow(==(:svd))).analysis_code
-    @test svd_codes == [ExplicitImports.InternalFunctionArg, ExplicitImports.External]
-    Hermitian_codes = subset(df, :name => ByRow(==(:Hermitian))).analysis_code
-    @test Hermitian_codes == [ExplicitImports.External, ExplicitImports.IgnoredNonFirst]
+        I_codes = subset(df, :name => ByRow(==(:I))).analysis_code
+        @test I_codes ==
+              [ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
+               ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
+               ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst,
+               ExplicitImports.InternalFunctionArg, ExplicitImports.IgnoredNonFirst]
+        svd_codes = subset(df, :name => ByRow(==(:svd))).analysis_code
+        @test svd_codes == [ExplicitImports.InternalFunctionArg, ExplicitImports.External]
+        Hermitian_codes = subset(df, :name => ByRow(==(:Hermitian))).analysis_code
+        @test Hermitian_codes == [ExplicitImports.External, ExplicitImports.IgnoredNonFirst]
+    end
 end
 
 @testset "try-catch" begin

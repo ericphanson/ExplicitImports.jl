@@ -529,7 +529,7 @@ function analyze_per_usage_info(per_usage_info)
     #   2. Otherwise, if first usage is assignment, then it is local, otherwise it is global
     seen = Dict{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}},Bool}()
     return map(per_usage_info) do nt
-        if (; nt.name, nt.scope_path) in keys(seen)
+        @compat if (; nt.name, nt.scope_path) in keys(seen)
             return PerUsageInfo(; nt..., first_usage_in_scope=false,
                                 external_global_name=missing,
                                 analysis_code=IgnoredNonFirst)

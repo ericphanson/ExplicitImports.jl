@@ -9,7 +9,9 @@ end
 function Base.showerror(io::IO, e::ImplicitImportsException)
     println(io, "ImplicitImportsException")
     println(io, "Module `$(e.mod)` is relying on the following implicit imports:")
-    for (; name, source) in e.names
+    for row in e.names
+        name = row.name
+        source = row.source
         println(io, "* `$name` which is exported by $(source)")
     end
 end
@@ -114,7 +116,8 @@ end
 function Base.showerror(io::IO, e::StaleImportsException)
     println(io, "StaleImportsException")
     println(io, "Module `$(e.mod)` has stale (unused) explicit imports for:")
-    for (; name) in e.names
+    for row in e.names
+        name = row.name
         println(io, "* `$name`")
     end
 end

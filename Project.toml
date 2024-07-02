@@ -5,22 +5,24 @@ version = "1.7.0"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
 AbstractTrees = "0.4.5"
 Aqua = "0.8.4"
+Compat = "4.15"
 DataFrames = "1.6"
 JuliaSyntax = "0.4.8"
 LinearAlgebra = "<0.0.1, 1"
 Logging = "<0.0.1, 1"
 Markdown = "<0.0.1, 1"
 Pkg = "<0.0.1, 1"
-UUIDs = "<0.0.1, 1"
 TOML = "<0.0.1, 1"
 Test = "<0.0.1, 1"
-julia = "1.7"
+UUIDs = "<0.0.1, 1"
+julia = "1.6"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
@@ -29,8 +31,8 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [targets]
 test = ["Aqua", "DataFrames", "LinearAlgebra", "Logging", "Markdown", "Pkg", "UUIDs", "Test"]

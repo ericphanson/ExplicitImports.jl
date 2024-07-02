@@ -5,7 +5,7 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
                                  # private undocumented kwarg for hoisting this analysis
                                  file_analysis=get_names_used(file))
     check_file(file)
-    (; per_usage_info, tainted) = filter_to_module(file_analysis, mod)
+    @compat (; per_usage_info, tainted) = filter_to_module(file_analysis, mod)
     # Do we want to do anything with `tainted`? This means there is unanalyzable code here
     # Probably that means we could miss qualified names to report, but not that
     # something there would invalidate the qualified names with issues we did find.
