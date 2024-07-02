@@ -109,7 +109,15 @@ end
     @test owner_mod_for_printing(Core, :println, Core.println) == Core
 end
 
+# https://github.com/ericphanson/ExplicitImports.jl/issues/69
+@testset "Reexport support" begin
+    @test check_no_stale_explicit_imports(TestMod15, "test_mods.jl") === nothing
+    @test isempty(improper_explicit_imports_nonrecursive(TestMod15, "test_mods.jl"))
+    @test isempty(improper_explicit_imports(TestMod15, "test_mods.jl")[1][2])
+end
+
 if VERSION >= v"1.7-"
+    # https://github.com/ericphanson/ExplicitImports.jl/issues/70
     @testset "Compat skipping" begin
         @test check_all_explicit_imports_via_owners(TestMod14, "test_mods.jl") === nothing
         @test check_all_qualified_accesses_via_owners(TestMod14, "test_mods.jl") === nothing

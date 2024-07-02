@@ -234,3 +234,11 @@ if VERSION >= v"1.7-"
 
     end # TestMod14
 end
+
+# https://github.com/ericphanson/ExplicitImports.jl/issues/69
+module TestMod15
+using Reexport
+
+@reexport using ..Exporter: exported_a
+
+end # TestMod15
