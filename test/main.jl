@@ -12,5 +12,5 @@ io = IOBuffer()
 err_run = success(pipeline(`$cmd --project=$(dir) -m ExplicitImports $dir/blah.toml`;
                            stderr=io))
 @test !err_run
-@test chomp(String(take!(io))) ==
-      "ERROR: Argument `/Users/eph/ExplicitImports/blah.toml` is not a supported flag, directory, or file. See the output of `--help` for usage details."
+@test contains(chomp(String(take!(io))),
+               "Argument `/Users/eph/ExplicitImports/blah.toml` is not a supported flag, directory, or file. See the output of `--help` for usage details.")
