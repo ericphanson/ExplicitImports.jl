@@ -4,6 +4,7 @@ using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
 using TOML: parsefile
 using Compat: Compat, @compat
+using Markdown: Markdown
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive

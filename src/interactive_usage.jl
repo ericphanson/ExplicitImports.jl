@@ -40,7 +40,7 @@ $STRICT_PRINTING_KWARG
 
 See also [`check_no_implicit_imports`](@ref), [`check_no_stale_explicit_imports`](@ref), [`check_all_qualified_accesses_via_owners`](@ref), and [`check_all_explicit_imports_via_owners`](@ref).
 """
-function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
+function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                                 skip=(mod, Base, Core),
                                 warn_implicit_imports=true,
                                 warn_improper_explicit_imports=nothing, # set to `true` once `warn_stale` is removed
@@ -57,6 +57,7 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
                                 # internal kwargs
                                 recursive=true,
                                 name_fn=mod -> "module $mod")
+    io = IOBuffer()
     if warn_improper_explicit_imports !== nothing && warn_stale !== nothing
         throw(ArgumentError("[print_explicit_imports] Cannot set both `warn_improper_explicit_imports` and `warn_stale`; instead set only `warn_improper_explicit_imports`."))
     elseif warn_stale === nothing && warn_improper_explicit_imports === nothing
@@ -226,6 +227,10 @@ function print_explicit_imports(io::IO, mod::Module, file=pathof(mod);
             end
         end
     end
+    seekstart(io)
+    md = Markdown.parse(io)
+    show(final_io, MIME"text/plain"(), md)
+    return nothing
 end
 
 function print_explicit_imports_script(path; kw...)
