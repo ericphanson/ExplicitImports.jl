@@ -72,6 +72,10 @@ include("imports.jl")
 include("test_qualified_access.jl")
 include("test_explicit_imports.jl")
 
+if isdefined(Base, Symbol("@main"))
+    include("main.jl")
+end
+
 # For deprecations, we are using `maxlog`, which
 # the TestLogger only respects in Julia 1.8+.
 # (https://github.com/JuliaLang/julia/commit/02f7332027bd542b0701956a0f838bc75fa2eebd)

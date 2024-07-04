@@ -48,6 +48,10 @@ include("interactive_usage.jl")
 include("checks.jl")
 include("deprecated.jl")
 
+if isdefined(Base, Symbol("@main"))
+    include("main.jl")
+end
+
 struct FileNotFoundException <: Exception end
 
 function Base.showerror(io::IO, ::FileNotFoundException)
