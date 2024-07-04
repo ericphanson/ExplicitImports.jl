@@ -72,7 +72,8 @@ include("imports.jl")
 include("test_qualified_access.jl")
 include("test_explicit_imports.jl")
 
-if isdefined(Base, Symbol("@main"))
+# We need both `@main` and `julia -m` to be supported:
+if isdefined(Base, Symbol("@main")) && VERSION >= v"1.12.0-DEV.102"
     include("main.jl")
 end
 

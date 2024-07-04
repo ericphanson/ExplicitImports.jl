@@ -22,8 +22,9 @@ function auto_print_explicit_imports(path)
     Base.set_active_project(project_path)
     @eval Main begin
         using $package: $package
+        using ExplicitImports: print_explicit_imports
     end
-    @eval begin
+    @eval Main begin
         print_explicit_imports($package)
     end
     return 0
@@ -51,18 +52,18 @@ function print_help()
     return
 end
 
-function (@main)(ARGS)
+function (@main)(args)
     # Argument defaults
     path::String = pwd()
     # Argument parsing
-    while length(ARGS) > 0
-        x = popfirst!(ARGS)
+    while length(args) > 0
+        x = popfirst!(args)
         if x == "--help"
             # Print help and return (even if other arguments are present)
             print_help()
             return 0
-        elseif length(ARGS) == 0 && isdir(abspath(x)) || isfile(abspath(x))
-            # If ARGS is empty and the argument is a directory this is the root directory
+        elseif length(args) == 0 && isdir(abspath(x)) || isfile(abspath(x))
+            # If args is empty and the argument is a directory this is the root directory
             path = abspath(x)
         else
             # Unknown argument
