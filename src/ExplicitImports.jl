@@ -4,6 +4,8 @@ using JuliaSyntax, AbstractTrees
 using AbstractTrees: parent
 using TOML: parsefile
 using Compat: Compat, @compat
+using Markdown: Markdown
+using PrecompileTools: @setup_workload, @compile_workload
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
@@ -48,6 +50,10 @@ include("interactive_usage.jl")
 include("checks.jl")
 include("deprecated.jl")
 
+if isdefined(Base, Symbol("@main"))
+    include("main.jl")
+end
+
 struct FileNotFoundException <: Exception end
 
 function Base.showerror(io::IO, ::FileNotFoundException)
@@ -85,7 +91,6 @@ $SKIPS_KWARG
 $STRICT_KWARG
 
 !!! note
-
     If `mod` is a package, we can detect the explicit_imports in the package extensions if those extensions are explicitly loaded before calling this function.
 
     For example, consider `PackageA` has a weak-dependency on `PackageB` and `PackageC` in the module `PkgBPkgCExt`
@@ -384,6 +389,12 @@ function inspect_session(io::IO; skip=(Base, Core), inner=print_explicit_imports
         isfile(pathof(mod)) || continue
         inner(io, mod)
         println(io)
+    end
+end
+
+@setup_workload begin
+    @compile_workload begin
+        sprint(print_explicit_imports, ExplicitImports, @__FILE__)
     end
 end
 

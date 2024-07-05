@@ -58,16 +58,19 @@ julia> using ExplicitImports
 
 julia> print_explicit_imports(ExplicitImports)
 WARNING: both JuliaSyntax and Base export "parse"; uses of it in module ExplicitImports must be qualified
-Module ExplicitImports is relying on implicit imports for 7 names. These could be explicitly imported as follows:
+  Module ExplicitImports is relying on implicit imports for 7 names. These could be explicitly imported as follows:
 
-```julia
-using AbstractTrees: AbstractTrees, Leaves, TreeCursor, children, nodevalue
-using JuliaSyntax: JuliaSyntax, @K_str
-```
+  using AbstractTrees: AbstractTrees, Leaves, TreeCursor, children, nodevalue
+  using JuliaSyntax: JuliaSyntax, @K_str
 
-Additionally, module ExplicitImports accesses names from non-owner modules:
-- `parent` has owner AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
+  Additionally, module ExplicitImports has 1 self-qualified access:
 
+    •  parent was accessed as ExplicitImports.parent inside ExplicitImports at /Users/eph/ExplicitImports/src/deprecated.jl:79:21
+
+  Additionally, module ExplicitImports accesses 1 name from non-owner modules:
+
+    •  parent has owner AbstractTrees but it was accessed from ExplicitImports at
+       /Users/eph/ExplicitImports/src/deprecated.jl:79:21
 ````
 
 Note: the `WARNING` is more or less harmless; the way this package is written, it will happen any time there is a clash, even if that clash is not realized in your code. I cannot figure out how to suppress it.
@@ -75,21 +78,24 @@ Note: the `WARNING` is more or less harmless; the way this package is written, i
 You can also pass `show_locations=true` for more details:
 
 ````julia
-julia> print_explicit_imports(ExplicitImports; show_locations=true)
-Module ExplicitImports is relying on implicit imports for 6 names. These could be explicitly imported as follows:
+  Module ExplicitImports is relying on implicit imports for 7 names. These could be explicitly imported as follows:
 
-```julia
-using AbstractTrees: AbstractTrees # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:51:10
-using AbstractTrees: Leaves # used at /Users/eph/ExplicitImports/src/get_names_used.jl:453:17
-using AbstractTrees: TreeCursor # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:129:18
-using AbstractTrees: children # used at /Users/eph/ExplicitImports/src/get_names_used.jl:380:26
-using AbstractTrees: nodevalue # used at /Users/eph/ExplicitImports/src/get_names_used.jl:359:16
-using JuliaSyntax: JuliaSyntax # used at /Users/eph/ExplicitImports/src/get_names_used.jl:439:53
-using JuliaSyntax: @K_str # used at /Users/eph/ExplicitImports/src/get_names_used.jl:299:33
-```
+  using AbstractTrees: AbstractTrees # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:51:10
+  using AbstractTrees: Leaves # used at /Users/eph/ExplicitImports/src/get_names_used.jl:453:17
+  using AbstractTrees: TreeCursor # used at /Users/eph/ExplicitImports/src/parse_utilities.jl:129:18
+  using AbstractTrees: children # used at /Users/eph/ExplicitImports/src/get_names_used.jl:380:26
+  using AbstractTrees: nodevalue # used at /Users/eph/ExplicitImports/src/get_names_used.jl:359:16
+  using JuliaSyntax: JuliaSyntax # used at /Users/eph/ExplicitImports/src/get_names_used.jl:439:53
+  using JuliaSyntax: @K_str # used at /Users/eph/ExplicitImports/src/get_names_used.jl:299:33
 
-Additionally, module ExplicitImports accesses names from non-owner modules:
-- `parent` has owner AbstractTrees but it was accessed from ExplicitImports at /Users/eph/ExplicitImports/src/qualified_names.jl:217:21
+  Additionally, module ExplicitImports has 1 self-qualified access:
+
+    •  parent was accessed as ExplicitImports.parent inside ExplicitImports at /Users/eph/ExplicitImports/src/deprecated.jl:79:21
+
+  Additionally, module ExplicitImports accesses 1 name from non-owner modules:
+
+    •  parent has owner AbstractTrees but it was accessed from ExplicitImports at
+       /Users/eph/ExplicitImports/src/deprecated.jl:79:21
 ````
 
 Note the paths of course will differ depending on the location of the code on your system.
@@ -139,9 +145,11 @@ However, we do at least detect this situation, so we can know which modules are 
 
 ```sh
 julia> print_explicit_imports(MathOptInterface.Test, pkgdir(MathOptInterface))
-Module MathOptInterface.Test could not be accurately analyzed, likely due to dynamic `include` statements. You can pass `strict=false` to attempt to get (possibly inaccurate) results anyway.
+  Module MathOptInterface.Test could not be accurately analyzed, likely due to dynamic include statements. You can pass strict=false to
+  attempt to get (possibly inaccurate) results anyway.
 
-Module MathOptInterface.Test._BaseTest could not be accurately analyzed, likely due to dynamic `include` statements. You can pass `strict=false` to attempt to get (possibly inaccurate) results anyway.
+  Module MathOptInterface.Test._BaseTest could not be accurately analyzed, likely due to dynamic include statements. You can pass
+  strict=false to attempt to get (possibly inaccurate) results anyway.
 ```
 
 Note here we need to pass `pkgdir(MathOptInterface)` as the second argument, as `pathof(MathOptInterface.Test) === nothing` and we would get a `FileNotFoundException`.
@@ -150,9 +158,9 @@ If we do pass `strict=false`, in this case we get
 
 ```sh
 julia> print_explicit_imports(MathOptInterface.Test, pkgdir(MathOptInterface); strict=false)
-Module MathOptInterface.Test is not relying on any implicit imports.
+  Module MathOptInterface.Test is not relying on any implicit imports.
 
-Module MathOptInterface.Test._BaseTest is not relying on any implicit imports.
+  Module MathOptInterface.Test._BaseTest is not relying on any implicit imports.
 ```
 
 However, we can't really be sure there isn't a reliance on implicit imports present in the files that we weren't able to scan (or perhaps some stale explicit imports made in those files, or perhaps usages of names explicitly imported in the files we could scan, which would prove those explicit imports are in fact not stale).
