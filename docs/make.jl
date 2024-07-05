@@ -20,4 +20,5 @@ makedocs(;
 
 deploydocs(;
            repo="github.com/ericphanson/ExplicitImports.jl",
-           devbranch="main",)
+           devbranch="main",
+           push_preview=true)

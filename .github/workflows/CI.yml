@@ -44,6 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read  # Required when using `push_preview=true`
       statuses: write
     steps:
       - uses: actions/checkout@v4
