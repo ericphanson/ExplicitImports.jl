@@ -75,7 +75,7 @@ On Julia v1.12+, one can use the syntax `julia -m ExplicitImports` to run Explic
 
 For example, using [`juliaup`](https://github.com/JuliaLang/juliaup)'s `nightly` feature, one can run ExplicitImports on v1.12 as follows.
 
-```sh
+```man
 ❯ julia +nightly -m ExplicitImports --help
 NAME
        ExplicitImports.main - analyze a package's namespace
