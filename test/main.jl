@@ -15,4 +15,4 @@ err_run = success(pipeline(`$cmd --project=$(dir) -m ExplicitImports $dir/blah.t
 @test !err_run
 str = replace(String(take!(io)), r"\s+" => " ")
 @test contains(str,
-               "Argument `/Users/eph/ExplicitImports/blah.toml` is not a supported flag, directory, or file. See the output of `--help` for usage details.")
+               "is not a supported flag, directory, or file. See the output of `--help` for usage details")
