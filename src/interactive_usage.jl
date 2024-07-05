@@ -245,7 +245,7 @@ Analyzes the script located at `path` and prints information about reliance on i
 Note that the particular printing may change in future non-breaking releases of ExplicitImports.
 
 !!! warning
-  The script (or at least, all imports in the script) must be run before this function can give reliable results, since it relies on introspecting what names are present in `Main`.
+    The script (or at least, all imports in the script) must be run before this function can give reliable results, since it relies on introspecting what names are present in `Main`.
 
 ## Keyword arguments
 

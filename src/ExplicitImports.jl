@@ -91,7 +91,6 @@ $SKIPS_KWARG
 $STRICT_KWARG
 
 !!! note
-
     If `mod` is a package, we can detect the explicit_imports in the package extensions if those extensions are explicitly loaded before calling this function.
 
     For example, consider `PackageA` has a weak-dependency on `PackageB` and `PackageC` in the module `PkgBPkgCExt`
