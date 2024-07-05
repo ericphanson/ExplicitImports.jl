@@ -5,6 +5,7 @@ using AbstractTrees: parent
 using TOML: parsefile
 using Compat: Compat, @compat
 using Markdown: Markdown
+using PrecompileTools: @setup_workload, @compile_workload
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
@@ -389,6 +390,12 @@ function inspect_session(io::IO; skip=(Base, Core), inner=print_explicit_imports
         isfile(pathof(mod)) || continue
         inner(io, mod)
         println(io)
+    end
+end
+
+@setup_workload begin
+    @compile_workload begin
+        sprint(print_explicit_imports, ExplicitImports, @__FILE__)
     end
 end
 
