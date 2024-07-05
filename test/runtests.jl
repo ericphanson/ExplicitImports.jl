@@ -298,7 +298,7 @@ end
 
     str = sprint(print_explicit_imports, TestQualifiedAccess,
                  "test_qualified_access.jl")
-    @test contains(str, "has 1 self-qualified access:\n- `x` was accessed as")
+    @test contains(str, "has 1 self-qualified access:\n\n    •  x was accessed as ")
 
     # check_all_qualified_accesses_via_owners
     ex = QualifiedAccessesFromNonOwnerException
@@ -355,8 +355,9 @@ end
     str = sprint(io -> print_explicit_imports(io, TestQualifiedAccess,
                                               "test_qualified_access.jl";
                                               allow_internal_accesses=false))
+    str = replace(str, r"\s+" => " ")
     @test contains(str, "accesses 2 names from non-owner modules")
-    @test contains(str, "`ABC` has owner")
+    @test contains(str, "ABC has owner")
 
     ex = NonPublicQualifiedAccessException
     @test_throws ex check_all_qualified_accesses_are_public(TestQualifiedAccess,
@@ -593,11 +594,12 @@ end
 
 @testset "scripts" begin
     str = sprint(print_explicit_imports_script, "script.jl")
-    @test contains(str, "Script `script.jl`")
+    str = replace(str, r"\s+" => " ")
+    @test contains(str, "Script script.jl")
     @test contains(str, "relying on implicit imports for 1 name")
     @test contains(str, "using LinearAlgebra: norm")
     @test contains(str, "stale explicit imports for this 1 unused name")
-    @test contains(str, "- `qr`")
+    @test contains(str, "• qr")
 end
 
 @testset "Don't skip source modules (#29)" begin
@@ -796,6 +798,7 @@ end
     # should be no logs
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
                                                          allow_internal_imports=false))
+    str = replace(str, r"\s+" => " ")
     @test contains(str, "Module Main.TestModA is relying on implicit imports")
     @test contains(str, "using .Exporter2: Exporter2, exported_a")
     @test contains(str,
@@ -805,15 +808,13 @@ end
     # try with linewidth tiny - should put one name per line
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
                                                          linewidth=0))
-    @test contains(str,
-                   """
-                   using .Exporter2: Exporter2,
-                                     exported_a""")
+    @test contains(str, "using .Exporter2: Exporter2,\n                    exported_a")
 
     # test `show_locations=true`
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
                                                          show_locations=true,
                                                          allow_internal_imports=false))
+    str = replace(str, r"\s+" => " ")
     @test contains(str, "using .Exporter3: Exporter3 # used at TestModA.jl:")
     @test contains(str, "is unused but it was imported from Main.Exporter at TestModC.jl")
 
@@ -821,12 +822,14 @@ end
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
                                                          separate_lines=true,
                                                          allow_internal_imports=false))
-    @test contains(str, "using .Exporter3: Exporter3\nusing .Exporter3: exported_b")
+    str = replace(str, r"\s+" => " ")
+    @test contains(str, "using .Exporter3: Exporter3 using .Exporter3: exported_b")
 
     # `warn_improper_explicit_imports=false` does something (also still no logs)
     str_no_warn = @test_logs sprint(io -> print_explicit_imports(io, TestModA,
                                                                  "TestModA.jl";
                                                                  warn_improper_explicit_imports=false))
+    str = replace(str, r"\s+" => " ")
     @test length(str_no_warn) <= length(str)
 
     # in particular, this ensures we add `using Foo: Foo` as the first line

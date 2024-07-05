@@ -64,8 +64,9 @@ end
                                                                                            TestQualifiedAccess,
                                                                                            "test_qualified_access.jl";
                                                                                            allow_internal_accesses=false))
+    str = replace(str, r"\s+" => " ")
     @test contains(str, "accesses 2 names from non-owner modules")
-    @test contains(str, "`ABC` has owner")
+    @test contains(str, "ABC has owner")
 
     @test_logs (:warn, r"deprecated") @test only_name_source(stale_explicit_imports_nonrecursive(TestModA.SubModB.TestModA.TestModC,
                                                                                                  "TestModC.jl")) ==
