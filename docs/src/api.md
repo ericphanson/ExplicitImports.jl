@@ -68,3 +68,28 @@ explicit_imports_nonrecursive
 improper_qualified_accesses_nonrecursive
 improper_explicit_imports_nonrecursive
 ```
+
+## Usage from the command line
+
+On Julia v1.12+, one can use the syntax `julia -m ExplicitImports` to run ExplicitImports on a particular path (defaulting to the current working directory). See [here](https://docs.julialang.org/en/v1.12-dev/NEWS/#Command-line-option-changes) for the `-m` flag. ExplicitImports.jl must be installed in the project you start Julia with (e.g. in your v1.12 default environment), and the target package to analyze must be installable on the same version of Julia (e.g. no out-of-date Manifest.toml present in the package environment).
+
+For example, using [`juliaup`](https://github.com/JuliaLang/juliaup)'s `nightly` feature, one can run ExplicitImports on v1.12 as follows.
+
+```sh
+❯ julia +nightly -m ExplicitImports --help
+NAME
+       ExplicitImports.main - analyze a package's namespace
+
+SYNOPSIS
+       julia -m ExplicitImports <path>
+
+DESCRIPTION
+       `ExplicitImports.main` (typically invoked as `julia -m ExplicitImports`)
+       analyzes a package's imports and qualified accesses, and prints the results.
+
+OPTIONS
+       <path>
+           Path to the root directory of the package (default: pwd)
+       --help
+           Show this message
+```
