@@ -230,6 +230,7 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
     seekstart(io)
     md = Markdown.parse(io)
     show(final_io, MIME"text/plain"(), md)
+    println(final_io)
     return nothing
 end
 
