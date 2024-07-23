@@ -2,7 +2,7 @@ module ExplicitImports
 
 using JuliaSyntax, AbstractTrees
  # suppress warning about Base.parse collision, even though parse is never used
- # this avoids a warning when loading the package while creating an used explicit import
+ # this avoids a warning when loading the package while creating an unused explicit import
  # the former occurs for all users, the latter only for developers of this package
 using JuliaSyntax: parse
 using AbstractTrees: parent
