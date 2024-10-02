@@ -1,0 +1,6 @@
+- id: explicit-imports
+  name: ExplicitImports checks
+  entry: ./scripts/explicit-imports.jl --check
+  files: ^src.*\.jl$
+  language: script
+  pass_filenames: false
