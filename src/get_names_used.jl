@@ -21,6 +21,7 @@ Base.@kwdef struct PerUsageInfo
     first_usage_in_scope::Bool
     external_global_name::Union{Missing,Bool}
     analysis_code::AnalysisCode
+    toplevel::Bool
 end
 
 function Base.NamedTuple(r::PerUsageInfo)
@@ -350,7 +351,7 @@ function analyze_name(leaf; debug=false)
     is_assignment = false
     node = leaf
     idx = 1
-
+    toplevel = true
     prev_node = nothing
     while true
         # update our state
@@ -369,10 +370,12 @@ function analyze_name(leaf; debug=false)
            # any child of `try` gets it's own individual scope (I think)
            (parents_match(node, (K"try",)))
             push!(scope_path, nodevalue(node).node)
+            toplevel = false
             # try to detect presence in RHS of inline function definition
         elseif idx > 3 && k == K"=" && !isempty(args) &&
                kind(first(args)) == K"call"
             push!(scope_path, nodevalue(node).node)
+            toplevel = false
         end
 
         # track which modules we are in
@@ -384,6 +387,7 @@ function analyze_name(leaf; debug=false)
                 push!(module_path, first(ids).node.val)
             end
             push!(scope_path, nodevalue(node).node)
+            toplevel = true
         end
 
         # figure out if our name (`nodevalue(leaf)`) is the LHS of an assignment
@@ -403,7 +407,7 @@ function analyze_name(leaf; debug=false)
         # finished climbing to the root
         node === nothing &&
             return (; function_arg, is_assignment, module_path, scope_path,
-                    struct_field_or_type_param, for_loop_index, generator_index, catch_arg)
+                    struct_field_or_type_param, for_loop_index, generator_index, catch_arg, toplevel)
         idx += 1
     end
 end
@@ -440,7 +444,8 @@ function analyze_all_names(file)
                                  struct_field_or_type_param::Bool,
                                  for_loop_index::Bool,
                                  generator_index::Bool,
-                                 catch_arg::Bool}[]
+                                 catch_arg::Bool,
+                                 toplevel::Bool}[]
 
     # we need to keep track of all names that we see, because we could
     # miss entire modules if it is an `include` we cannot follow.

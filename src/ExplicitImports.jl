@@ -6,6 +6,9 @@ using TOML: parsefile
 using Compat: Compat, @compat
 using Markdown: Markdown
 using PrecompileTools: @setup_workload, @compile_workload
+using MethodAnalysis
+
+JuliaSyntax._show_green_node
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
@@ -42,6 +45,7 @@ const STRICT_NONRECURSIVE_KWARG = """
 * `strict=true`: when `strict=true`, results will be `nothing` in the case that the analysis could not be performed accurately, due to e.g. dynamic `include` statements. When `strict=false`, results are returned in all cases, but may be inaccurate."""
 
 include("parse_utilities.jl")
+include("analyze_lowered.jl")
 include("find_implicit_imports.jl")
 include("get_names_used.jl")
 include("improper_qualified_accesses.jl")
@@ -203,14 +207,20 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     if tainted && strict
         return nothing
     end
-    needed_names = Set(nt.name for nt in needs_explicit_import)
+    locals = analyze_locals_nonrecursive(mod)
+    needed_names = Set(row.ref.name for row in locals)
+    # needed_names2 = Set(nt.name for nt in needs_explicit_import)
+    # @info setdiff(needed_names, needed_names2)
+    # @info setdiff(needed_names2, needed_names)
+    # @assert needed_names == needed_names2
+
     filter!(all_implicit_imports) do (k, v)
         k in needed_names || return false
         any(mod -> should_skip(mod; skip), v.exporters) && return false
         return true
     end
 
-    location_lookup = Dict(nt.name => nt.location for nt in needs_explicit_import)
+    location_lookup = Dict(row.ref.name => string(row.line_info) for row in locals)
 
     to_make_explicit = [(; name=k, v..., location=location_lookup[k])
                         for (k, v) in all_implicit_imports]
