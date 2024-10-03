@@ -97,7 +97,10 @@ if VERSION > v"1.9-"
         ext_imports = Dict(only_name_source(explicit_imports(TestPkg)))[DataFramesExt]
         @test ext_imports == [(; name=:DataFrames, source=DataFrames),
                               (; name=:DataFrame, source=DataFrames),
-                              (; name=:groupby, source=DataFrames)]
+                              (; name=:groupby, source=DataFrames)] ||
+              ext_imports == [(; name=:DataFrames, source=DataFrames),
+                              (; name=:DataFrame, source=DataFrames),
+                              (; name=:groupby, source=DataFrames.DataAPI)]
     end
 end
 
