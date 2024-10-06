@@ -102,47 +102,43 @@ Note the paths of course will differ depending on the location of the code on yo
 
 This can be handy for debugging; if you find that in fact ExplicitImports thinks a local variable is a global from another module, please file an issue and include the code snippet!
 
-## Pre-commit hook and script usage
+## Command-line usage
 
-One way to use ExplicitImports is with [pre-commit](https://pre-commit.com/).
-Simply add the following to `.pre-commit-config.yaml`:
-
-```yaml
-- repo: https://github.com/ericphanson/ExplicitImports.jl
-  rev: v1.10.0 # TODO: Add correct version
-  hooks:
-    - id: explicit-imports
-      args: [--print,--checklist,"exclude_all_qualified_accesses_are_public"]
-```
-
-The hook will run a selection of the tests and fail if any of them fail.
-
-The `--checklist` argument allows you to specify which checks to run. If omitted, all checks are run.
-
-The `--print` argument will print the explicit_imports, which might be useful for fixing the issues.
-The issues are only shown if the checks fail, or if you run pre-commit with `--verbose`.
-
-This pre-commit hook uses the script in <scripts/explicit-imports.jl>, which runs `ExplicitImports.cli(ARGS)`.
-It can be also be run directly via:
+ExplicitImports provides a `cli` function to facilitate using ExplicitImports directly from the command line. For example,
 
 ```bash
-julia <path/to/ExplicitImports.jl>/scripts/explicit-imports.jl --print --checklist exclude_all_qualified_accesses_are_public
+julia <path/to/ExplicitImports.jl>/scripts/explicit-imports.jl path_to_package
 ```
+or
 
-Or using the internal `cli` function directly:
+```bash
+./scripts/explicit-imports.jl path_to_package
+```
+from this directory.
+
+Alternatively, one can use the `cli` function directly:
 
 ```bash
 julia -e 'using ExplicitImports: cli; cli(["--print", "--checklist", "exclude_all_qualified_accesses_are_public"])'
 ```
 
-To see all arguments, including the valid options to `--checks`, run either of
+On Julia v1.12+, one can use the syntax `julia -m ExplicitImports path` to run ExplicitImports on a particular path (defaulting to the current working directory). See [here](https://docs.julialang.org/en/v1.12-dev/NEWS/#Command-line-option-changes) for the `-m` flag. ExplicitImports.jl must be installed in the project you start Julia with (e.g. in your v1.12 default environment), and the target package to analyze must be installable on the same version of Julia (e.g. no out-of-date Manifest.toml present in the package environment).
+
+For example, using [`juliaup`](https://github.com/JuliaLang/juliaup)'s `nightly` feature, one can run ExplicitImports on v1.12 as follows.
 
 ```bash
+julia +nightly -m ExplicitImports --print --checklist exclude_all_qualified_accesses_are_public
+```
+
+To see all the options, use one of:
+
+```bash
+julia +nightly -m ExplicitImports --help
 julia <path/to/ExplicitImports.jl>/scripts/explicit-imports.jl --help
 julia -e 'using ExplicitImports: cli; cli(["--help"])'
 ```
 
-The output should be something like
+The output should be something like:
 
 ```man
 NAME
@@ -184,15 +180,27 @@ OPTIONS
            Passing both individual and exclusion checks does not make sense.
 ```
 
-### Julia v1.12+
+## Pre-commit hooks
 
-On Julia v1.12+, one can use the syntax `julia -m ExplicitImports` to run ExplicitImports on a particular path (defaulting to the current working directory). See [here](https://docs.julialang.org/en/v1.12-dev/NEWS/#Command-line-option-changes) for the `-m` flag. ExplicitImports.jl must be installed in the project you start Julia with (e.g. in your v1.12 default environment), and the target package to analyze must be installable on the same version of Julia (e.g. no out-of-date Manifest.toml present in the package environment).
+Another way to use ExplicitImports is with [pre-commit](https://pre-commit.com/).
+Simply add the following to `.pre-commit-config.yaml`:
 
-For example, using [`juliaup`](https://github.com/JuliaLang/juliaup)'s `nightly` feature, one can run ExplicitImports on v1.12 as follows.
-
-```bash
-julia +nightly -m ExplicitImports --print --checklist exclude_all_qualified_accesses_are_public
+```yaml
+- repo: https://github.com/ericphanson/ExplicitImports.jl
+  rev: v1.10.0 # TODO: Add correct version
+  hooks:
+    - id: explicit-imports
+      args: [--print,--checklist,"exclude_all_qualified_accesses_are_public"]
 ```
+
+The hook will run a selection of the tests and fail if any of them fail.
+
+This simply invokes the ExplicitImports CLI with the `--check` flag (see the previous section), and additional valid CLI arguments may be passed with the `args` parameter as shown.
+
+Note that the `--print` argument will print the explicit_imports, which might be useful for fixing the issues.
+The issues are only shown if the checks fail, or if you run pre-commit with `--verbose`.
+
+The `--checklist` argument allows you to specify which checks to run. If omitted, all checks are run.
 
 ## Limitations
 
