@@ -104,7 +104,7 @@ This can be handy for debugging; if you find that in fact ExplicitImports thinks
 
 ## Command-line usage
 
-ExplicitImports provides a `cli` function to facilitate using ExplicitImports directly from the command line. For example,
+ExplicitImports provides a `main` function to facilitate using ExplicitImports directly from the command line. For example,
 
 ```bash
 julia <path/to/ExplicitImports.jl>/scripts/explicit-imports.jl path_to_package
@@ -116,10 +116,10 @@ or
 ```
 from this directory.
 
-Alternatively, one can use the `cli` function directly:
+Alternatively, one can use the `main` function directly:
 
 ```bash
-julia -e 'using ExplicitImports: cli; cli(["--print", "--checklist", "exclude_all_qualified_accesses_are_public"])'
+julia -e 'using ExplicitImports: main;maini(["--print", "--checklist", "exclude_all_qualified_accesses_are_public"])'
 ```
 
 On Julia v1.12+, one can use the syntax `julia -m ExplicitImports path` to run ExplicitImports on a particular path (defaulting to the current working directory). See [here](https://docs.julialang.org/en/v1.12-dev/NEWS/#Command-line-option-changes) for the `-m` flag. ExplicitImports.jl must be installed in the project you start Julia with (e.g. in your v1.12 default environment), and the target package to analyze must be installable on the same version of Julia (e.g. no out-of-date Manifest.toml present in the package environment).
@@ -135,7 +135,7 @@ To see all the options, use one of:
 ```bash
 julia +nightly -m ExplicitImports --help
 julia <path/to/ExplicitImports.jl>/scripts/explicit-imports.jl --help
-julia -e 'using ExplicitImports: cli; cli(["--help"])'
+julia -e 'using ExplicitImports: main; main(["--help"])'
 ```
 
 The output should be something like:
@@ -195,7 +195,7 @@ Simply add the following to `.pre-commit-config.yaml`:
 
 The hook will run a selection of the tests and fail if any of them fail.
 
-This simply invokes the ExplicitImports CLI with the `--check` flag (see the previous section), and additional valid CLI arguments may be passed with the `args` parameter as shown.
+This simply invokes the `ExplicitImports.main` with the `--check` flag (see the previous section), and additional valid arguments may be passed with the `args` parameter as shown.
 
 Note that the `--print` argument will print the explicit_imports, which might be useful for fixing the issues.
 The issues are only shown if the checks fail, or if you run pre-commit with `--verbose`.

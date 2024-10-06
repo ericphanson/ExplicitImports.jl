@@ -23,21 +23,21 @@ if isdefined(Base, Symbol("@main")) && VERSION >= v"1.12.0-DEV.102"
     end
 end
 
-@testset "Test cli functionality" begin
+@testset "Test main functionality" begin
     cmd = Base.julia_cmd()
     dir = pkgdir(ExplicitImports)
-    help = replace(readchomp(`$cmd --project=$(dir) -e 'using ExplicitImports: cli; cli(["--help"])'`),
+    help = replace(readchomp(`$cmd --project=$(dir) -e 'using ExplicitImports: main; main(["--help"])'`),
                    r"\s+" => " ")
     @test contains(help, "SYNOPSIS")
     @test contains(help, "Path to the root directory")
-    run1 = replace(readchomp(`$cmd --project=$(dir) -e "using ExplicitImports: cli; cli([\"$(dir)\"])"`),
+    run1 = replace(readchomp(`$cmd --project=$(dir) -e "using ExplicitImports: main; main([\"$(dir)\"])"`),
                    r"\s+" => " ")
     @test contains(run1, "These could be explicitly imported as follows")
-    run2 = replace(readchomp(`$cmd --project=$(dir) -e "using ExplicitImports: cli; cli([\"$(dir)/Project.toml\"])"`),
+    run2 = replace(readchomp(`$cmd --project=$(dir) -e "using ExplicitImports: main; main([\"$(dir)/Project.toml\"])"`),
                    r"\s+" => " ")
     @test contains(run2, "These could be explicitly imported as follows")
     io = IOBuffer()
-    err_run = success(pipeline(`$cmd --project=$(dir) -e "using ExplicitImports: cli; cli([\"$(dir)/blah.toml\"])"`;
+    err_run = success(pipeline(`$cmd --project=$(dir) -e "using ExplicitImports: main; main([\"$(dir)/blah.toml\"])"`;
                                stderr=io))
     @test !err_run
     str = replace(String(take!(io)), r"\s+" => " ")

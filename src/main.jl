@@ -106,7 +106,7 @@ function print_help()
     return
 end
 
-function cli(args)
+function main(args)
     # Argument defaults
     path::String = pwd()
     valid_check_values = [checks; "all"; exclude_prefix .* checks]
@@ -187,7 +187,5 @@ function cli(args)
 end
 
 @static if isdefined(Base, Symbol("@main"))
-    function (@main)(args)
-        return cli(args)
-    end
+    @main
 end

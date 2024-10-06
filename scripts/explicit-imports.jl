@@ -1,4 +1,4 @@
 #!/usr/bin/env julia
-using ExplicitImports: cli
+using ExplicitImports: main
 
-cli(ARGS)
+main(ARGS)
