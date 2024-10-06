@@ -1,9 +1,9 @@
 module ExplicitImports
 
 using JuliaSyntax, AbstractTrees
- # suppress warning about Base.parse collision, even though parse is never used
- # this avoids a warning when loading the package while creating an unused explicit import
- # the former occurs for all users, the latter only for developers of this package
+# suppress warning about Base.parse collision, even though parse is never used
+# this avoids a warning when loading the package while creating an unused explicit import
+# the former occurs for all users, the latter only for developers of this package
 using JuliaSyntax: parse
 using AbstractTrees: parent
 using TOML: parsefile
@@ -53,10 +53,7 @@ include("improper_explicit_imports.jl")
 include("interactive_usage.jl")
 include("checks.jl")
 include("deprecated.jl")
-
-if isdefined(Base, Symbol("@main"))
-    include("main.jl")
-end
+include("main.jl")
 
 struct FileNotFoundException <: Exception end
 

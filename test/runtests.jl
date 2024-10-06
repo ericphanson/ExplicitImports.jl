@@ -71,11 +71,7 @@ include("script.jl")
 include("imports.jl")
 include("test_qualified_access.jl")
 include("test_explicit_imports.jl")
-
-# We need both `@main` and `julia -m` to be supported:
-if isdefined(Base, Symbol("@main")) && VERSION >= v"1.12.0-DEV.102"
-    include("main.jl")
-end
+include("main.jl")
 
 # For deprecations, we are using `maxlog`, which
 # the TestLogger only respects in Julia 1.8+.

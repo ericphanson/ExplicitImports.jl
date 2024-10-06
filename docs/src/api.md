@@ -1,6 +1,6 @@
 # API
 
-The main entrypoint for interactive use is [`print_explicit_imports`](@ref). ExplicitImports.jl API also includes several other functions to provide programmatic access to the information gathered by the package, as well as utilities to use in regression testing.
+The standard entrypoint for interactive use is [`print_explicit_imports`](@ref). ExplicitImports.jl API also includes several other functions to provide programmatic access to the information gathered by the package, as well as utilities to use in regression testing.
 
 ## Detecting implicit imports which could be made explicit
 
@@ -67,29 +67,4 @@ The above functions all recurse through submodules of the provided module, provi
 explicit_imports_nonrecursive
 improper_qualified_accesses_nonrecursive
 improper_explicit_imports_nonrecursive
-```
-
-## Usage from the command line
-
-On Julia v1.12+, one can use the syntax `julia -m ExplicitImports` to run ExplicitImports on a particular path (defaulting to the current working directory). See [here](https://docs.julialang.org/en/v1.12-dev/NEWS/#Command-line-option-changes) for the `-m` flag. ExplicitImports.jl must be installed in the project you start Julia with (e.g. in your v1.12 default environment), and the target package to analyze must be installable on the same version of Julia (e.g. no out-of-date Manifest.toml present in the package environment).
-
-For example, using [`juliaup`](https://github.com/JuliaLang/juliaup)'s `nightly` feature, one can run ExplicitImports on v1.12 as follows.
-
-```man
-❯ julia +nightly -m ExplicitImports --help
-NAME
-       ExplicitImports.main - analyze a package's namespace
-
-SYNOPSIS
-       julia -m ExplicitImports <path>
-
-DESCRIPTION
-       `ExplicitImports.main` (typically invoked as `julia -m ExplicitImports`)
-       analyzes a package's imports and qualified accesses, and prints the results.
-
-OPTIONS
-       <path>
-           Path to the root directory of the package (default: pwd)
-       --help
-           Show this message
 ```
