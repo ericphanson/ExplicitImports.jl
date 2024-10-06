@@ -1,11 +1,11 @@
-const checks = ["all_explicit_imports_are_public",
+const CHECKS = ["all_explicit_imports_are_public",
                 "all_qualified_accesses_are_public",
                 "all_explicit_imports_via_owners",
                 "all_qualified_accesses_via_owners",
                 "no_implicit_imports",
                 "no_self_qualified_accesses",
                 "no_stale_explicit_imports"]
-const exclude_prefix = "exclude_"
+const EXCLUDE_PREFIX = "exclude_"
 
 function err(str)
     printstyled(stderr, "ERROR: "; bold=true, color=:red)
@@ -88,9 +88,9 @@ function print_help()
 
                        Valid values for each check are:
                        - Individual checks:
-                             $(join(checks, ",\n\t\t "))
+                             $(join(CHECKS, ",\n\t\t "))
                        - Select all checks: all
-                       - Exclude a check: prepend an individual check with '$exclude_prefix'
+                       - Exclude a check: prepend an individual check with '$EXCLUDE_PREFIX'
 
                        The selection logic is performed in the order given.
                        If you pass only exclusions, it will assume that it starts from a complete list, and then excludes.
@@ -100,11 +100,11 @@ function print_help()
     return
 end
 
-function main(args)
+function (@main)(args)
     # Argument defaults
     path::String = pwd()
-    valid_check_values = [checks; "all"; exclude_prefix .* checks]
-    selected_checks = copy(checks)
+    valid_check_values = [CHECKS; "all"; EXCLUDE_PREFIX .* CHECKS]
+    selected_checks = copy(CHECKS)
     should_run_checks = false
     should_print = false
     path = "."
@@ -127,7 +127,7 @@ function main(args)
             end
             values = split(popfirst!(args), ",")
             # If any of passed checks is not an exclude, then starts with an empty list
-            if any(.!startswith(exclude_prefix).(values))
+            if any(.!startswith(EXCLUDE_PREFIX).(values))
                 selected_checks = String[]
             end
             for value in values
@@ -136,12 +136,12 @@ function main(args)
                     return err("Invalid check passed to --checklist: $value")
                 end
                 if value == "all"
-                    selected_checks = copy(checks)
+                    selected_checks = copy(CHECKS)
                 elseif value in checks
                     push!(selected_checks, value)
-                elseif startswith(exclude_prefix)(value)
-                    check = value[(1 + length(exclude_prefix)):end]
-                    if !(check in checks)
+                elseif startswith(EXCLUDE_PREFIX)(value)
+                    check = value[(1 + length(EXCLUDE_PREFIX)):end]
+                    if !(check in CHECKS)
                         return err("Check $check is not part of the valid checks, so it can't be excluded")
                     end
                     i = findfirst(selected_checks .== check)
