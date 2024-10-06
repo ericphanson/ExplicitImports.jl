@@ -46,13 +46,7 @@ function activate_and_load(package, project_path)
     end
 end
 
-function auto_print_explicit_imports(package, project_path)
-    activate_and_load(package, project_path)
-    @eval Main ExplicitImports.print_explicit_imports($package)
-end
-
-function run_checks(package, project_path, selected_checks)
-    activate_and_load(package, project_path)
+function run_checks(package, selected_checks)
     for check in selected_checks
         @info "Checking $check"
         try
@@ -175,14 +169,17 @@ function main(args)
 
     package, project_path = get_package_name_from_project_toml(path)
 
+    if should_print || should_run_checks
+        activate_and_load(package, project_path)
+    end
     if should_print
-        ExplicitImports.auto_print_explicit_imports(package, project_path)
+        @eval Main ExplicitImports.print_explicit_imports($package)
     end
     if should_run_checks
         if length(selected_checks) == 0
             return err("The passed combination of checks $values made the selection empty")
         end
-        run_checks(package, project_path, selected_checks)
+        run_checks(package, selected_checks)
     end
 end
 
