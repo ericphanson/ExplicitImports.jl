@@ -53,7 +53,7 @@ include("improper_explicit_imports.jl")
 include("interactive_usage.jl")
 include("checks.jl")
 include("deprecated.jl")
-include("main.jl")
+include("cli.jl")
 
 struct FileNotFoundException <: Exception end
 
