@@ -54,8 +54,14 @@ end
 function run_checks(package, project_path, selected_checks)
     activate_and_load(package, project_path)
     for check in selected_checks
-        @info "Running $check"
-        @eval Main ExplicitImports.$(Symbol("check_" * check))($package)
+        @info "Checking $check"
+        try
+            @eval Main ExplicitImports.$(Symbol("check_" * check))($package)
+        catch e
+            printstyled(stderr, "ERROR: "; bold=true, color=:red)
+            Base.showerror(stderr, e)
+            exit(1)
+        end
     end
 end
 
