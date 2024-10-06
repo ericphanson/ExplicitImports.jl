@@ -187,7 +187,7 @@ Simply add the following to `.pre-commit-config.yaml`:
 
 ```yaml
 - repo: https://github.com/ericphanson/ExplicitImports.jl
-  rev: v1.10.0 # TODO: Add correct version
+  rev: v1.10.0
   hooks:
     - id: explicit-imports
       args: [--print,--checklist,"exclude_all_qualified_accesses_are_public"]
