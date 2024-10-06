@@ -12,7 +12,7 @@ function err(str)
     println(stderr,
             str,
             " See the output of `--help` for usage details.")
-    return exit(1)
+    return 1
 end
 
 function get_package_name_from_project_toml(path)
@@ -54,9 +54,10 @@ function run_checks(package, selected_checks)
         catch e
             printstyled(stderr, "ERROR: "; bold=true, color=:red)
             Base.showerror(stderr, e)
-            exit(1)
+            return 1
         end
     end
+    return 0
 end
 
 # Print a typical cli program help message
@@ -100,7 +101,7 @@ function print_help()
     return
 end
 
-function (@main)(args)
+function main(args)
     # Argument defaults
     path::String = pwd()
     valid_check_values = [CHECKS; "all"; EXCLUDE_PREFIX .* CHECKS]
@@ -167,20 +168,29 @@ function (@main)(args)
         should_print = true
     end
 
-    package, project_path = get_package_name_from_project_toml(path)
-
-    if should_print || should_run_checks
-        activate_and_load(package, project_path)
+    ret = get_package_name_from_project_toml(path)
+    if ret isa Integer # handle errors
+        return ret
     end
+    package, project_path = ret
+
+    activate_and_load(package, project_path)
     if should_print
-        @eval Main ExplicitImports.print_explicit_imports($package)
+        try
+            @eval Main ExplicitImports.print_explicit_imports($package)
+        catch e
+            printstyled(stderr, "ERROR: "; bold=true, color=:red)
+            Base.showerror(stderr, e)
+            return 1
+        end
     end
     if should_run_checks
         if length(selected_checks) == 0
             return err("The passed combination of checks $values made the selection empty")
         end
-        run_checks(package, selected_checks)
+        return run_checks(package, selected_checks)
     end
+    return 0
 end
 
 @static if isdefined(Base, Symbol("@main"))

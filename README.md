@@ -135,7 +135,7 @@ To see all the options, use one of:
 ```bash
 julia +nightly -m ExplicitImports --help
 julia <path/to/ExplicitImports.jl>/scripts/explicit-imports.jl --help
-julia -e 'using ExplicitImports: main; main(["--help"])'
+julia -e 'using ExplicitImports: main; exit(main(["--help"]))'
 ```
 
 The output should be something like:
