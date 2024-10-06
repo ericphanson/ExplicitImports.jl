@@ -180,7 +180,7 @@ OPTIONS
 
            The selection logic is performed in the order given.
            If you pass only exclusions, it will assume that it starts from a complete list, and then excludes.
-           If you pass any individial checks, it will assume that it starts from an empty list, and then includes.
+           If you pass any individual checks, it will assume that it starts from an empty list, and then includes.
            Passing both individual and exclusion checks does not make sense.
 ```
 
