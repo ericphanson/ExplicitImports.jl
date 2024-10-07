@@ -138,7 +138,7 @@ function main(args)
                 end
                 if value == "all"
                     selected_checks = copy(CHECKS)
-                elseif value in checks
+                elseif value in CHECKS
                     push!(selected_checks, value)
                 elseif startswith(EXCLUDE_PREFIX)(value)
                     check = value[(1 + length(EXCLUDE_PREFIX)):end]
