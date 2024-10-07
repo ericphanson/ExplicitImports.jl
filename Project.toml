@@ -1,7 +1,7 @@
 name = "ExplicitImports"
 uuid = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 authors = ["Eric P. Hanson"]
-version = "1.10.0"
+version = "1.10.1"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
