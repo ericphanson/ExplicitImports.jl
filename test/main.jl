@@ -44,3 +44,23 @@ end
     @test contains(str,
                    "is not a supported flag, directory, or file. See the output of `--help` for usage details")
 end
+
+if VERSION >= v"1.9-" # test only when we have package extensions, for simplicity
+    @testset "Test checks" begin
+        # Expected failure on no_implicit_imports due to DataFramesExt
+        dir = joinpath(@__DIR__, "TestPkg")
+        expected_failure = ["no_implicit_imports"]
+
+        @testset "Specific check $check" for check in ExplicitImports.CHECKS
+            expected = check in expected_failure ? 1 : 0
+            @test ExplicitImports.main([dir, "--check", "--checklist", check]) == expected
+        end
+        @testset "All checks" begin
+            @test ExplicitImports.main([dir, "--check", "--checklist", "all"]) == 1
+        end
+        @testset "Exclude check" begin
+            checks = join("exclude_" .* expected_failure, ",")
+            @test ExplicitImports.main([dir, "--check", "--checklist", checks]) == 0
+        end
+    end
+end
