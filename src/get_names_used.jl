@@ -676,12 +676,12 @@ function get_names_used_static(file)
 end
 
 struct UpgradedUsageInfo
-    source_module::Module
+    source_module::Union{Module,Nothing}
     analysis_code::AnalysisCode
     original::PerUsageInfo
 end
 function Base.getproperty(u::UpgradedUsageInfo, p::Symbol)
-    if p === :source_module || p === :analysis_code
+    if p === :source_module || p === :analysis_code || p === :original
         return getfield(u, p)
     else
         return getproperty(getfield(u, :original), p)
@@ -693,18 +693,11 @@ end
 #       - here the issue is we mark all function args as local, even when sometimes they are global
 #       - we should be able to correct this by identifying the global ref and marking it as global
 # 2. add usages that were missed, such as inside macros: https://github.com/ericphanson/ExplicitImports.jl/issues/81
-function correct_static_analysis(analysis::StaticFileAnalysis, mod::Module)
 
-    # # for each line, what are all the things we found on that line
-    # lookup_static = Dict{@NamedTuple{file::String,line::Int},Vector{PerUsageInfo}}()
-    # for row in analysis.per_usage_info
-    #     k = (; file=abspath(row.location.file), row.location.line)
-    #     v = get!(Vector{PerUsageInfo}, lookup_static, k)
-    #     push!(v, row)
-    # end
-    lookup_lowered = analyze_locals_nonrecursive(mod)
-
-    map(analysis.per_usage_info) do row
+function correct_static_analysis(file::String, mod::Module;
+                                 file_analysis=get_names_used_static(file),
+                                 lookup_lowered = analyze_locals_nonrecursive(mod))
+    return map(file_analysis.per_usage_info) do row
         k = (; row.location.file, row.location.line, row.name)
         source_module = get(lookup_lowered, k, nothing)
         if source_module === mod # or submodule thereof? extensions?
@@ -720,35 +713,30 @@ function correct_static_analysis(analysis::StaticFileAnalysis, mod::Module)
         end
         return UpgradedUsageInfo(source_module, analysis_code, row)
     end
-    # int = intersect(keys(lookup_static), keys(lookup_lowered))
-    # k = first(int)
+end
 
-    # analyzed = []
+function additional_dynamic_names(file::String, mod::Module;
+    file_analysis=get_names_used_static(file),
+    lookup_lowered = analyze_locals_nonrecursive(mod))
 
-    # for k in int
-    #     row_dict = Dict()
-    #     for z in lookup_lowered[k]
-    #         name = z.ref.name
-    #         source_mod = try
-    #             z.ref.binding.owner.globalref.mod
-    #         catch e
-    #             if e isa UndefRefError
-    #                 nothing
-    #             else
-    #                 rethrow()
-    #             end
-    #         end
-    #         push!(row_dict, name => source_mod)
-    #     end
+    for ((; file, line, name), source_module) in pairs(lookup_lowered)
+        source_module === nothing && continue
+        # Key thing we are missing: `qualified_by`
+        # We will use a dirty heuristic parsing
+        
 
-    #     for row in lookup_static[k]
-    #         source_module = get(row_dict, row.name, nothing)
-    #         if source_module !== nothing
-    #             push!(analyzed, (; source_module, row))
-    #         end
-    #     end
-    # end
-    return analyzed
+    end
+
+end
+
+function abc()
+    filter(ret) do r
+        return r.analysis_code !== r.original.analysis_code
+    end
+end
+
+function xyz(call_type=call_type)
+    "call_type=$(MethodAnalysis.call_type)"
 end
 
 #= We can detect this! (https://github.com/ericphanson/ExplicitImports.jl/issues/81)

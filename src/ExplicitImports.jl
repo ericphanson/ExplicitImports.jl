@@ -11,7 +11,7 @@ using Compat: Compat, @compat
 using Markdown: Markdown
 using PrecompileTools: @setup_workload, @compile_workload
 using MethodAnalysis
-
+using MethodAnalysis: call_type
 JuliaSyntax._show_green_node
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
@@ -208,9 +208,9 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     if tainted && strict
         return nothing
     end
-    locals = analyze_locals_nonrecursive(mod)
-    needed_names = Set(row.ref.name for row in locals)
-    # needed_names2 = Set(nt.name for nt in needs_explicit_import)
+    # locals = analyze_locals_nonrecursive(mod)
+    # needed_names = Set(row.ref.name for row in locals)
+    needed_names = Set(nt.name for nt in needs_explicit_import)
     # @info setdiff(needed_names, needed_names2)
     # @info setdiff(needed_names2, needed_names)
     # @assert needed_names == needed_names2
@@ -221,8 +221,8 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
         return true
     end
 
-    location_lookup = Dict(row.ref.name => string(row.line_info) for row in locals)
-
+    # location_lookup = Dict(row.ref.name => string(row.line_info) for row in locals)
+    location_lookup = Dict(nt.name => nt.location for nt in needs_explicit_import)
     to_make_explicit = [(; name=k, v..., location=location_lookup[k])
                         for (k, v) in all_implicit_imports]
 
