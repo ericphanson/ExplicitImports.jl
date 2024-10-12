@@ -4,7 +4,7 @@
 
 const Location = @NamedTuple{file::String,line::Int,col::Int}
 
-@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop InternalGenerator InternalCatchArgument External
+@enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop InternalGenerator InternalCatchArgument InternalUnknown External
 
 Base.@kwdef struct PerUsageInfo
     name::Symbol
@@ -675,51 +675,79 @@ function get_names_used_static(file)
                               untainted_modules)
 end
 
-function upgrade_static_analysis(analysis::StaticFileAnalysis, mod::Module)
-
-    # for each line, what are all the things we found on that line
-    lookup_static = Dict{@NamedTuple{file::String,line::Int},Vector{PerUsageInfo}}()
-    for row in analysis.per_usage_info
-        k = (; file=abspath(row.location.file), row.location.line)
-        v = get!(Vector{PerUsageInfo}, lookup_static, k)
-        push!(v, row)
+struct UpgradedUsageInfo
+    source_module::Module
+    analysis_code::AnalysisCode
+    original::PerUsageInfo
+end
+function Base.getproperty(u::UpgradedUsageInfo, p::Symbol)
+    if p === :source_module || p === :analysis_code
+        return getfield(u, p)
+    else
+        return getproperty(getfield(u, :original), p)
     end
-    info = analyze_locals_nonrecursive(mod)
-    lookup_lowered = Dict{@NamedTuple{file::String,line::Int},Vector{Any}}()
-    for row in info
-        k = (; file=abspath(string(row.line_info.file)), row.line_info.line)
-        v = get!(Vector{Any}, lookup_lowered, k)
-        push!(v, row)
-    end
+end
+# We want to do two things here:
+# 1. correct existing usage results since we have more accuracy
+#   - should be able to solve https://github.com/ericphanson/ExplicitImports.jl/issues/62
+#       - here the issue is we mark all function args as local, even when sometimes they are global
+#       - we should be able to correct this by identifying the global ref and marking it as global
+# 2. add usages that were missed, such as inside macros: https://github.com/ericphanson/ExplicitImports.jl/issues/81
+function correct_static_analysis(analysis::StaticFileAnalysis, mod::Module)
 
-    int = intersect(keys(lookup_static), keys(lookup_lowered))
+    # # for each line, what are all the things we found on that line
+    # lookup_static = Dict{@NamedTuple{file::String,line::Int},Vector{PerUsageInfo}}()
+    # for row in analysis.per_usage_info
+    #     k = (; file=abspath(row.location.file), row.location.line)
+    #     v = get!(Vector{PerUsageInfo}, lookup_static, k)
+    #     push!(v, row)
+    # end
+    lookup_lowered = analyze_locals_nonrecursive(mod)
+
+    map(analysis.per_usage_info) do row
+        k = (; row.location.file, row.location.line, row.name)
+        source_module = get(lookup_lowered, k, nothing)
+        if source_module === mod # or submodule thereof? extensions?
+            if row.analysis_code === External
+                analysis_code = InternalUnknown
+            else
+                analysis_code = row.analysis_code
+            end
+        elseif source_module !== nothing
+            analysis_code = External
+        else
+            analysis_code = row.analysis_code
+        end
+        return UpgradedUsageInfo(source_module, analysis_code, row)
+    end
+    # int = intersect(keys(lookup_static), keys(lookup_lowered))
     # k = first(int)
 
-    analyzed = []
+    # analyzed = []
 
-    for k in int
-        row_dict = Dict()
-        for z in lookup_lowered[k]
-            name = z.ref.name
-            source_mod = try
-                z.ref.binding.owner.globalref.mod
-            catch e
-                if e isa UndefRefError
-                    nothing
-                else
-                    rethrow()
-                end
-            end
-            push!(row_dict, name => source_mod)
-        end
+    # for k in int
+    #     row_dict = Dict()
+    #     for z in lookup_lowered[k]
+    #         name = z.ref.name
+    #         source_mod = try
+    #             z.ref.binding.owner.globalref.mod
+    #         catch e
+    #             if e isa UndefRefError
+    #                 nothing
+    #             else
+    #                 rethrow()
+    #             end
+    #         end
+    #         push!(row_dict, name => source_mod)
+    #     end
 
-        for row in lookup_static[k]
-            source_module = get(row_dict, row.name, nothing)
-            if source_module !== nothing
-                push!(analyzed, (; source_module, row))
-            end
-        end
-    end
+    #     for row in lookup_static[k]
+    #         source_module = get(row_dict, row.name, nothing)
+    #         if source_module !== nothing
+    #             push!(analyzed, (; source_module, row))
+    #         end
+    #     end
+    # end
     return analyzed
 end
 

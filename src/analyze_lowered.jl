@@ -75,7 +75,29 @@ function analyze_locals_nonrecursive(mod; debug=false)
     # r.ref.mod != mod
     # end
 
-    return ret
+    # Gather the info we need: for each name on each line, what module does the name come from
+    lookup_lowered = Dict{@NamedTuple{file::String,line::Int,name::Symbol},Module}()
+    for row in ret
+        k = (; file=abspath(string(row.line_info.file)), row.line_info.line, name=row.ref.name)
+        source_mod = try
+            row.ref.binding.owner.globalref.mod
+        catch e
+            if e isa UndefRefError
+                nothing
+            else
+                rethrow()
+            end
+        end
+        if source_mod !== nothing
+            v = get!(lookup_lowered, k, source_mod)
+            if v !== source_mod
+                @warn "Conflict" k v source_mod
+                delete!(lookup_lowered, k)
+            end
+        end
+    end
+
+    return lookup_lowered
 end
 
 function global_names(m; debug)
