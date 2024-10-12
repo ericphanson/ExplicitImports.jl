@@ -21,16 +21,23 @@
 #     return ret, frames
 # end
 
-
 function analyze_toplevel(mod, path=pathof(mod))
     expr = Base.parse_input_line(String(read(path)); filename=path)
-    lowered = Meta.lower(mod, expr)
+    return lowered = Meta.lower(mod, expr)
 end
 
 using MethodAnalysis
 
+# strategy:
+# we can find lowered code for methods, and those have juicy global refs
+# that may be implicit
+# to find the lowered code for methods, we first look at ALL methods
+# then look for ones defined in our module of interest
+# then look for their global refs
+# We need to look everywhere (not sure why)
 function analyze_locals_nonrecursive(mod; debug=false)
     methods = Set{Core.Method}()
+    # look for methods defined in our module
     f = item -> begin
         debug && println(typeof(item), ": ", try
                              nameof(item)
@@ -49,6 +56,7 @@ function analyze_locals_nonrecursive(mod; debug=false)
     end
 
     visit(f, mod)
+    # traverse all loaded modules
     visit(f)
 
     # Also support kwargs on 1.9+
@@ -58,10 +66,15 @@ function analyze_locals_nonrecursive(mod; debug=false)
         end
     end
 
-    ret = []
+    ret = @NamedTuple{line_info::Union{Core.LineInfoNode,Nothing},ref::Core.GlobalRef}[]
     for m in methods
         append!(ret, global_refs_with_locations(m; debug))
     end
+    # Ignore references within our own module
+    # filter!(ret) do r
+    # r.ref.mod != mod
+    # end
+
     return ret
 end
 

@@ -26,6 +26,13 @@ Base.@kwdef struct PerUsageInfo
     toplevel::Bool
 end
 
+function Base.show(io::IO, p::PerUsageInfo)
+    print(io, PerUsageInfo, "(")
+    print(io, repr(p.name), "|", repr(location_str(p.location)))
+    print(io, "|", p.analysis_code)
+    return print(io, ")")
+end
+
 function Base.NamedTuple(r::PerUsageInfo)
     names = fieldnames(typeof(r))
     return NamedTuple{names}(map(x -> getfield(r, x), names))
@@ -669,5 +676,64 @@ function get_names_used_static(file)
 end
 
 function upgrade_static_analysis(analysis::StaticFileAnalysis, mod::Module)
-    return info = analyze_locals_nonrecursive(mod)
+
+    # for each line, what are all the things we found on that line
+    lookup_static = Dict{@NamedTuple{file::String,line::Int},Vector{PerUsageInfo}}()
+    for row in analysis.per_usage_info
+        k = (; file=abspath(row.location.file), row.location.line)
+        v = get!(Vector{PerUsageInfo}, lookup_static, k)
+        push!(v, row)
+    end
+    info = analyze_locals_nonrecursive(mod)
+    lookup_lowered = Dict{@NamedTuple{file::String,line::Int},Vector{Any}}()
+    for row in info
+        k = (; file=abspath(string(row.line_info.file)), row.line_info.line)
+        v = get!(Vector{Any}, lookup_lowered, k)
+        push!(v, row)
+    end
+
+    int = intersect(keys(lookup_static), keys(lookup_lowered))
+    # k = first(int)
+
+    analyzed = []
+
+    for k in int
+        row_dict = Dict()
+        for z in lookup_lowered[k]
+            name = z.ref.name
+            source_mod = try
+                z.ref.binding.owner.globalref.mod
+            catch e
+                if e isa UndefRefError
+                    nothing
+                else
+                    rethrow()
+                end
+            end
+            push!(row_dict, name => source_mod)
+        end
+
+        for row in lookup_static[k]
+            source_module = get(row_dict, row.name, nothing)
+            if source_module !== nothing
+                push!(analyzed, (; source_module, row))
+            end
+        end
+    end
+    return analyzed
+end
+
+#= We can detect this! (https://github.com/ericphanson/ExplicitImports.jl/issues/81)
+info
+z = only(filter(info) do row
+             return row.ref.name == :tokenize
+         end)
+z.ref.binding.owner.globalref.mod
+=#
+function register_steelProfile()
+    function post_fetch_method(file)
+        run(`$(tokenize()) -q $file`)
+        return rm(file)
+    end
+    #...
 end
