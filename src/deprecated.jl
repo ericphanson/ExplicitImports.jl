@@ -2,7 +2,7 @@ function stale_explicit_imports(mod::Module, file=pathof(mod); strict=true)
     check_file(file)
     @warn "[stale_explicit_imports] deprecated in favor of `improper_explicit_imports`" _id = :explicit_imports_stale_explicit_imports maxlog = 1
     submodules = find_submodules(mod, file)
-    file_analysis = Dict{String,FileAnalysis}()
+    file_analysis = Dict{String,StaticFileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
     return [submodule => stale_explicit_imports_nonrecursive(submodule, path;
                                                              file_analysis=file_analysis[path],
@@ -13,7 +13,7 @@ end
 function stale_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                              strict=true,
                                              # private undocumented kwarg for hoisting this analysis
-                                             file_analysis=get_names_used(file))
+                                             file_analysis=get_names_used_static(file))
     check_file(file)
     @warn "[stale_explicit_imports_nonrecursive] deprecated in favor of `improper_explicit_imports_nonrecursive`" _id = :explicit_imports_stale_explicit_imports maxlog = 1
 
@@ -48,7 +48,7 @@ function print_stale_explicit_imports(io::IO, mod::Module, file=pathof(mod); str
                     "Module $mod has stale explicit imports for these unused names:")
             for row in stale_imports
                 name = row.name
-                location = row.location
+                location = location_str(row.location)
                 if show_locations
                     proof = " (imported at $(location))"
                 else

@@ -37,6 +37,15 @@ function location_str(wrapper::SyntaxNodeWrapper)
     return "$(wrapper.file):$line:$col"
 end
 
+function location_str((; file, line, col)::NamedTuple)
+    return "$(file):$line:$col"
+end
+
+function location_triple(wrapper::SyntaxNodeWrapper)
+    line, col = JuliaSyntax.source_location(wrapper.node)
+    return (; wrapper.file, line, col)
+end
+
 struct SkippedFile
     # location of the file being skipped
     # (we don't include the file itself, since we may not know what it is)

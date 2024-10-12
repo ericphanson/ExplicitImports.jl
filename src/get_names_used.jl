@@ -2,6 +2,8 @@
 # We will do this by parsing, then re-implementing scoping rules on top of the parse tree.
 # See `src/parse_utilities.jl` for an overview of the strategy and the utility functions we will use.
 
+const Location = @NamedTuple{file::String,line::Int,col::Int}
+
 @enum AnalysisCode IgnoredNonFirst IgnoredQualified IgnoredImportRHS InternalHigherScope InternalFunctionArg InternalAssignment InternalStruct InternalForLoop InternalGenerator InternalCatchArgument External
 
 Base.@kwdef struct PerUsageInfo
@@ -9,7 +11,7 @@ Base.@kwdef struct PerUsageInfo
     qualified_by::Union{Nothing,Vector{Symbol}}
     import_type::Symbol
     explicitly_imported_by::Union{Nothing,Vector{Symbol}}
-    location::String
+    location::Location
     function_arg::Bool
     is_assignment::Bool
     module_path::Vector{Symbol}
@@ -30,7 +32,7 @@ function Base.NamedTuple(r::PerUsageInfo)
 end
 
 """
-    FileAnalysis
+    StaticFileAnalysis
 
 Contains structured analysis results.
 
@@ -38,18 +40,33 @@ Contains structured analysis results.
 
 -  per_usage_info::Vector{PerUsageInfo}
 - `needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
-    location::String}}`
+    location::Location}}`
 - `unnecessary_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
-          location::String}}`
+          location::Location}}`
 - `untainted_modules::Set{Vector{Symbol}}`: those which were analyzed and do not contain an unanalyzable `include`
 """
-Base.@kwdef struct FileAnalysis
+Base.@kwdef struct StaticFileAnalysis
     per_usage_info::Vector{PerUsageInfo}
     needs_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
-                                           location::String}}
+                                           location::Location}}
     unnecessary_explicit_import::Set{@NamedTuple{name::Symbol,module_path::Vector{Symbol},
-                                                 location::String}}
+                                                 location::Location}}
     untainted_modules::Set{Vector{Symbol}}
+end
+
+# clumsy `show`
+function Base.show(io::IO, analysis::StaticFileAnalysis)
+    print(io, StaticFileAnalysis)
+    print(io, "(")
+    print(io, "\n  per_usage_info#=")
+    summary(io, analysis.per_usage_info)
+    print(io, "=#,\n  needs_explicit_import#=")
+    summary(io, analysis.needs_explicit_import)
+    print(io, "=#,\n  unnecessary_explicit_import#=")
+    summary(io, analysis.unnecessary_explicit_import)
+    print(io, "=#,\n  untainted_modules#=")
+    summary(io, analysis.untainted_modules)
+    return print(io, "=#)")
 end
 
 # returns `nothing` for no qualifying module, otherwise a symbol
@@ -407,7 +424,8 @@ function analyze_name(leaf; debug=false)
         # finished climbing to the root
         node === nothing &&
             return (; function_arg, is_assignment, module_path, scope_path,
-                    struct_field_or_type_param, for_loop_index, generator_index, catch_arg, toplevel)
+                    struct_field_or_type_param, for_loop_index, generator_index, catch_arg,
+                    toplevel)
         idx += 1
     end
 end
@@ -436,7 +454,7 @@ function analyze_all_names(file)
                                  qualified_by::Union{Nothing,Vector{Symbol}},
                                  import_type::Symbol,
                                  explicitly_imported_by::Union{Nothing,Vector{Symbol}},
-                                 location::String,
+                                 location::Location,
                                  function_arg::Bool,
                                  is_assignment::Bool,
                                  module_path::Vector{Symbol},
@@ -481,7 +499,7 @@ function analyze_all_names(file)
         #
         # We want to figure this out on a per-module basis, since each module has a different global namespace.
 
-        location = location_str(nodevalue(leaf))
+        location = location_triple(nodevalue(leaf))
         name = get_val(leaf)
         qualified_by = qualifying_module(leaf)
         import_type = analyze_import_type(leaf)
@@ -592,7 +610,7 @@ end
 function get_global_names(per_usage_info)
     names_used_for_global_bindings = Set{@NamedTuple{name::Symbol,
                                                      module_path::Vector{Symbol},
-                                                     location::String}}()
+                                                     location::Location}}()
 
     for nt in per_usage_info
         if nt.external_global_name === true
@@ -605,7 +623,7 @@ end
 function get_explicit_imports(per_usage_info)
     explicit_imports = Set{@NamedTuple{name::Symbol,
                                        module_path::Vector{Symbol},
-                                       location::String}}()
+                                       location::Location}}()
     for nt in per_usage_info
         # skip qualified names
         (nt.qualified_by === nothing) || continue
@@ -623,15 +641,15 @@ function setdiff_no_metadata(set1, set2)
 end
 
 """
-    get_names_used(file) -> FileAnalysis
+    get_names_used_static(file) -> StaticFileAnalysis
 
 Figures out which global names are used in `file`, and what modules they are used within.
 
 Traverses static `include` statements.
 
-Returns a `FileAnalysis` object.
+Returns a `StaticFileAnalysis` object.
 """
-function get_names_used(file)
+function get_names_used_static(file)
     check_file(file)
     # Here we get 1 row per name per usage
     per_usage_info, untainted_modules = analyze_all_names(file)
@@ -645,7 +663,11 @@ function get_names_used(file)
     unnecessary_explicit_import = setdiff_no_metadata(explicit_imports,
                                                       names_used_for_global_bindings)
 
-    return FileAnalysis(; per_usage_info, needs_explicit_import,
-                        unnecessary_explicit_import,
-                        untainted_modules)
+    return StaticFileAnalysis(; per_usage_info, needs_explicit_import,
+                              unnecessary_explicit_import,
+                              untainted_modules)
+end
+
+function upgrade_static_analysis(analysis::StaticFileAnalysis, mod::Module)
+    return info = analyze_locals_nonrecursive(mod)
 end

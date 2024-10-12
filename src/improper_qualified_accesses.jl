@@ -3,7 +3,7 @@
 
 function analyze_qualified_names(mod::Module, file=pathof(mod);
                                  # private undocumented kwarg for hoisting this analysis
-                                 file_analysis=get_names_used(file))
+                                 file_analysis=get_names_used_static(file))
     check_file(file)
     @compat (; per_usage_info, tainted) = filter_to_module(file_analysis, mod)
     # Do we want to do anything with `tainted`? This means there is unanalyzable code here
@@ -22,7 +22,7 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
     end
 
     table = @NamedTuple{name::Symbol,
-                        location::String,
+                        location::Location,
                         value::Any,
                         accessing_from::Module,
                         whichmodule::Module,
@@ -124,7 +124,7 @@ function improper_qualified_accesses_nonrecursive(mod::Module, file=pathof(mod);
                                                   # deprecated, does nothing
                                                   require_submodule_access=nothing,
                                                   # private undocumented kwarg for hoisting this analysis
-                                                  file_analysis=get_names_used(file))
+                                                  file_analysis=get_names_used_static(file))
     check_file(file)
     if require_submodule_access !== nothing
         @warn "[improper_qualified_accesses_nonrecursive] `require_submodule_access` is deprecated and unused" _id = :explicit_imports_improper_qualified_accesses_require_submodule_access maxlog = 1
@@ -173,7 +173,7 @@ This functionality is still in development, so the exact results may change in f
 Returns a nested structure providing information about improper accesses to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are a `Vector` of `NamedTuple`s with the following keys:
 
 - `name::Symbol`: the name being accessed
-- `location::String`: the location the access takes place
+- `location::Location`: the location the access takes place
 - `value::Any`: the which `name` points to in `mod`
 - `accessing_from::Module`: the module the name is being accessed from (e.g. `Module.name`)
 - `whichmodule::Module`: the `Base.which` of the object
@@ -226,7 +226,7 @@ function improper_qualified_accesses(mod::Module, file=pathof(mod);
         @warn "[improper_qualified_accesses] `require_submodule_access` is deprecated and unused" _id = :explicit_imports_improper_qualified_accesses_require_submodule_access maxlog = 1
     end
     submodules = find_submodules(mod, file)
-    file_analysis = Dict{String,FileAnalysis}()
+    file_analysis = Dict{String,StaticFileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
     return [submodule => improper_qualified_accesses_nonrecursive(submodule, path;
                                                                   file_analysis=file_analysis[path],

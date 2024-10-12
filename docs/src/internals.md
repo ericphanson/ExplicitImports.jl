@@ -18,8 +18,8 @@ Then we can put this information together to figure out what names are actually 
 
 ```@docs
 ExplicitImports.find_implicit_imports
-ExplicitImports.get_names_used
+ExplicitImports.get_names_used_static
 ExplicitImports.analyze_all_names
 ExplicitImports.inspect_session
-ExplicitImports.FileAnalysis
+ExplicitImports.StaticFileAnalysis
 ```

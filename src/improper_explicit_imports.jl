@@ -1,6 +1,6 @@
 function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
                                            # private undocumented kwarg for hoisting this analysis
-                                           file_analysis=get_names_used(file))
+                                           file_analysis=get_names_used_static(file))
     check_file(file)
     @compat (; per_usage_info, unnecessary_explicit_import, tainted) = filter_to_module(file_analysis,
                                                                                         mod)
@@ -11,7 +11,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
     end
 
     table = @NamedTuple{name::Symbol,
-                        location::String,
+                        location::Location,
                         value::Any,
                         importing_from::Union{Module,Symbol},
                         whichmodule::Module,
@@ -169,7 +169,7 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                                 strict=true,
                                                 allow_internal_imports=true,
                                                 # private undocumented kwarg for hoisting this analysis
-                                                file_analysis=get_names_used(file))
+                                                file_analysis=get_names_used_static(file))
     check_file(file)
     problematic, tainted = analyze_explicitly_imported_names(mod, file; file_analysis)
 
@@ -223,7 +223,7 @@ This functionality is still in development, so the exact results may change in f
 Returns a nested structure providing information about improper explicit imports to names in other modules. This information is structured as a collection of pairs, where the keys are the submodules of `mod` (including `mod` itself). Currently, the values are either `nothing` or a `Vector` of `NamedTuple`s with the following keys:
 
 - `name::Symbol`: the name being imported
-- `location::String`: the location the import takes place
+- `location::Location`: the location the import takes place
 - `value::Any`: the which `name` points to in `mod`
 - `importing_from::Module`: the module the name is being imported from (e.g. in the example `using Foo.X: bar`, this would be `X`)
 - `whichmodule::Module`: the `Base.which` of the object
@@ -251,7 +251,7 @@ function improper_explicit_imports(mod::Module, file=pathof(mod); strict=true,
                                    allow_internal_imports=true)
     check_file(file)
     submodules = find_submodules(mod, file)
-    file_analysis = Dict{String,FileAnalysis}()
+    file_analysis = Dict{String,StaticFileAnalysis}()
     fill_cache!(file_analysis, last.(submodules))
     return [submodule => improper_explicit_imports_nonrecursive(submodule, path; strict,
                                                                 file_analysis=file_analysis[path],

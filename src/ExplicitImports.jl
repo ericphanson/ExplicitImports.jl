@@ -195,7 +195,7 @@ function explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
                                        # deprecated
                                        warn_stale=nothing,
                                        # private undocumented kwarg for hoisting this analysis
-                                       file_analysis=get_names_used(file))
+                                       file_analysis=get_names_used_static(file))
     check_file(file)
     if warn_stale !== nothing
         @warn "[explicit_imports_nonrecursive] keyword argument `warn_stale` is deprecated and does nothing" _id = :explicit_imports_explicit_imports_warn_stale maxlog = 1
@@ -278,7 +278,7 @@ function module_path(mod)
     end
 end
 
-function filter_to_module(file_analysis::FileAnalysis, mod::Module)
+function filter_to_module(file_analysis::StaticFileAnalysis, mod::Module)
     mod_path = module_path(mod)
     # Limit to only the module of interest. We make some attempt to avoid name collisions
     # (where two nested modules have the same name) by matching on the full path - to some extent.
@@ -380,7 +380,7 @@ end
 function fill_cache!(file_analysis::Dict, files)
     for _file in files
         if !haskey(file_analysis, _file)
-            file_analysis[_file] = get_names_used(_file)
+            file_analysis[_file] = get_names_used_static(_file)
         end
     end
     return file_analysis

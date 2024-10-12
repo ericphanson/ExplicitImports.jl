@@ -3,7 +3,7 @@ const TUPLE_MODULE_PAIRS = NTuple{N,Pair{Module,Module}} where {N}
 struct ImplicitImportsException <: Exception
     mod::Module
     names::Vector{@NamedTuple{name::Symbol,source::Module,exporters::Vector{Module},
-                              location::String}}
+                              location::Location}}
 end
 
 function Base.showerror(io::IO, e::ImplicitImportsException)
@@ -29,7 +29,7 @@ end
 
 struct QualifiedAccessesFromNonOwnerException <: Exception
     mod::Module
-    accesses::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
+    accesses::Vector{@NamedTuple{name::Symbol,location::Location,value::Any,
                                  accessing_from::Module,
                                  whichmodule::Module}}
 end
@@ -41,13 +41,13 @@ function Base.showerror(io::IO, e::QualifiedAccessesFromNonOwnerException)
     for row in e.accesses
         owner = owner_mod_for_printing(row.whichmodule, row.name, row.value)
         println(io,
-                "- `$(row.name)` has owner $(owner) but it was accessed from $(row.accessing_from) at $(row.location)")
+                "- `$(row.name)` has owner $(owner) but it was accessed from $(row.accessing_from) at $(location_str(row.location))")
     end
 end
 
 struct SelfQualifiedAccessException <: Exception
     mod::Module
-    accesses::Vector{@NamedTuple{name::Symbol,location::String,value::Any}}
+    accesses::Vector{@NamedTuple{name::Symbol,location::Location,value::Any}}
 end
 
 function Base.showerror(io::IO, e::SelfQualifiedAccessException)
@@ -56,13 +56,13 @@ function Base.showerror(io::IO, e::SelfQualifiedAccessException)
             "Module `$(e.mod)` has self-qualified accesses:")
     for row in e.accesses
         println(io,
-                "- `$(row.name)` was accessed as $(e.mod).$(row.name) inside $(e.mod) at $(row.location)")
+                "- `$(row.name)` was accessed as $(e.mod).$(row.name) inside $(e.mod) at $(location_str(row.location))")
     end
 end
 
 struct ExplicitImportsFromNonOwnerException <: Exception
     mod::Module
-    bad_imports::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
+    bad_imports::Vector{@NamedTuple{name::Symbol,location::Location,value::Any,
                                     importing_from::Module,
                                     whichmodule::Module}}
 end
@@ -73,13 +73,13 @@ function Base.showerror(io::IO, e::ExplicitImportsFromNonOwnerException)
             "Module `$(e.mod)` has explicit imports of names from modules other than their owner as determined via `Base.which`:")
     for row in e.bad_imports
         println(io,
-                "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(row.location)")
+                "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(location_str(row.location))")
     end
 end
 
 struct NonPublicExplicitImportsException <: Exception
     mod::Module
-    bad_imports::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
+    bad_imports::Vector{@NamedTuple{name::Symbol,location::Location,value::Any,
                                     importing_from::Module}}
 end
 
@@ -89,13 +89,13 @@ function Base.showerror(io::IO, e::NonPublicExplicitImportsException)
             "Module `$(e.mod)` has explicit imports of names from modules in which they are not public (i.e. exported or declared public in Julia 1.11+):")
     for row in e.bad_imports
         println(io,
-                "- `$(row.name)` is not public in $(row.importing_from) but it was imported from $(row.importing_from) at $(row.location)")
+                "- `$(row.name)` is not public in $(row.importing_from) but it was imported from $(row.importing_from) at $(location_str(row.location))")
     end
 end
 
 struct NonPublicQualifiedAccessException <: Exception
     mod::Module
-    bad_imports::Vector{@NamedTuple{name::Symbol,location::String,value::Any,
+    bad_imports::Vector{@NamedTuple{name::Symbol,location::Location,value::Any,
                                     accessing_from::Module}}
 end
 
@@ -105,12 +105,12 @@ function Base.showerror(io::IO, e::NonPublicQualifiedAccessException)
             "Module `$(e.mod)` has explicit imports of names from modules in which they are not public (i.e. exported or declared public in Julia 1.11+):")
     for row in e.bad_imports
         println(io,
-                "- `$(row.name)` is not public in $(row.accessing_from) but it was imported from $(row.accessing_from) at $(row.location)")
+                "- `$(row.name)` is not public in $(row.accessing_from) but it was imported from $(row.accessing_from) at $(location_str(row.location))")
     end
 end
 struct StaleImportsException <: Exception
     mod::Module
-    names::Vector{@NamedTuple{name::Symbol,location::String}}
+    names::Vector{@NamedTuple{name::Symbol,location::Location}}
 end
 
 function Base.showerror(io::IO, e::StaleImportsException)

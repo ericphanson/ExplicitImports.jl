@@ -7,7 +7,7 @@ using ExplicitImports: analyze_all_names, has_ancestor, should_skip,
                        inspect_session, get_parent, choose_exporter,
                        get_import_lhs, analyze_import_type,
                        analyze_explicitly_imported_names, owner_mod_for_printing,
-                       get_names_used
+                       get_names_used_static, Location
 using Test
 using DataFrames
 using Aqua
@@ -48,12 +48,12 @@ function using_statement(row)
 end
 
 function only_name_source(nt::@NamedTuple{name::Symbol,source::Module,
-                                          exporters::Vector{Module},location::String})
+                                          exporters::Vector{Module},location::Location})
     @test !isempty(nt.exporters)
     return (; nt.name, nt.source)
 end
 
-function only_name_source(nt::@NamedTuple{name::Symbol,location::String})
+function only_name_source(nt::@NamedTuple{name::Symbol,location::Location})
     return (; nt.name)
 end
 only_name_source(::Nothing) = nothing
@@ -102,7 +102,7 @@ end
 
 @testset "function arg bug" begin
     # https://github.com/ericphanson/ExplicitImports.jl/issues/62
-    df = DataFrame(get_names_used("test_mods.jl").per_usage_info)
+    df = DataFrame(get_names_used_static("test_mods.jl").per_usage_info)
     subset!(df, :name => ByRow(==(:norm)), :module_path => ByRow(==([:TestMod13])))
 
     @test_broken check_no_stale_explicit_imports(TestMod13, "test_mods.jl") === nothing
@@ -256,7 +256,7 @@ end
           [:name, :location, :value, :accessing_from, :whichmodule, :public_access,
            :accessing_from_owns_name, :accessing_from_submodule_owns_name, :internal_access]
     @test ABC.name == :ABC
-    @test ABC.location isa AbstractString
+    @test ABC.location isa Location
     @test ABC.whichmodule == TestQualifiedAccess.Bar
     @test ABC.accessing_from == TestQualifiedAccess.FooModule
     @test ABC.public_access == false
@@ -787,7 +787,7 @@ end
     nested = explicit_imports(TestModA, "TestModA.jl")
     @test nested isa Vector{Pair{Module,
                                  Vector{@NamedTuple{name::Symbol,source::Module,
-                                                    exporters::Vector{Module},location::String}}}}
+                                                    exporters::Vector{Module},location::Location}}}}
     @test TestModA in first.(nested)
     @test TestModA.SubModB in first.(nested)
     @test TestModA.SubModB.TestModA in first.(nested)
