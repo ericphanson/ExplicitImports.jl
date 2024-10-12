@@ -687,18 +687,19 @@ function Base.getproperty(u::UpgradedUsageInfo, p::Symbol)
         return getproperty(getfield(u, :original), p)
     end
 end
+# Now we want to add some non-static information from lowering
 # We want to do two things here:
 # 1. correct existing usage results since we have more accuracy
 #   - should be able to solve https://github.com/ericphanson/ExplicitImports.jl/issues/62
 #       - here the issue is we mark all function args as local, even when sometimes they are global
 #       - we should be able to correct this by identifying the global ref and marking it as global
 # 2. add usages that were missed, such as inside macros: https://github.com/ericphanson/ExplicitImports.jl/issues/81
-
+# Step 1:
 function correct_static_analysis(file::String, mod::Module;
                                  file_analysis=get_names_used_static(file),
-                                 lookup_lowered = analyze_locals_nonrecursive(mod))
+                                 lookup_lowered=analyze_locals_nonrecursive(mod))
     return map(file_analysis.per_usage_info) do row
-        k = (; row.location.file, row.location.line, row.name)
+        k = (; file=abspath(row.location.file), row.location.line, row.name)
         source_module = get(lookup_lowered, k, nothing)
         if source_module === mod # or submodule thereof? extensions?
             if row.analysis_code === External
@@ -714,42 +715,20 @@ function correct_static_analysis(file::String, mod::Module;
         return UpgradedUsageInfo(source_module, analysis_code, row)
     end
 end
+# This can solve the case in `test/test_macros`
 
+# Step 2:
 function additional_dynamic_names(file::String, mod::Module;
-    file_analysis=get_names_used_static(file),
-    lookup_lowered = analyze_locals_nonrecursive(mod))
-
+                                  file_analysis=get_names_used_static(file),
+                                  lookup_lowered=analyze_locals_nonrecursive(mod))
     for ((; file, line, name), source_module) in pairs(lookup_lowered)
         source_module === nothing && continue
         # Key thing we are missing: `qualified_by`
-        # We will use a dirty heuristic parsing
-        
-
-    end
-
-end
-
-function abc()
-    filter(ret) do r
-        return r.analysis_code !== r.original.analysis_code
+        # Parse it?
     end
 end
-
-function xyz(call_type=call_type)
-    "call_type=$(MethodAnalysis.call_type)"
-end
-
-#= We can detect this! (https://github.com/ericphanson/ExplicitImports.jl/issues/81)
-info
-z = only(filter(info) do row
-             return row.ref.name == :tokenize
-         end)
-z.ref.binding.owner.globalref.mod
-=#
-function register_steelProfile()
-    function post_fetch_method(file)
-        run(`$(tokenize()) -q $file`)
-        return rm(file)
-    end
-    #...
-end
+# We would like this to solve the case in `test/test_interpolation`,
+# but we are hindered by 2 things:
+# - not sure about qualified name
+# - the globalrefs don't seem to be populated until after the code is run
+# I think we may be able to do parsing (perhaps totally manual) to check if there is a `Mod.` prefix, but the second issue seems worse
