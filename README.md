@@ -102,6 +102,106 @@ Note the paths of course will differ depending on the location of the code on yo
 
 This can be handy for debugging; if you find that in fact ExplicitImports thinks a local variable is a global from another module, please file an issue and include the code snippet!
 
+## Command-line usage
+
+ExplicitImports provides a `main` function to facilitate using ExplicitImports directly from the command line. For example,
+
+```bash
+julia <path/to/ExplicitImports.jl>/scripts/explicit-imports.jl path_to_package
+```
+or
+
+```bash
+./scripts/explicit-imports.jl path_to_package
+```
+from this directory.
+
+Alternatively, one can use the `main` function directly:
+
+```bash
+julia -e 'using ExplicitImports: main;maini(["--print", "--checklist", "exclude_all_qualified_accesses_are_public"])'
+```
+
+On Julia v1.12+, one can use the syntax `julia -m ExplicitImports path` to run ExplicitImports on a particular path (defaulting to the current working directory). See [here](https://docs.julialang.org/en/v1.12-dev/NEWS/#Command-line-option-changes) for the `-m` flag. ExplicitImports.jl must be installed in the project you start Julia with (e.g. in your v1.12 default environment), and the target package to analyze must be installable on the same version of Julia (e.g. no out-of-date Manifest.toml present in the package environment).
+
+For example, using [`juliaup`](https://github.com/JuliaLang/juliaup)'s `nightly` feature, one can run ExplicitImports on v1.12 as follows.
+
+```bash
+julia +nightly -m ExplicitImports --print --checklist exclude_all_qualified_accesses_are_public
+```
+
+To see all the options, use one of:
+
+```bash
+julia +nightly -m ExplicitImports --help
+julia <path/to/ExplicitImports.jl>/scripts/explicit-imports.jl --help
+julia -e 'using ExplicitImports: main; exit(main(["--help"]))'
+```
+
+The output should be something like:
+
+```man
+NAME
+       ExplicitImports.main - analyze a package's namespace
+
+SYNOPSIS
+       julia -m ExplicitImports [OPTIONS] <path>
+
+DESCRIPTION
+       `ExplicitImports.main` (typically invoked as `julia -m ExplicitImports`)
+       analyzes a package's imports and qualified accesses, and prints the results.
+
+OPTIONS
+       <path>
+           Path to the root directory of the package (default: pwd)
+       --help
+           Show this message
+       --check
+           Run checks instead of printing. If --checklist is not specified, all checks are run
+       --checklist <check1,check2>,...
+           Run checks specified by <check1>,<check2>,...
+           This will imply --check.
+
+           Valid values for each check are:
+           - Individual checks:
+                 all_explicit_imports_are_public,
+                 all_qualified_accesses_are_public,
+                 all_explicit_imports_via_owners,
+                 all_qualified_accesses_via_owners,
+                 no_implicit_imports,
+                 no_self_qualified_accesses,
+                 no_stale_explicit_imports
+           - Select all checks: all
+           - Exclude a check: prepend an individual check with 'exclude_'
+
+           The selection logic is performed in the order given.
+           If you pass only exclusions, it will assume that it starts from a complete list, and then excludes.
+           If you pass any individual checks, it will assume that it starts from an empty list, and then includes.
+           Passing both individual and exclusion checks does not make sense.
+```
+
+## Pre-commit hooks
+
+Another way to use ExplicitImports is with [pre-commit](https://pre-commit.com/).
+Simply add the following to `.pre-commit-config.yaml`:
+
+```yaml
+- repo: https://github.com/ericphanson/ExplicitImports.jl
+  rev: v1.10.0
+  hooks:
+    - id: explicit-imports
+      args: [--print,--checklist,"exclude_all_qualified_accesses_are_public"]
+```
+
+The hook will run a selection of the tests and fail if any of them fail.
+
+This simply invokes the `ExplicitImports.main` with the `--check` flag (see the previous section), and additional valid arguments may be passed with the `args` parameter as shown.
+
+Note that the `--print` argument will print the explicit_imports, which might be useful for fixing the issues.
+The issues are only shown if the checks fail, or if you run pre-commit with `--verbose`.
+
+The `--checklist` argument allows you to specify which checks to run. If omitted, all checks are run.
+
 ## Limitations
 
 ### Some tricky scoping situations are not handled correctly

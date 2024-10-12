@@ -71,11 +71,7 @@ include("script.jl")
 include("imports.jl")
 include("test_qualified_access.jl")
 include("test_explicit_imports.jl")
-
-# We need both `@main` and `julia -m` to be supported:
-if isdefined(Base, Symbol("@main")) && VERSION >= v"1.12.0-DEV.102"
-    include("main.jl")
-end
+include("main.jl")
 
 # For deprecations, we are using `maxlog`, which
 # the TestLogger only respects in Julia 1.8+.
@@ -97,7 +93,10 @@ if VERSION > v"1.9-"
         ext_imports = Dict(only_name_source(explicit_imports(TestPkg)))[DataFramesExt]
         @test ext_imports == [(; name=:DataFrames, source=DataFrames),
                               (; name=:DataFrame, source=DataFrames),
-                              (; name=:groupby, source=DataFrames)]
+                              (; name=:groupby, source=DataFrames)] ||
+              ext_imports == [(; name=:DataFrames, source=DataFrames),
+                              (; name=:DataFrame, source=DataFrames),
+                              (; name=:groupby, source=DataFrames.DataAPI)]
     end
 end
 
