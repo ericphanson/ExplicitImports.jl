@@ -54,6 +54,7 @@ include("interactive_usage.jl")
 include("checks.jl")
 include("deprecated.jl")
 include("main.jl")
+include("abstract_interpreter.jl")
 
 struct FileNotFoundException <: Exception end
 
