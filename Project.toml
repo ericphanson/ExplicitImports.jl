@@ -1,7 +1,7 @@
 name = "ExplicitImports"
 uuid = "7d51a73a-1435-4ff3-83d9-f097790105c7"
+version = "1.11.0"
 authors = ["Eric P. Hanson"]
-version = "1.10.1"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -27,6 +27,8 @@ TOML = "<0.0.1, 1"
 Test = "<0.0.1, 1"
 UUIDs = "<0.0.1, 1"
 julia = "1.6"
+
+[apps.explicit-imports]
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
