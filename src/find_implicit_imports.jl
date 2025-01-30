@@ -67,7 +67,15 @@ function find_implicit_imports(mod::Module; skip=(mod, Base, Core))
                     push!(es, e)
                 end
             end
-            mod_lookup[name] = (; source, exporters=es)
+            # if there are no matches (empty `es`), we will skip it
+            # This seemed to happen for `tryparse` in `Pkg.Types` which resolves to `Base.tryparse`
+            # and does not match `TOML.tryparse` which was the only candidate to compare to
+            # (since we want to skip `Base.tryparse` as `Base` is in `skip`)
+            # If there are no matches, such as in this case, we don't want to count it
+            # as an implicit import, since it is probably only from a module in `skip`.
+            if !isempty(es)
+                mod_lookup[name] = (; source, exporters=es)
+            end
         end
     end
     return mod_lookup

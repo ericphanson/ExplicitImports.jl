@@ -603,6 +603,7 @@ end
 
 @testset "Handle public symbols with same name as exported Base symbols (#88)" begin
     statements = using_statement.(explicit_imports_nonrecursive(Mod88, "examples.jl"))
+    @test statements == "using .ModWithTryparse: ModWithTryparse"
 
 end
 @testset "Don't skip source modules (#29)" begin
