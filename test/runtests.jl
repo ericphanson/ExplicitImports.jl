@@ -601,6 +601,10 @@ end
     @test contains(str, "• qr")
 end
 
+@testset "Handle public symbols with same name as exported Base symbols (#88)" begin
+    statements = using_statement.(explicit_imports_nonrecursive(Mod88, "examples.jl"))
+
+end
 @testset "Don't skip source modules (#29)" begin
     # In this case `UUID` is defined in Base but exported in UUIDs
     ret = ExplicitImports.find_implicit_imports(Mod29)[:UUID]
