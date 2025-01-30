@@ -59,9 +59,9 @@ v = UUID[]
 end
 
 module ModWithTryparse
-using Main: @public_or_export
+using Main: @public
 
-@public_or_export tryparse
+@public tryparse
 function tryparse()
     return 1
 end
