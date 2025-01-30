@@ -4,8 +4,16 @@
     macro public_or_export(symbol::Symbol)
         return esc(Expr(:public, symbol))
     end
+    macro public(symbol::Symbol)
+        return esc(Expr(:public, symbol))
+    end
+
 else
     macro public_or_export(symbol::Symbol)
         return esc(Expr(:export, symbol))
     end
+    macro public(symbol::Symbol)
+        return nothing
+    end
+
 end

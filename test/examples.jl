@@ -57,3 +57,19 @@ using UUIDs
 
 v = UUID[]
 end
+
+module ModWithTryparse
+using Main: @public
+
+@public tryparse
+function tryparse()
+    return 1
+end
+end
+# https://github.com/ericphanson/ExplicitImports.jl/issues/88
+module Mod88
+
+using ..ModWithTryparse
+
+tryparse
+end
