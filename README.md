@@ -4,6 +4,15 @@
 [![Build Status](https://github.com/ericphanson/ExplicitImports.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ericphanson/ExplicitImports.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/ericphanson/ExplicitImports.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ericphanson/ExplicitImports.jl)
 
+## Quickstart
+
+Install ExplicitImports.jl with `using Pkg; Pkg.add("ExplicitImports")`, then run
+```julia
+using MyPackage # the package you want to analyze
+using ExplicitImports
+print_explicit_imports(MyPackage)
+```
+
 ## Summary
 
 ExplicitImports.jl helps detect implicit imports and mitigate issues with the alternatives (explicit imports and qualified accesses).
