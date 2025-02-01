@@ -28,7 +28,7 @@ Test = "<0.0.1, 1"
 UUIDs = "<0.0.1, 1"
 julia = "1.6"
 
-[apps.explicit-imports]
+[apps.explicit-imports-jl]
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
