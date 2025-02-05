@@ -6,10 +6,11 @@ using JuliaSyntax, AbstractTrees
 # the former occurs for all users, the latter only for developers of this package
 using JuliaSyntax: parse
 using AbstractTrees: parent
-using TOML: parsefile
+using TOML: TOML, parsefile
 using Compat: Compat, @compat
 using Markdown: Markdown
 using PrecompileTools: @setup_workload, @compile_workload
+using Pkg: Pkg
 
 export print_explicit_imports, explicit_imports, check_no_implicit_imports,
        explicit_imports_nonrecursive
@@ -396,6 +397,7 @@ end
 @setup_workload begin
     @compile_workload begin
         sprint(print_explicit_imports, ExplicitImports, @__FILE__)
+        precompile(main, (Vector{String},))
     end
 end
 

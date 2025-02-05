@@ -131,7 +131,7 @@ Alternatively, one can use the `main` function directly:
 julia -e 'using ExplicitImports: main; main(["--print", "--checklist", "exclude_all_qualified_accesses_are_public"])'
 ```
 
-On Julia v1.12+, one can use the syntax `julia -m ExplicitImports path` to run ExplicitImports on a particular path (defaulting to the current working directory). See [here](https://docs.julialang.org/en/v1.12-dev/NEWS/#Command-line-option-changes) for the `-m` flag. ExplicitImports.jl must be installed in the project you start Julia with (e.g. in your v1.12 default environment), and the target package to analyze must be installable on the same version of Julia (e.g. no out-of-date Manifest.toml present in the package environment).
+On Julia v1.12+, one can use the syntax `julia -m ExplicitImports path` to run ExplicitImports on a particular path (defaulting to the current working directory). See [here](https://docs.julialang.org/en/v1.12-dev/NEWS/#Command-line-option-changes) for the `-m` flag. ExplicitImports.jl must be installed in the project you start Julia with (e.g. in your v1.12 default environment), and the target package to analyze must be installable on the same version of Julia.
 
 For example, using [`juliaup`](https://github.com/JuliaLang/juliaup)'s `nightly` feature, one can run ExplicitImports on v1.12 as follows.
 
