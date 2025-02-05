@@ -113,6 +113,34 @@ This can be handy for debugging; if you find that in fact ExplicitImports thinks
 
 ## Command-line usage
 
+### CLI app
+
+ExplicitImports provides an experimental CLI application using the brand-new "apps" functionality from Pkg, available with Julia v1.12.
+
+If you use [juliaup](https://github.com/JuliaLang/juliaup) you can install Julia v1.12 with `juliaup add nightly`, and then run
+
+```sh
+julia +nightly --startup-file=no -e 'using Pkg; Pkg.activate(temp=true); Pkg.Apps.add("ExplicitImports")'
+```
+to install a CLI executable `explicit-imports-jl` to the bin directory in your Julia depot (`~/.julia` by default). You will likely need to add your bin directory to your PATH, e.g.
+
+```sh
+export PATH="/Users/eph/.julia/bin:$PATH"
+```
+
+which can go in a shell startup script (e.g. `~/.bashrc` or `~/.zshrc`).
+
+
+Then you can run e.g.
+
+```sh
+explicit-imports-jl --help
+```
+
+from the command-line to run the app and print the help. 
+
+### `main` function
+
 ExplicitImports provides a `main` function to facilitate using ExplicitImports directly from the command line. For example,
 
 ```bash
