@@ -397,6 +397,7 @@ end
 @setup_workload begin
     @compile_workload begin
         sprint(print_explicit_imports, ExplicitImports, @__FILE__)
+        precompile(main, (Vector{String},))
     end
 end
 
