@@ -46,12 +46,13 @@ function activate_and_load(package, project_path)
     v = get_manifest_julia_version(manifest_path)
     pkg_io = IOContext(Base.BufferStream(), :color => get(Base.ioproperties(stderr), :color, false))
     try # we will dump `pkg_io` to stderr if there is an error
-        if !isnothing(v) && (v.major == VERSION.major || v.minor == VERSION.minor)
+        if !isnothing(v) && v.major == VERSION.major && v.minor == VERSION.minor
             # unless we already have a manifest that should work, we will use a temp env
             # we don't want to:
             # 1. error because the user has a manifest with a different julia version
             # 2. create a new manifest with `Pkg.instantiate` when one does not exist
             @info "Using existing manifest at $manifest_path"
+            @debug "Manifest version: $v. Current version: $VERSION"
             @static if isdefined(Base, :set_active_project)
                 Base.set_active_project(project_path)
             else
