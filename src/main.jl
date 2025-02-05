@@ -40,11 +40,20 @@ function get_manifest_julia_version(manifest_path)
     return tryparse(VersionNumber, v_str)
 end
 
+function julia_has_color()
+    if isdefined(Base, :ioproperties)
+        return get(Base.ioproperties(stderr), :color, false)
+    else
+        # safe fallback
+        return false
+    end
+end
+
 function activate_and_load(package, project_path)
     @info "Loading package at $(abspath(project_path))"
     manifest_path = Pkg.Types.manifestfile_path(dirname(project_path))
     v = get_manifest_julia_version(manifest_path)
-    pkg_io = IOContext(Base.BufferStream(), :color => get(Base.ioproperties(stderr), :color, false))
+    pkg_io = IOContext(Base.BufferStream(), :color => julia_has_color())
     try # we will dump `pkg_io` to stderr if there is an error
         if !isnothing(v) && v.major == VERSION.major && v.minor == VERSION.minor
             # unless we already have a manifest that should work, we will use a temp env
