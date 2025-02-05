@@ -32,17 +32,25 @@ function get_package_name_from_project_toml(path)
 end
 
 function activate_and_load(package, project_path)
-    @static if isdefined(Base, :set_active_project)
-        Base.set_active_project(project_path)
-    else
-        @eval Main begin
-            using Pkg
-            Pkg.activate($project_path)
+    @info "Loading package at $(abspath(project_path))"
+    pushfirst!(LOAD_PATH, project_path)
+    try
+        @static if isdefined(Base, :set_active_project)
+            Base.set_active_project(project_path)
+        else
+            @eval Main begin
+                $Pkg.activate($project_path)
+            end
         end
-    end
-    @eval Main begin
-        using $package: $package
-        using ExplicitImports: ExplicitImports
+        Pkg.instantiate();
+        @eval Main begin
+            using $package: $package
+            using ExplicitImports: ExplicitImports
+        end
+    finally
+        if !isempty(LOAD_PATH) && first(LOAD_PATH) == project_path
+            popfirst!(LOAD_PATH)
+        end
     end
 end
 
