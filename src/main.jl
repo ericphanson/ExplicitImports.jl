@@ -31,24 +31,59 @@ function get_package_name_from_project_toml(path)
     return package, project_path
 end
 
+function get_manifest_julia_version(manifest_path)
+    isfile(manifest_path) || return nothing
+    manifest = TOML.tryparsefile(manifest_path)
+    isnothing(manifest) && return nothing
+    v_str = get(manifest, "julia_version", nothing)
+    isnothing(v_str) && return nothing
+    return tryparse(VersionNumber, v_str)
+end
+
 function activate_and_load(package, project_path)
     @info "Loading package at $(abspath(project_path))"
-    pushfirst!(LOAD_PATH, project_path)
-    try
-        @static if isdefined(Base, :set_active_project)
-            Base.set_active_project(project_path)
-        else
-            @eval Main begin
-                $Pkg.activate($project_path)
+    manifest_path = Pkg.Types.manifestfile_path(dirname(project_path))
+    v = get_manifest_julia_version(manifest_path)
+    pkg_io = IOContext(Base.BufferStream(), :color => get(Base.ioproperties(stderr), :color, false))
+    try # we will dump `pkg_io` to stderr if there is an error
+        if !isnothing(v) && (v.major == VERSION.major || v.minor == VERSION.minor)
+            # unless we already have a manifest that should work, we will use a temp env
+            # we don't want to:
+            # 1. error because the user has a manifest with a different julia version
+            # 2. create a new manifest with `Pkg.instantiate` when one does not exist
+            @info "Using existing manifest at $manifest_path"
+            @static if isdefined(Base, :set_active_project)
+                Base.set_active_project(project_path)
+            else
+                Pkg.activate(project_path; io=pkg_io)
+                Pkg.instantiate(; io=pkg_io)
             end
+        else
+            # safe fallback: temp env
+            @info "Creating new manifest in temporary environment"
+            Pkg.activate(; temp=true, io=pkg_io)
+            Pkg.develop(; path=dirname(project_path), io=pkg_io)
         end
-        Pkg.instantiate();
+    catch
+        # Dump pkg io
+        close(pkg_io)
+        write(stderr, read(pkg_io))
+        rethrow()
+    end
+
+    # In an apps context, our `LOAD_PATH` may not include the active project!
+    # We have just set an active project we do want to load from, so let's push
+    # it into our `LOAD_PATH`
+    load_path_project = Base.active_project()
+    pushfirst!(LOAD_PATH, load_path_project)
+    try
         @eval Main begin
             using $package: $package
-            using ExplicitImports: ExplicitImports
         end
     finally
-        if !isempty(LOAD_PATH) && first(LOAD_PATH) == project_path
+        # let us try to be good citizens and undo the `LOAD_PATH` modification
+        # we have made, if no one has messed with since.
+        if !isempty(LOAD_PATH) && first(LOAD_PATH) == load_path_project
             popfirst!(LOAD_PATH)
         end
     end
@@ -58,7 +93,7 @@ function run_checks(package, selected_checks)
     for check in selected_checks
         @info "Checking $check"
         try
-            @eval Main ExplicitImports.$(Symbol("check_" * check))($package)
+            @eval Main $ExplicitImports.$(Symbol("check_" * check))($package)
         catch e
             printstyled(stderr, "ERROR: "; bold=true, color=:red)
             Base.showerror(stderr, e)
@@ -185,7 +220,7 @@ function main(args)
     activate_and_load(package, project_path)
     if should_print
         try
-            @eval Main ExplicitImports.print_explicit_imports($package)
+            @eval Main $ExplicitImports.print_explicit_imports($package)
         catch e
             printstyled(stderr, "ERROR: "; bold=true, color=:red)
             Base.showerror(stderr, e)

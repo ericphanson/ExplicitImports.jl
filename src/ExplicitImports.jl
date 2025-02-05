@@ -6,7 +6,7 @@ using JuliaSyntax, AbstractTrees
 # the former occurs for all users, the latter only for developers of this package
 using JuliaSyntax: parse
 using AbstractTrees: parent
-using TOML: parsefile
+using TOML: TOML, parsefile
 using Compat: Compat, @compat
 using Markdown: Markdown
 using PrecompileTools: @setup_workload, @compile_workload

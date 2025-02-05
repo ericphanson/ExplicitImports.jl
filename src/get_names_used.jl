@@ -213,11 +213,11 @@ function get_import_lhs(import_rhs_leaf)
     if parents_match(import_rhs_leaf, (K"importpath", K":"))
         n = first(children(get_parent(import_rhs_leaf, 2)))
         @assert kind(n) == K"importpath"
-        return get_val.(children(n))
+        return filter!(!isnothing, get_val.(children(n)))
     elseif parents_match(import_rhs_leaf, (K"importpath", K"as", K":"))
         n = first(children(get_parent(import_rhs_leaf, 3)))
         @assert kind(n) == K"importpath"
-        return get_val.(children(n))
+        return filter!(!isnothing, get_val.(children(n)))
     else
         error("does not seem to be an import RHS")
     end
