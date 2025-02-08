@@ -101,10 +101,11 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                                                                                    file_analysis=file_analysis[file],
                                                                                    allow_internal_imports=false)
 
+            if problematic_imports_for_stale === nothing
+                continue
+            end
             # separate checks for non-stale where we respect the setting for `allow_internal_imports`
-            problematic_imports = if isnothing(problematic_imports_for_stale)
-                nothing
-            elseif allow_internal_imports
+            problematic_imports = if allow_internal_imports
                 filter(row -> !row.internal_import,
                        problematic_imports_for_stale)
             else

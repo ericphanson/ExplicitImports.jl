@@ -52,6 +52,9 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
 end
 
 function process_qualified_row(row, mod)
+    # for JET
+    @assert !isnothing(row.qualified_by)
+    
     isempty(row.qualified_by) && return nothing
     current_mod = mod
     for submod in row.qualified_by

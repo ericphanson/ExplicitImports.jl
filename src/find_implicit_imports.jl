@@ -44,7 +44,7 @@ function find_implicit_imports(mod::Module; skip=(mod, Base, Core))
             # This happens when you get stuff like
             # `WARNING: both Exporter3 and Exporter2 export "exported_a"; uses of it in module TestModA must be qualified`
             # and there is an ambiguity, and the name is in fact not resolved in `mod`
-            clash = err == ErrorException("\"$name\" is not defined in module $mod")
+            clash = (err == ErrorException("\"$name\" is not defined in module $mod"))::Bool
             # if it is something else, rethrow
             clash || rethrow()
             missing
