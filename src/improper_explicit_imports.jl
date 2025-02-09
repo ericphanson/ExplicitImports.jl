@@ -7,7 +7,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
     stale_imports = Set((; nt.name, nt.module_path) for nt in unnecessary_explicit_import)
 
     _explicit_imports = filter(per_usage_info) do row
-        return row.import_type === :import_RHS
+        return row.import_type === :import_RHS && row.explicitly_imported_by !== nothing
     end
 
     table = @NamedTuple{name::Symbol,
@@ -110,7 +110,10 @@ function parse_module_path(w, mod_path)
 end
 
 function process_explicitly_imported_row(row, mod)
-    current_mod = parse_module_path(mod, row.explicitly_imported_by)
+    # make JET happier; it thinks this can be `nothing`
+    explicitly_imported_by = row.explicitly_imported_by::Vector{Symbol}
+
+    current_mod = parse_module_path(mod, explicitly_imported_by)
 
     # this can happen for modules like `X.Y.X` if `filter_to_module`
     # got confused about which `X` we are in and this row is actually invalid
@@ -120,16 +123,16 @@ function process_explicitly_imported_row(row, mod)
     # doesn't seem to be an import
     current_mod === mod && return nothing
 
-    isempty(row.explicitly_imported_by) && return nothing
+    isempty(explicitly_imported_by) && return nothing
 
-    if row.explicitly_imported_by[end] != nameof(current_mod)
+    if explicitly_imported_by[end] !== nameof(current_mod)
         error("""
         Encountered implementation bug in `process_explicitly_imported_row`.
         Please file an issue on ExplicitImports.jl (https://github.com/ericphanson/ExplicitImports.jl/issues/new).
 
         Info:
 
-        `row.explicitly_imported_by`=$(row.explicitly_imported_by)
+        `explicitly_imported_by`=$(explicitly_imported_by)
         `nameof(current_mod)`=$(nameof(current_mod))
         """)
     end
@@ -178,7 +181,7 @@ function improper_explicit_imports_nonrecursive(mod::Module, file=pathof(mod);
     # the name is not publicly available in `importing_from`.
     filter!(problematic) do row
         row.stale === true && return true # keep these
-        row.public_import && return false # skip these
+        row.public_import === true && return false # skip these
         return true
     end
 

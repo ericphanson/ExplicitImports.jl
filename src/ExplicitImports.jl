@@ -347,9 +347,10 @@ function _find_submodules(mod)
 end
 
 function get_project_file(mod)
-    pkgdir(mod) === nothing && return nothing
+    dir = pkgdir(mod)
+    dir === nothing && return nothing
     for filename in ("Project.toml", "JuliaProject.toml")
-        pfile = joinpath(pkgdir(mod), filename)
+        pfile = joinpath(dir, filename)
         isfile(pfile) && return pfile
     end
     return nothing
@@ -394,11 +395,13 @@ function inspect_session(io::IO; skip=(Base, Core), inner=print_explicit_imports
     end
 end
 
+include("precompile.jl")
+
 @setup_workload begin
     @compile_workload begin
-        sprint(print_explicit_imports, ExplicitImports, @__FILE__)
-        precompile(main, (Vector{String},))
+        sprint(print_explicit_imports, ExplicitImports, @__FILE__; context=:color => true)
     end
 end
+
 
 end
