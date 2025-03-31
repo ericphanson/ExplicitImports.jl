@@ -1,3 +1,4 @@
+md_esc(str) = replace(string(str), r"[\\`*_#+-.!{}[\]()\$]" => s"\\\0")
 
 function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
     return print_explicit_imports(stdout, mod, file; kw...)
@@ -123,10 +124,10 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                     plural1 = length(stale) > 1 ? "these" : "this"
                     plural2 = length(stale) > 1 ? "s" : ""
                     println(io,
-                            "$word, $(name_fn(mod)) has stale explicit imports for $plural1 $(length(stale)) unused name$(plural2):")
+                            "$word, $(md_esc(name_fn(mod))) has stale explicit imports for $plural1 $(length(stale)) unused name$(plural2):")
                     for row in stale
                         println(io,
-                                "- `$(row.name)` is unused but it was imported from $(row.importing_from) at $(row.location)")
+                                "- `$(row.name)` is unused but it was imported from $(md_esc(row.importing_from)) at $(md_esc(row.location))")
                     end
                 end
                 non_owner = filter(row -> !row.importing_from_submodule_owns_name,
@@ -138,11 +139,11 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                            "However" : "Additionally"
                     plural = length(non_owner) > 1 ? "s" : ""
                     println(io,
-                            "$word, $(name_fn(mod)) explicitly imports $(length(non_owner)) name$(plural) from non-owner modules:")
+                            "$word, $(md_esc(name_fn(mod))) explicitly imports $(length(non_owner)) name$(plural) from non-owner modules:")
                     for row in non_owner
                         owner = owner_mod_for_printing(row.whichmodule, row.name, row.value)
                         println(io,
-                                "- `$(row.name)` has owner $(owner) but it was imported from $(row.importing_from) at $(row.location)")
+                                "- `$(row.name)` has owner $(md_esc(owner)) but it was imported from $(md_esc(row.importing_from)) at $(md_esc(row.location))")
                     end
                 end
                 non_public = report_non_public ?
@@ -158,10 +159,10 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                     plural = length(non_public) > 1 ? "s" : ""
 
                     println(io,
-                            "$word, $(name_fn(mod)) explicitly imports $(length(non_public)) non-public name$(plural):")
+                            "$word, $(md_esc(name_fn(mod))) explicitly imports $(length(non_public)) non-public name$(plural):")
                     for row in non_public
                         println(io,
-                                "- `$(row.name)` is not public in $(row.importing_from) but it was imported from $(row.importing_from) at $(row.location)")
+                                "- `$(row.name)` is not public in $(md_esc(row.importing_from)) but it was imported from $(md_esc(row.importing_from)) at $(md_esc(row.location))")
                     end
                 end
             end
@@ -181,10 +182,10 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                        "However" : "Additionally"
                 plural = length(self_qualified) > 1 ? "es" : ""
                 println(io,
-                        "$word, $(name_fn(mod)) has $(length(self_qualified)) self-qualified access$plural:")
+                        "$word, $(md_esc(name_fn(mod))) has $(length(self_qualified)) self-qualified access$plural:")
                 for row in self_qualified
                     println(io,
-                            "- `$(row.name)` was accessed as `$(mod).$(row.name)` inside $(mod) at $(row.location)")
+                            "- `$(row.name)` was accessed as `$(mod).$(row.name)` inside $(md_esc(mod)) at $(md_esc(row.location))")
                 end
             end
 
@@ -198,11 +199,11 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                        "However" : "Additionally"
                 plural = length(non_owner) > 1 ? "s" : ""
                 println(io,
-                        "$word, $(name_fn(mod)) accesses $(length(non_owner)) name$(plural) from non-owner modules:")
+                        "$word, $(md_esc(name_fn(mod))) accesses $(length(non_owner)) name$(plural) from non-owner modules:")
                 for row in non_owner
                     owner = owner_mod_for_printing(row.whichmodule, row.name, row.value)
                     println(io,
-                            "- `$(row.name)` has owner $(owner) but it was accessed from $(row.accessing_from) at $(row.location)")
+                            "- `$(row.name)` has owner $(md_esc(owner)) but it was accessed from $(md_esc(row.accessing_from)) at $(md_esc(row.location))")
                 end
             end
 
@@ -220,10 +221,10 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                        "However" : "Additionally"
                 plural = length(non_public) > 1 ? "s" : ""
                 println(io,
-                        "$word, $(name_fn(mod)) accesses $(length(non_public)) non-public name$(plural):")
+                        "$word, $(md_esc(name_fn(mod))) accesses $(length(non_public)) non-public name$(plural):")
                 for row in non_public
                     println(io,
-                            "- `$(row.name)` is not public in $(row.accessing_from) but it was accessed via $(row.accessing_from) at $(row.location)")
+                            "- `$(row.name)` is not public in $(md_esc(row.accessing_from)) but it was accessed via $(md_esc(row.accessing_from)) at $(md_esc(row.location))")
                 end
             end
         end
