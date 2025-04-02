@@ -41,7 +41,7 @@ function Base.showerror(io::IO, e::QualifiedAccessesFromNonOwnerException)
     for row in e.accesses
         owner = owner_mod_for_printing(row.whichmodule, row.name, row.value)
         println(io,
-                "- `$(row.name)` has owner $(owner) but it was accessed from $(row.accessing_from) at $(row.location)")
+                "- `$(row.name)` has owner `$(owner)` but it was accessed from `$(row.accessing_from)` at $(row.location)")
     end
 end
 
@@ -73,7 +73,7 @@ function Base.showerror(io::IO, e::ExplicitImportsFromNonOwnerException)
             "Module `$(e.mod)` has explicit imports of names from modules other than their owner as determined via `Base.which`:")
     for row in e.bad_imports
         println(io,
-                "- `$(row.name)` has owner $(row.whichmodule) but it was imported from $(row.importing_from) at $(row.location)")
+                "- `$(row.name)` has owner `$(row.whichmodule)` but it was imported from `$(row.importing_from)` at $(row.location)")
     end
 end
 
@@ -89,7 +89,7 @@ function Base.showerror(io::IO, e::NonPublicExplicitImportsException)
             "Module `$(e.mod)` has explicit imports of names from modules in which they are not public (i.e. exported or declared public in Julia 1.11+):")
     for row in e.bad_imports
         println(io,
-                "- `$(row.name)` is not public in $(row.importing_from) but it was imported from $(row.importing_from) at $(row.location)")
+                "- `$(row.name)` is not public in `$(row.importing_from)` but it was imported from `$(row.importing_from)` at $(row.location)")
     end
 end
 
@@ -105,7 +105,7 @@ function Base.showerror(io::IO, e::NonPublicQualifiedAccessException)
             "Module `$(e.mod)` has explicit imports of names from modules in which they are not public (i.e. exported or declared public in Julia 1.11+):")
     for row in e.bad_imports
         println(io,
-                "- `$(row.name)` is not public in $(row.accessing_from) but it was imported from $(row.accessing_from) at $(row.location)")
+                "- `$(row.name)` is not public in `$(row.accessing_from)` but it was imported from `$(row.accessing_from)` at $(row.location)")
     end
 end
 struct StaleImportsException <: Exception

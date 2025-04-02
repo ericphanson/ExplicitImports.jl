@@ -820,7 +820,7 @@ end
                                                          allow_internal_imports=false))
     str = replace(str, r"\s+" => " ")
     @test contains(str, "using .Exporter3: Exporter3 # used at TestModA.jl:")
-    @test contains(str, "is unused but it was imported from Main.Exporter at TestModC.jl")
+    @test contains(str, "is unused but it was imported from `Main.Exporter` at TestModC.jl")
 
     # test `separate_lines=true``
     str = @test_logs sprint(io -> print_explicit_imports(io, TestModA, "TestModA.jl";
@@ -925,7 +925,7 @@ end
     str = exception_string() do
         return check_all_explicit_imports_are_public(ModImports, "imports.jl")
     end
-    @test contains(str, "`_svd!` is not public in LinearAlgebra but it was imported")
+    @test contains(str, "`_svd!` is not public in `LinearAlgebra` but it was imported")
     @test check_all_explicit_imports_are_public(ModImports, "imports.jl";
                                                 ignore=(:_svd!, :exported_b, :f, :h, :map)) ===
           nothing
