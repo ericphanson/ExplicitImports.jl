@@ -8,6 +8,6 @@ try
     precompile(Markdown.term, (Base.TTY, Markdown.Code, Int))
     precompile(Markdown.term, (Base.TTY, Markdown.Paragraph, Int))
     precompile(Markdown.term, (Base.TTY, Markdown.List, Int))
-catch err
-    @debug "Error in precompiles" err
+catch ex
+    @debug "Error in precompiles" ex
 end
