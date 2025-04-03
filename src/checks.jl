@@ -12,7 +12,7 @@ function Base.showerror(io::IO, e::ImplicitImportsException)
     for row in e.names
         name = row.name
         source = row.source
-        println(io, "* `$name` which is exported by $(source)")
+        println(io, "* `$name` which is exported by `$(source)`")
     end
 end
 
@@ -56,7 +56,7 @@ function Base.showerror(io::IO, e::SelfQualifiedAccessException)
             "Module `$(e.mod)` has self-qualified accesses:")
     for row in e.accesses
         println(io,
-                "- `$(row.name)` was accessed as $(e.mod).$(row.name) inside $(e.mod) at $(row.location)")
+                "- `$(row.name)` was accessed as `$(e.mod).$(row.name)` inside `$(e.mod)` at $(row.location)")
     end
 end
 
