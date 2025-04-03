@@ -1,4 +1,3 @@
-
 function print_explicit_imports(mod::Module, file=pathof(mod); kw...)
     return print_explicit_imports(stdout, mod, file; kw...)
 end
@@ -56,7 +55,7 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                                 warn_stale=nothing,
                                 # internal kwargs
                                 recursive=true,
-                                name_fn=mod -> "module $mod")
+                                name_fn=mod -> "module `$mod`")
     io = IOBuffer()
     if warn_improper_explicit_imports !== nothing && warn_stale !== nothing
         throw(ArgumentError("[print_explicit_imports] Cannot set both `warn_improper_explicit_imports` and `warn_stale`; instead set only `warn_improper_explicit_imports`."))
@@ -126,7 +125,7 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                             "$word, $(name_fn(mod)) has stale explicit imports for $plural1 $(length(stale)) unused name$(plural2):")
                     for row in stale
                         println(io,
-                                "- `$(row.name)` is unused but it was imported from $(row.importing_from) at $(row.location)")
+                                "- `$(row.name)` is unused but it was imported from `$(row.importing_from)` at `$(row.location)`")
                     end
                 end
                 non_owner = filter(row -> !row.importing_from_submodule_owns_name,
@@ -142,7 +141,7 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                     for row in non_owner
                         owner = owner_mod_for_printing(row.whichmodule, row.name, row.value)
                         println(io,
-                                "- `$(row.name)` has owner $(owner) but it was imported from $(row.importing_from) at $(row.location)")
+                                "- `$(row.name)` has owner `$(owner)` but it was imported from `$(row.importing_from)` at `$(row.location)`")
                     end
                 end
                 non_public = report_non_public ?
@@ -161,7 +160,7 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                             "$word, $(name_fn(mod)) explicitly imports $(length(non_public)) non-public name$(plural):")
                     for row in non_public
                         println(io,
-                                "- `$(row.name)` is not public in $(row.importing_from) but it was imported from $(row.importing_from) at $(row.location)")
+                                "- `$(row.name)` is not public in `$(row.importing_from)` but it was imported from `$(row.importing_from)` at `$(row.location)`")
                     end
                 end
             end
@@ -184,7 +183,7 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                         "$word, $(name_fn(mod)) has $(length(self_qualified)) self-qualified access$plural:")
                 for row in self_qualified
                     println(io,
-                            "- `$(row.name)` was accessed as `$(mod).$(row.name)` inside $(mod) at $(row.location)")
+                            "- `$(row.name)` was accessed as `$(mod).$(row.name)` inside $(mod) at `$(row.location)`")
                 end
             end
 
@@ -202,7 +201,7 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                 for row in non_owner
                     owner = owner_mod_for_printing(row.whichmodule, row.name, row.value)
                     println(io,
-                            "- `$(row.name)` has owner $(owner) but it was accessed from $(row.accessing_from) at $(row.location)")
+                            "- `$(row.name)` has owner `$(owner)` but it was accessed from `$(row.accessing_from)` at `$(row.location)`")
                 end
             end
 
@@ -223,7 +222,7 @@ function print_explicit_imports(final_io::IO, mod::Module, file=pathof(mod);
                         "$word, $(name_fn(mod)) accesses $(length(non_public)) non-public name$(plural):")
                 for row in non_public
                     println(io,
-                            "- `$(row.name)` is not public in $(row.accessing_from) but it was accessed via $(row.accessing_from) at $(row.location)")
+                            "- `$(row.name)` is not public in `$(row.accessing_from)` but it was accessed via `$(row.accessing_from)` at `$(row.location)`")
                 end
             end
         end
