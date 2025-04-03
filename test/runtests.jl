@@ -72,6 +72,7 @@ include("imports.jl")
 include("test_qualified_access.jl")
 include("test_explicit_imports.jl")
 include("main.jl")
+include("Test_Mod_Underscores.jl")
 
 # For deprecations, we are using `maxlog`, which
 # the TestLogger only respects in Julia 1.8+.
@@ -1030,5 +1031,69 @@ end
     # We just want to make sure we are robust enough that this doesn't error
     big_str = with_logger(Logging.NullLogger()) do
         return sprint(inspect_session)
+    end
+end
+
+@testset "backtick modules and locations" begin
+    @testset "print_explicit_imports" begin
+        # Test that module names and file:line locations are surrounded by backticks
+        # and that underscores in module and file names are printed and do not cause italics.
+        str = sprint() do io
+            print_explicit_imports(io, Test_Mod_Underscores, "Test_Mod_Underscores.jl"; report_non_public=true)
+        end
+        str = replace(str, r"\s+" => " ")
+        # stale import
+        @test contains(str, "Test_Mod_Underscores has stale explicit imports")
+        @test contains(str, "svd is unused but it was imported from LinearAlgebra at Test_Mod_Underscores.jl")
+        # non-owner module
+        @test contains(str, "Test_Mod_Underscores explicitly imports 1 name from non-owner module")
+        @test contains(str, "map has owner Base but it was imported from LinearAlgebra at Test_Mod_Underscores.jl")
+        # non-public name
+        @test contains(str, "Test_Mod_Underscores explicitly imports 1 non-public name")
+        @test contains(str, "_svd! is not public in LinearAlgebra but it was imported from LinearAlgebra at Test_Mod_Underscores.jl")
+        # self-qualified access
+        @test contains(str, "Test_Mod_Underscores has 1 self-qualified access")
+        @test contains(str, "foo was accessed as Main.Test_Mod_Underscores.foo inside Main.TestModUnderscores at Test_Mod_Underscores.jl")
+        # access non-owner module
+        @test contains(str, "Test_Mod_Underscores accesses 1 name from non-owner modules")
+        @test contains(str, "Number has owner Base but it was accessed from Base.Sys at Test_Mod_Underscores.jl")
+        # access non-public name
+        @test contains(str, "Test_Mod_Underscores accesses 1 non-public name")
+        @test contains(str, "__unsafe_string! is not public in Base but it was accessed via Base at Test_Mod_Underscores.jl")
+    end
+    @testset "check_*" begin
+        str = exception_string() do
+            check_no_implicit_imports(Test_Mod_Underscores, "Test_Mod_Underscores.jl")
+        end
+        @test contains(str, "`Main.Test_Mod_Underscores` is relying on")
+        str = exception_string() do
+            check_all_explicit_imports_via_owners(Test_Mod_Underscores, "Test_Mod_Underscores.jl")
+        end
+        @test contains(str, "Module `Main.Test_Mod_Underscores` has explicit imports")
+        @test contains(str, r"at `Test_Mod_Underscores.jl:\d+:\d+`")
+        str = exception_string() do
+            check_all_explicit_imports_are_public(Test_Mod_Underscores, "Test_Mod_Underscores.jl")
+        end
+        @test contains(str, "Module `Main.Test_Mod_Underscores` has")
+        @test contains(str, r"at `Test_Mod_Underscores.jl:\d+:\d+`")
+        str = exception_string() do
+            check_no_stale_explicit_imports(Test_Mod_Underscores, "Test_Mod_Underscores.jl")
+        end
+        @test contains(str, "Module `Main.Test_Mod_Underscores` has stale")
+        str = exception_string() do
+            check_all_qualified_accesses_via_owners(Test_Mod_Underscores, "Test_Mod_Underscores.jl")
+        end
+        @test contains(str, "Module `Main.Test_Mod_Underscores` has qualified accesses")
+        @test contains(str, r"at `Test_Mod_Underscores.jl:\d+:\d+`")
+        str = exception_string() do
+            check_all_qualified_accesses_are_public(Test_Mod_Underscores, "Test_Mod_Underscores.jl")
+        end
+        @test contains(str, "Module `Main.Test_Mod_Underscores` has explicit imports of")
+        @test contains(str, r"at `Test_Mod_Underscores.jl:\d+:\d+`")
+        str = exception_string() do
+            check_no_self_qualified_accesses(Test_Mod_Underscores, "Test_Mod_Underscores.jl")
+        end
+        @test contains(str, "Module `Main.Test_Mod_Underscores` has self-qualified accesses")
+        @test contains(str, r"accessed as `Main.Test_Mod_Underscores.foo` inside `Main.Test_Mod_Underscores` at `Test_Mod_Underscores.jl:10:40`")
     end
 end
