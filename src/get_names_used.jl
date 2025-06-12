@@ -150,8 +150,8 @@ function is_anonymous_do_function_definition_arg(leaf)
     if !has_parent(leaf, 2)
         return false
     elseif parents_match(leaf, (K"tuple", K"do"))
-        # second argument of `do`-block
-        return child_index(parent(leaf)) == 2
+        # first argument of `do`-block (args then function body since JuliaSyntax 1.0)
+        return child_index(parent(leaf)) == 1
     elseif kind(parent(leaf)) in (K"tuple", K"parameters")
         # Ok, let's just step up one level and see again
         return is_anonymous_do_function_definition_arg(parent(leaf))
@@ -374,10 +374,7 @@ function analyze_name(leaf; debug=false)
         # Constructs that start a new local scope. Note `let` & `macro` *arguments* are not explicitly supported/tested yet,
         # but we can at least keep track of scope properly.
         if k in
-           (K"let", K"for", K"function", K"struct", K"generator", K"while", K"macro") ||
-           # Or do-block when we are considering a path that did not go through the first-arg
-           # (which is the function name, and NOT part of the local scope)
-           (k == K"do" && child_index(prev_node) > 1) ||
+           (K"let", K"for", K"function", K"struct", K"generator", K"while", K"macro", K"do") ||
            # any child of `try` gets it's own individual scope (I think)
            (parents_match(node, (K"try",)))
             push!(scope_path, nodevalue(node).node)
