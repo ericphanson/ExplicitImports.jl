@@ -499,10 +499,6 @@ function analyze_all_names(file)
 end
 
 function is_name_internal_in_higher_local_scope(name, scope_path, seen)
-    if name == :QR
-        println("--------------------------------")
-        println("is_name_internal_in_higher_local_scope: $name, length(scope_path)=$(length(scope_path)), scope_path= $(map(nodevalue,scope_path)))")
-    end
     # We will recurse up the `scope_path`. Note the order is "reversed",
     # so the first entry of `scope_path` is deepest.
 
@@ -515,9 +511,6 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
         # Ok, now pop off the first scope and check.
         scope_path = scope_path[2:end]
         ret = get(seen, (; name, scope_path=SyntaxNodeList(scope_path)), nothing)
-        if name == :QR
-            println("[is_name_internal_in_higher_local_scope] ret: $ret, length(scope_path): $(length(scope_path))")
-        end
         if ret === nothing
             # Not introduced here yet, trying recursing further
             continue
@@ -530,29 +523,19 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
     return false
 end
 
+# We implement a workaround for https://github.com/JuliaLang/JuliaSyntax.jl/issues/558
+# Hashing and equality for SyntaxNodes were changed from object identity to a recursive comparison
+# in JuliaSyntax 1.0. This is very slow and also not quite the semantics we want anyway.
+# Here, we wrap our nodes in a custom type that only compares object identity.
 struct SyntaxNodeList
     nodes::Vector{JuliaSyntax.SyntaxNode}
 end
 
-Base.:(==)(a::SyntaxNodeList, b::SyntaxNodeList) = a.nodes == b.nodes
+Base.:(==)(a::SyntaxNodeList, b::SyntaxNodeList) = map(objectid, a.nodes) == map(objectid, b.nodes)
+Base.isequal(a::SyntaxNodeList, b::SyntaxNodeList) = isequal(map(objectid, a.nodes), map(objectid, b.nodes))
 
-function syntax_node_weak_hash(node::JuliaSyntax.SyntaxNode, h::UInt)
-    # We want to hash the node cheaply instead of fully recursively
-    h = hash(kind(node), h)
-    for child in js_children(node)
-        h = hash(kind(child), h)
-        h = hash(length(js_children(child)), h)
-    end
-    return h
-end
 function Base.hash(a::SyntaxNodeList, h::UInt)
-    # We implement a workaround for https://github.com/JuliaLang/JuliaSyntax.jl/issues/558
-    # There, hashing is extremely slow on SyntaxNode since it was changed to be fully recursive
-    # We can tolerate some collisions, so we want to implement our own hashing that is not fully recursive.
-    for node in a.nodes
-        h = syntax_node_weak_hash(node, h)
-    end
-    return h
+    return hash(map(objectid, a.nodes), h)
 end
 
 function analyze_per_usage_info(per_usage_info)
