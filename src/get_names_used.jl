@@ -499,6 +499,10 @@ function analyze_all_names(file)
 end
 
 function is_name_internal_in_higher_local_scope(name, scope_path, seen)
+    if name == :QR
+        println("--------------------------------")
+        println("is_name_internal_in_higher_local_scope: $name, length(scope_path)=$(length(scope_path)), scope_path= $(map(nodevalue,scope_path)))")
+    end
     # We will recurse up the `scope_path`. Note the order is "reversed",
     # so the first entry of `scope_path` is deepest.
 
@@ -510,7 +514,10 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
         end
         # Ok, now pop off the first scope and check.
         scope_path = scope_path[2:end]
-        ret = get(seen, (; name, scope_path), nothing)
+        ret = get(seen, (; name, scope_path=SyntaxNodeList(scope_path)), nothing)
+        if name == :QR
+            println("[is_name_internal_in_higher_local_scope] ret: $ret, length(scope_path): $(length(scope_path))")
+        end
         if ret === nothing
             # Not introduced here yet, trying recursing further
             continue
@@ -523,6 +530,31 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
     return false
 end
 
+struct SyntaxNodeList
+    nodes::Vector{JuliaSyntax.SyntaxNode}
+end
+
+Base.:(==)(a::SyntaxNodeList, b::SyntaxNodeList) = a.nodes == b.nodes
+
+function syntax_node_weak_hash(node::JuliaSyntax.SyntaxNode, h::UInt)
+    # We want to hash the node cheaply instead of fully recursively
+    h = hash(kind(node), h)
+    for child in js_children(node)
+        h = hash(kind(child), h)
+        h = hash(length(js_children(child)), h)
+    end
+    return h
+end
+function Base.hash(a::SyntaxNodeList, h::UInt)
+    # We implement a workaround for https://github.com/JuliaLang/JuliaSyntax.jl/issues/558
+    # There, hashing is extremely slow on SyntaxNode since it was changed to be fully recursive
+    # We can tolerate some collisions, so we want to implement our own hashing that is not fully recursive.
+    for node in a.nodes
+        h = syntax_node_weak_hash(node, h)
+    end
+    return h
+end
+
 function analyze_per_usage_info(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
     # First, throw away all qualified usages, they are irrelevant
@@ -531,9 +563,9 @@ function analyze_per_usage_info(per_usage_info)
     # Otherwise, we are in local scope:
     #   1. Next, if the name is a function arg, then this is not a global name (essentially first usage is assignment)
     #   2. Otherwise, if first usage is assignment, then it is local, otherwise it is global
-    seen = IdDict{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}},Bool}()
+    seen = Dict{@NamedTuple{name::Symbol,scope_path::SyntaxNodeList},Bool}()
     return map(per_usage_info) do nt
-        @compat if (; nt.name, nt.scope_path) in keys(seen)
+        @compat if (; nt.name, scope_path=SyntaxNodeList(nt.scope_path)) in keys(seen)
             return PerUsageInfo(; nt..., first_usage_in_scope=false,
                                 external_global_name=missing,
                                 analysis_code=IgnoredNonFirst)
@@ -566,7 +598,7 @@ function analyze_per_usage_info(per_usage_info)
             if is_local
                 external_global_name = false
                 push!(seen,
-                      (; nt.name, nt.scope_path) => external_global_name)
+                      (; nt.name, scope_path=SyntaxNodeList(nt.scope_path)) => external_global_name)
                 return PerUsageInfo(; nt..., first_usage_in_scope=true,
                                     external_global_name,
                                     analysis_code=reason)
@@ -578,14 +610,14 @@ function analyze_per_usage_info(per_usage_info)
                                                   seen)
             external_global_name = false
             push!(seen,
-                  (; nt.name, nt.scope_path) => external_global_name)
+                  (; nt.name, scope_path=SyntaxNodeList(nt.scope_path)) => external_global_name)
             return PerUsageInfo(; nt..., first_usage_in_scope=true, external_global_name,
                                 analysis_code=InternalHigherScope)
         end
 
         external_global_name = true
         push!(seen,
-              (; nt.name, nt.scope_path) => external_global_name)
+              (; nt.name, scope_path=SyntaxNodeList(nt.scope_path)) => external_global_name)
         return PerUsageInfo(; nt..., first_usage_in_scope=true, external_global_name,
                             analysis_code=External)
     end

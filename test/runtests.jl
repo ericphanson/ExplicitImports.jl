@@ -498,6 +498,12 @@ include("Test_Mod_Underscores.jl")
 
         @test map(get_val, filter(is_struct_field_name, leaves)) == [:x, :x, :x, :qr, :qr]
 
+        df = DataFrame(get_names_used("test_mods.jl").per_usage_info)
+        subset!(df, :name => ByRow(==(:QR)), :module_path => ByRow(==([:TestMod5])))
+        # two uses of QR: one is as a type param, the other a usage of that type param in the same struct definition
+        @test df.analysis_code == [ExplicitImports.InternalStruct, ExplicitImports.IgnoredNonFirst]
+        @test df.struct_field_or_type_param == [true, false]
+
         # Tests #34 and #36
         @test using_statement.(explicit_imports_nonrecursive(TestMod5, "test_mods.jl")) ==
               ["using LinearAlgebra: LinearAlgebra"]
