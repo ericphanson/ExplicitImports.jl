@@ -279,7 +279,7 @@ end
 # https://github.com/JuliaLang/JuliaSyntax.jl/issues/432
 function in_for_argument_position(node)
     # We must be on the LHS of a `for` `equal`.
-    if !has_parent(node, 2)
+    if !has_parent(node, 3)
         return false
     elseif parents_match(node, (K"in", K"iteration", K"for"))
         @debug """
@@ -312,7 +312,7 @@ end
 function in_generator_arg_position(node)
     # We must be on the LHS of a `=` inside a generator
     # (possibly inside a filter, possibly inside a `iteration`)
-    if !has_parent(node, 2)
+    if !has_parent(node, 3)
         return false
     elseif parents_match(node, (K"in", K"iteration", K"generator")) ||
            parents_match(node, (K"in", K"iteration", K"filter"))
