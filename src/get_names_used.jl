@@ -23,6 +23,8 @@ Base.@kwdef struct PerUsageInfo
     analysis_code::AnalysisCode
 end
 
+Base.show(io::IO, r::PerUsageInfo) = print(io, "PerUsageInfo (`$(r.name)` @ $(r.location), `qualified_by`=$(r.qualified_by))")
+
 function Base.NamedTuple(r::PerUsageInfo)
     names = fieldnames(typeof(r))
     return NamedTuple{names}(map(x -> getfield(r, x), names))
@@ -53,12 +55,18 @@ end
 
 # returns `nothing` for no qualifying module, otherwise a symbol
 function qualifying_module(leaf)
+    @debug "[qualifying_module] leaf: $(js_node(leaf)) start"
+    # introspect leaf and its tree of parents
+    @debug "[qualifying_module] leaf: $(js_node(leaf)) parents: $(parent_kinds(leaf))"
+
     # is this name being used in a qualified context, like `X.y`?
-    parents_match(leaf, (K"quote", K".")) || return nothing
+    parents_match(leaf, (K".",)) || return nothing
+    @debug "[qualifying_module] leaf: $(js_node(leaf)) passed dot"
     # Are we on the right-hand side?
-    child_index(parent(leaf)) == 2 || return nothing
+    child_index(leaf) == 2 || return nothing
+    @debug "[qualifying_module] leaf: $(js_node(leaf)) passed right-hand side"
     # Ok, now try to retrieve the child on the left-side
-    node = first(AbstractTrees.children(get_parent(leaf, 2)))
+    node = first(AbstractTrees.children(parent(leaf)))
     path = Symbol[]
     retrieve_module_path!(path, node)
     return path
