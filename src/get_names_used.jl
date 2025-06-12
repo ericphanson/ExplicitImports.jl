@@ -23,7 +23,10 @@ Base.@kwdef struct PerUsageInfo
     analysis_code::AnalysisCode
 end
 
-Base.show(io::IO, r::PerUsageInfo) = print(io, "PerUsageInfo (`$(r.name)` @ $(r.location), `qualified_by`=$(r.qualified_by))")
+function Base.show(io::IO, r::PerUsageInfo)
+    return print(io,
+                 "PerUsageInfo (`$(r.name)` @ $(r.location), `qualified_by`=$(r.qualified_by))")
+end
 
 function Base.NamedTuple(r::PerUsageInfo)
     names = fieldnames(typeof(r))
@@ -278,7 +281,16 @@ function in_for_argument_position(node)
     # We must be on the LHS of a `for` `equal`.
     if !has_parent(node, 2)
         return false
-    elseif parents_match(node, (K"iteration", K"for"))
+    elseif parents_match(node, (K"in", K"iteration", K"for"))
+        @debug """
+        [in_for_argument_position] node: $(js_node(node))
+        parents: $(parent_kinds(node))
+        child_index=$(child_index(node))
+        parent_child_index=$(child_index(get_parent(node, 1)))
+        parent_child_index2=$(child_index(get_parent(node, 2)))
+        """
+
+        # child_index(node) == 1 means we are the first argument of the `in`, like `yi in y`
         return child_index(node) == 1
     elseif kind(parent(node)) in (K"tuple", K"parameters")
         return in_for_argument_position(get_parent(node))
@@ -302,8 +314,8 @@ function in_generator_arg_position(node)
     # (possibly inside a filter, possibly inside a `iteration`)
     if !has_parent(node, 2)
         return false
-    elseif parents_match(node, (K"iteration", K"generator")) ||
-           parents_match(node, (K"iteration", K"filter"))
+    elseif parents_match(node, (K"in", K"iteration", K"generator")) ||
+           parents_match(node, (K"in", K"iteration", K"filter"))
         return child_index(node) == 1
     elseif kind(parent(node)) in (K"tuple", K"parameters")
         return in_generator_arg_position(get_parent(node))
@@ -531,8 +543,12 @@ struct SyntaxNodeList
     nodes::Vector{JuliaSyntax.SyntaxNode}
 end
 
-Base.:(==)(a::SyntaxNodeList, b::SyntaxNodeList) = map(objectid, a.nodes) == map(objectid, b.nodes)
-Base.isequal(a::SyntaxNodeList, b::SyntaxNodeList) = isequal(map(objectid, a.nodes), map(objectid, b.nodes))
+function Base.:(==)(a::SyntaxNodeList, b::SyntaxNodeList)
+    return map(objectid, a.nodes) == map(objectid, b.nodes)
+end
+function Base.isequal(a::SyntaxNodeList, b::SyntaxNodeList)
+    return isequal(map(objectid, a.nodes), map(objectid, b.nodes))
+end
 
 function Base.hash(a::SyntaxNodeList, h::UInt)
     return hash(map(objectid, a.nodes), h)
