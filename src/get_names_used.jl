@@ -242,10 +242,6 @@ function call_is_func_def(node)
     # note: macros only support full-form function definitions
     # (not inline)
     kind(p) in (K"function", K"macro") && return true
-    if kind(p) == K"="
-        # call should be the first arg in an inline function def
-        return child_index(node) == 1
-    end
     return false
 end
 
