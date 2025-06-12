@@ -490,11 +490,6 @@ function analyze_all_names(file)
     return analyze_per_usage_info(per_usage_info), untainted_modules
 end
 
-# this would ideally be identity, but hashing SyntaxNode's is slow on v1.0.2
-# https://github.com/JuliaLang/JuliaSyntax.jl/issues/558
-# so we will settle for some unlikely chance at collisions and just check the string rep of the values
-_simplify_hashing(scope_path) = map(string ∘ get_val, scope_path)
-
 function is_name_internal_in_higher_local_scope(name, scope_path, seen)
     # We will recurse up the `scope_path`. Note the order is "reversed",
     # so the first entry of `scope_path` is deepest.
@@ -507,7 +502,7 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
         end
         # Ok, now pop off the first scope and check.
         scope_path = scope_path[2:end]
-        ret = get(seen, (; name, scope_path=_simplify_hashing(scope_path)), nothing)
+        ret = get(seen, (; name, scope_path), nothing)
         if ret === nothing
             # Not introduced here yet, trying recursing further
             continue
@@ -528,9 +523,9 @@ function analyze_per_usage_info(per_usage_info)
     # Otherwise, we are in local scope:
     #   1. Next, if the name is a function arg, then this is not a global name (essentially first usage is assignment)
     #   2. Otherwise, if first usage is assignment, then it is local, otherwise it is global
-    seen = Dict{@NamedTuple{name::Symbol,scope_path::Vector{String}},Bool}()
+    seen = IdDict{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}},Bool}()
     return map(per_usage_info) do nt
-        @compat if (; nt.name, scope_path=_simplify_hashing(nt.scope_path)) in keys(seen)
+        @compat if (; nt.name, nt.scope_path) in keys(seen)
             return PerUsageInfo(; nt..., first_usage_in_scope=false,
                                 external_global_name=missing,
                                 analysis_code=IgnoredNonFirst)
@@ -563,7 +558,7 @@ function analyze_per_usage_info(per_usage_info)
             if is_local
                 external_global_name = false
                 push!(seen,
-                      (; nt.name, scope_path=_simplify_hashing(nt.scope_path)) => external_global_name)
+                      (; nt.name, nt.scope_path) => external_global_name)
                 return PerUsageInfo(; nt..., first_usage_in_scope=true,
                                     external_global_name,
                                     analysis_code=reason)
@@ -575,14 +570,14 @@ function analyze_per_usage_info(per_usage_info)
                                                   seen)
             external_global_name = false
             push!(seen,
-                  (; nt.name, scope_path=_simplify_hashing(nt.scope_path)) => external_global_name)
+                  (; nt.name, nt.scope_path) => external_global_name)
             return PerUsageInfo(; nt..., first_usage_in_scope=true, external_global_name,
                                 analysis_code=InternalHigherScope)
         end
 
         external_global_name = true
         push!(seen,
-              (; nt.name, scope_path=_simplify_hashing(nt.scope_path)) => external_global_name)
+              (; nt.name, nt.scope_path) => external_global_name)
         return PerUsageInfo(; nt..., first_usage_in_scope=true, external_global_name,
                             analysis_code=External)
     end
