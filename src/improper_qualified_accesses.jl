@@ -11,8 +11,11 @@ function analyze_qualified_names(mod::Module, file=pathof(mod);
     # something there would invalidate the qualified names with issues we did find.
     # For now let's ignore it.
 
+    @debug "[analyze_qualified_names] per_usage_info has $(length(per_usage_info)) rows"
     # Filter to qualified names
     qualified = [row for row in per_usage_info if row.qualified_by !== nothing]
+
+    @debug "[analyze_qualified_names] qualified has $(length(qualified)) rows"
 
     # which are in our module
     mod_path = module_path(mod)
@@ -54,7 +57,7 @@ end
 function process_qualified_row(row, mod)
     # for JET
     @assert !isnothing(row.qualified_by)
-    
+
     isempty(row.qualified_by) && return nothing
     current_mod = mod
     for submod in row.qualified_by

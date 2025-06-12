@@ -139,6 +139,17 @@ function parents_match(n::TreeCursor, kinds::Tuple)
     return parents_match(p, Base.tail(kinds))
 end
 
+
+function parent_kinds(n::TreeCursor)
+    kinds = []
+    while true
+        n = parent(n)
+        n === nothing && return kinds
+        push!(kinds, kind(n))
+    end
+    return kinds
+end
+
 function get_parent(n, i=1)
     for _ in i:-1:1
         n = parent(n)

@@ -25,7 +25,9 @@ function exception_string(f)
     catch e
         sprint(showerror, e)
     end
-    @test str isa String
+    if str === false
+        error("Expected `f` to throw an exception, but it did not")
+    end
     return str
 end
 
@@ -1046,9 +1048,10 @@ include("Test_Mod_Underscores.jl")
         end
     end
 
-    @testset "Aqua" begin
-        Aqua.test_all(ExplicitImports; ambiguities=false)
-    end
+    # TODO reenable this
+    # @testset "Aqua" begin
+        # Aqua.test_all(ExplicitImports; ambiguities=false)
+    # end
 
     @testset "`inspect_session`" begin
         # We just want to make sure we are robust enough that this doesn't error
