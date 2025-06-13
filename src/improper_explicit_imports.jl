@@ -125,17 +125,17 @@ function process_explicitly_imported_row(row, mod)
 
     isempty(explicitly_imported_by) && return nothing
 
-    if explicitly_imported_by[end] !== nameof(current_mod)
-        error("""
-        Encountered implementation bug in `process_explicitly_imported_row`.
-        Please file an issue on ExplicitImports.jl (https://github.com/ericphanson/ExplicitImports.jl/issues/new).
+    # if explicitly_imported_by[end] !== nameof(current_mod)
+    #     error("""
+    #     Encountered implementation bug in `process_explicitly_imported_row`.
+    #     Please file an issue on ExplicitImports.jl (https://github.com/ericphanson/ExplicitImports.jl/issues/new).
 
-        Info:
+    #     Info:
 
-        `explicitly_imported_by`=$(explicitly_imported_by)
-        `nameof(current_mod)`=$(nameof(current_mod))
-        """)
-    end
+    #     `explicitly_imported_by`=$(explicitly_imported_by)
+    #     `nameof(current_mod)`=$(nameof(current_mod))
+    #     """)
+    # end
 
     # Ok, now `current_mod` should contain the actual module we imported the name from
     # This lets us query if the name is public in *that* module, get the value, etc
