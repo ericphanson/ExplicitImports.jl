@@ -73,6 +73,7 @@ include("test_qualified_access.jl")
 include("test_explicit_imports.jl")
 include("main.jl")
 include("Test_Mod_Underscores.jl")
+include("module_alias.jl")
 
 # For deprecations, we are using `maxlog`, which
 # the TestLogger only respects in Julia 1.8+.
@@ -99,6 +100,13 @@ if VERSION > v"1.9-"
                               (; name=:DataFrame, source=DataFrames),
                               (; name=:groupby, source=DataFrames.DataAPI)]
     end
+end
+
+@testset "module aliases (#106)" begin
+    # https://github.com/ericphanson/ExplicitImports.jl/issues/106
+    ret = Dict(improper_explicit_imports(ModAlias, "module_alias.jl"))
+    @test isempty(ret[ModAlias])
+    @test isempty(ret[ModAlias.M1])
 end
 
 @testset "function arg bug" begin

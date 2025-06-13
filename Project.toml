@@ -1,6 +1,6 @@
 name = "ExplicitImports"
 uuid = "7d51a73a-1435-4ff3-83d9-f097790105c7"
-version = "1.11.2"
+version = "1.11.3"
 authors = ["Eric P. Hanson"]
 
 [deps]
