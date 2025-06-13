@@ -75,6 +75,7 @@ include("test_qualified_access.jl")
 include("test_explicit_imports.jl")
 include("main.jl")
 include("Test_Mod_Underscores.jl")
+include("module_alias.jl")
 
 @testset "ExplicitImports" begin
     # For deprecations, we are using `maxlog`, which
@@ -102,6 +103,13 @@ include("Test_Mod_Underscores.jl")
                                   (; name=:DataFrame, source=DataFrames),
                                   (; name=:groupby, source=DataFrames.DataAPI)]
         end
+    end
+
+    @testset "module aliases (#106)" begin
+        # https://github.com/ericphanson/ExplicitImports.jl/issues/106
+        ret = Dict(improper_explicit_imports(ModAlias, "module_alias.jl"))
+        @test isempty(ret[ModAlias])
+        @test isempty(ret[ModAlias.M1])
     end
 
     @testset "function arg bug" begin
@@ -501,7 +509,8 @@ include("Test_Mod_Underscores.jl")
         df = DataFrame(get_names_used("test_mods.jl").per_usage_info)
         subset!(df, :name => ByRow(==(:QR)), :module_path => ByRow(==([:TestMod5])))
         # two uses of QR: one is as a type param, the other a usage of that type param in the same struct definition
-        @test df.analysis_code == [ExplicitImports.InternalStruct, ExplicitImports.IgnoredNonFirst]
+        @test df.analysis_code ==
+              [ExplicitImports.InternalStruct, ExplicitImports.IgnoredNonFirst]
         @test df.struct_field_or_type_param == [true, false]
 
         # Tests #34 and #36
@@ -1056,7 +1065,7 @@ include("Test_Mod_Underscores.jl")
 
     # TODO reenable this
     # @testset "Aqua" begin
-        # Aqua.test_all(ExplicitImports; ambiguities=false)
+    # Aqua.test_all(ExplicitImports; ambiguities=false)
     # end
 
     @testset "`inspect_session`" begin

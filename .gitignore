@@ -2,5 +2,6 @@
 *.jl.cov
 *.jl.mem
 Manifest.toml
+Manifest-v*.toml
 /docs/build/
 dev
