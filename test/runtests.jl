@@ -1062,12 +1062,6 @@ include("module_alias.jl")
                                                                        allow_unanalyzable=(DynMod,))
         end
     end
-
-    # TODO reenable this
-    # @testset "Aqua" begin
-    # Aqua.test_all(ExplicitImports; ambiguities=false)
-    # end
-
     @testset "`inspect_session`" begin
         # We just want to make sure we are robust enough that this doesn't error
         big_str = with_logger(Logging.NullLogger()) do
@@ -1157,5 +1151,10 @@ include("module_alias.jl")
             @test contains(str,
                            r"accessed as `Main.Test_Mod_Underscores.foo` inside `Main.Test_Mod_Underscores` at `Test_Mod_Underscores.jl:10:40`")
         end
+    end
+
+
+    @testset "Aqua" begin
+        Aqua.test_all(ExplicitImports; ambiguities=false)
     end
 end
