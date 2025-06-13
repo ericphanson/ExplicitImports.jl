@@ -23,6 +23,11 @@ Base.@kwdef struct PerUsageInfo
     analysis_code::AnalysisCode
 end
 
+function Base.show(io::IO, r::PerUsageInfo)
+    return print(io,
+                 "PerUsageInfo (`$(r.name)` @ $(r.location), `qualified_by`=$(r.qualified_by))")
+end
+
 function Base.NamedTuple(r::PerUsageInfo)
     names = fieldnames(typeof(r))
     return NamedTuple{names}(map(x -> getfield(r, x), names))
@@ -53,12 +58,18 @@ end
 
 # returns `nothing` for no qualifying module, otherwise a symbol
 function qualifying_module(leaf)
+    @debug "[qualifying_module] leaf: $(js_node(leaf)) start"
+    # introspect leaf and its tree of parents
+    @debug "[qualifying_module] leaf: $(js_node(leaf)) parents: $(parent_kinds(leaf))"
+
     # is this name being used in a qualified context, like `X.y`?
-    parents_match(leaf, (K"quote", K".")) || return nothing
+    parents_match(leaf, (K".",)) || return nothing
+    @debug "[qualifying_module] leaf: $(js_node(leaf)) passed dot"
     # Are we on the right-hand side?
-    child_index(parent(leaf)) == 2 || return nothing
+    child_index(leaf) == 2 || return nothing
+    @debug "[qualifying_module] leaf: $(js_node(leaf)) passed right-hand side"
     # Ok, now try to retrieve the child on the left-side
-    node = first(AbstractTrees.children(get_parent(leaf, 2)))
+    node = first(AbstractTrees.children(parent(leaf)))
     path = Symbol[]
     retrieve_module_path!(path, node)
     return path
@@ -139,8 +150,8 @@ function is_anonymous_do_function_definition_arg(leaf)
     if !has_parent(leaf, 2)
         return false
     elseif parents_match(leaf, (K"tuple", K"do"))
-        # second argument of `do`-block
-        return child_index(parent(leaf)) == 2
+        # first argument of `do`-block (args then function body since JuliaSyntax 1.0)
+        return child_index(parent(leaf)) == 1
     elseif kind(parent(leaf)) in (K"tuple", K"parameters")
         # Ok, let's just step up one level and see again
         return is_anonymous_do_function_definition_arg(parent(leaf))
@@ -231,10 +242,6 @@ function call_is_func_def(node)
     # note: macros only support full-form function definitions
     # (not inline)
     kind(p) in (K"function", K"macro") && return true
-    if kind(p) == K"="
-        # call should be the first arg in an inline function def
-        return child_index(node) == 1
-    end
     return false
 end
 
@@ -268,11 +275,18 @@ end
 # https://github.com/JuliaLang/JuliaSyntax.jl/issues/432
 function in_for_argument_position(node)
     # We must be on the LHS of a `for` `equal`.
-    if !has_parent(node, 2)
+    if !has_parent(node, 3)
         return false
-    elseif parents_match(node, (K"=", K"for"))
-        return child_index(node) == 1
-    elseif parents_match(node, (K"=", K"cartesian_iterator", K"for"))
+    elseif parents_match(node, (K"in", K"iteration", K"for"))
+        @debug """
+        [in_for_argument_position] node: $(js_node(node))
+        parents: $(parent_kinds(node))
+        child_index=$(child_index(node))
+        parent_child_index=$(child_index(get_parent(node, 1)))
+        parent_child_index2=$(child_index(get_parent(node, 2)))
+        """
+
+        # child_index(node) == 1 means we are the first argument of the `in`, like `yi in y`
         return child_index(node) == 1
     elseif kind(parent(node)) in (K"tuple", K"parameters")
         return in_for_argument_position(get_parent(node))
@@ -293,13 +307,11 @@ end
 
 function in_generator_arg_position(node)
     # We must be on the LHS of a `=` inside a generator
-    # (possibly inside a filter, possibly inside a `cartesian_iterator`)
-    if !has_parent(node, 2)
+    # (possibly inside a filter, possibly inside a `iteration`)
+    if !has_parent(node, 3)
         return false
-    elseif parents_match(node, (K"=", K"generator")) ||
-           parents_match(node, (K"=", K"cartesian_iterator", K"generator")) ||
-           parents_match(node, (K"=", K"filter")) ||
-           parents_match(node, (K"=", K"cartesian_iterator", K"filter"))
+    elseif parents_match(node, (K"in", K"iteration", K"generator")) ||
+           parents_match(node, (K"in", K"iteration", K"filter"))
         return child_index(node) == 1
     elseif kind(parent(node)) in (K"tuple", K"parameters")
         return in_generator_arg_position(get_parent(node))
@@ -356,16 +368,13 @@ function analyze_name(leaf; debug=false)
         # update our state
         val = get_val(node)
         k = kind(node)
-        args = nodevalue(node).node.raw.args
+        args = nodevalue(node).node.raw.children
 
         debug && println(val, ": ", k)
         # Constructs that start a new local scope. Note `let` & `macro` *arguments* are not explicitly supported/tested yet,
         # but we can at least keep track of scope properly.
         if k in
-           (K"let", K"for", K"function", K"struct", K"generator", K"while", K"macro") ||
-           # Or do-block when we are considering a path that did not go through the first-arg
-           # (which is the function name, and NOT part of the local scope)
-           (k == K"do" && child_index(prev_node) > 1) ||
+           (K"let", K"for", K"function", K"struct", K"generator", K"while", K"macro", K"do") ||
            # any child of `try` gets it's own individual scope (I think)
            (parents_match(node, (K"try",)))
             push!(scope_path, nodevalue(node).node)
@@ -506,7 +515,7 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
         end
         # Ok, now pop off the first scope and check.
         scope_path = scope_path[2:end]
-        ret = get(seen, (; name, scope_path), nothing)
+        ret = get(seen, (; name, scope_path=SyntaxNodeList(scope_path)), nothing)
         if ret === nothing
             # Not introduced here yet, trying recursing further
             continue
@@ -519,6 +528,25 @@ function is_name_internal_in_higher_local_scope(name, scope_path, seen)
     return false
 end
 
+# We implement a workaround for https://github.com/JuliaLang/JuliaSyntax.jl/issues/558
+# Hashing and equality for SyntaxNodes were changed from object identity to a recursive comparison
+# in JuliaSyntax 1.0. This is very slow and also not quite the semantics we want anyway.
+# Here, we wrap our nodes in a custom type that only compares object identity.
+struct SyntaxNodeList
+    nodes::Vector{JuliaSyntax.SyntaxNode}
+end
+
+function Base.:(==)(a::SyntaxNodeList, b::SyntaxNodeList)
+    return map(objectid, a.nodes) == map(objectid, b.nodes)
+end
+function Base.isequal(a::SyntaxNodeList, b::SyntaxNodeList)
+    return isequal(map(objectid, a.nodes), map(objectid, b.nodes))
+end
+
+function Base.hash(a::SyntaxNodeList, h::UInt)
+    return hash(map(objectid, a.nodes), h)
+end
+
 function analyze_per_usage_info(per_usage_info)
     # For each scope, we want to understand if there are any global usages of the name in that scope
     # First, throw away all qualified usages, they are irrelevant
@@ -527,9 +555,9 @@ function analyze_per_usage_info(per_usage_info)
     # Otherwise, we are in local scope:
     #   1. Next, if the name is a function arg, then this is not a global name (essentially first usage is assignment)
     #   2. Otherwise, if first usage is assignment, then it is local, otherwise it is global
-    seen = Dict{@NamedTuple{name::Symbol,scope_path::Vector{JuliaSyntax.SyntaxNode}},Bool}()
+    seen = Dict{@NamedTuple{name::Symbol,scope_path::SyntaxNodeList},Bool}()
     return map(per_usage_info) do nt
-        @compat if (; nt.name, nt.scope_path) in keys(seen)
+        @compat if (; nt.name, scope_path=SyntaxNodeList(nt.scope_path)) in keys(seen)
             return PerUsageInfo(; nt..., first_usage_in_scope=false,
                                 external_global_name=missing,
                                 analysis_code=IgnoredNonFirst)
@@ -561,7 +589,8 @@ function analyze_per_usage_info(per_usage_info)
              (nt.is_assignment, InternalAssignment))
             if is_local
                 external_global_name = false
-                push!(seen, (; nt.name, nt.scope_path) => external_global_name)
+                push!(seen,
+                      (; nt.name, scope_path=SyntaxNodeList(nt.scope_path)) => external_global_name)
                 return PerUsageInfo(; nt..., first_usage_in_scope=true,
                                     external_global_name,
                                     analysis_code=reason)
@@ -572,13 +601,15 @@ function analyze_per_usage_info(per_usage_info)
                                                   nt.scope_path,
                                                   seen)
             external_global_name = false
-            push!(seen, (; nt.name, nt.scope_path) => external_global_name)
+            push!(seen,
+                  (; nt.name, scope_path=SyntaxNodeList(nt.scope_path)) => external_global_name)
             return PerUsageInfo(; nt..., first_usage_in_scope=true, external_global_name,
                                 analysis_code=InternalHigherScope)
         end
 
         external_global_name = true
-        push!(seen, (; nt.name, nt.scope_path) => external_global_name)
+        push!(seen,
+              (; nt.name, scope_path=SyntaxNodeList(nt.scope_path)) => external_global_name)
         return PerUsageInfo(; nt..., first_usage_in_scope=true, external_global_name,
                             analysis_code=External)
     end
