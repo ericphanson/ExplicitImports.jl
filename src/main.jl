@@ -21,11 +21,11 @@ function get_package_name_from_project_toml(path)
     elseif isfile(joinpath(path, "Project.toml"))
         project_path = joinpath(path, "Project.toml")
     else
-        return err("No `Project.toml` file found at $path or $(joinpath(path, "Project.toml"))")
+        return err("No `Project.toml` file found at $path or $(joinpath(path, "Project.toml")).")
     end
     project = parsefile(project_path)
     if !haskey(project, "name")
-        return err("`Project.toml` does not have `name` entry; does not correspond to valid Julia package")
+        return err("`Project.toml` does not have `name` entry; does not correspond to valid Julia package.")
     end
     package = Symbol(project["name"])
     return package, project_path
@@ -177,7 +177,7 @@ function main(args)
         elseif x == "--checklist"
             should_run_checks = true # Automatically imply --check
             if length(args) == 0
-                return err("Argument `--checklist` requires a value")
+                return err("Argument `--checklist` requires a value.")
             end
             values = split(popfirst!(args), ",")
             # If any of passed checks is not an exclude, then starts with an empty list
@@ -187,7 +187,7 @@ function main(args)
             for value in values
                 unique!(selected_checks)
                 if !(value in valid_check_values)
-                    return err("Invalid check passed to --checklist: $value")
+                    return err("Invalid check passed to --checklist: $value.")
                 end
                 if value == "all"
                     selected_checks = copy(CHECKS)
@@ -196,7 +196,7 @@ function main(args)
                 elseif startswith(EXCLUDE_PREFIX)(value)
                     check = value[(1 + length(EXCLUDE_PREFIX)):end]
                     if !(check in CHECKS)
-                        return err("Check $check is not part of the valid checks, so it can't be excluded")
+                        return err("Check $check is not part of the valid checks, so it can't be excluded.")
                     end
                     i = findfirst(selected_checks .== check)
                     if !isnothing(i)
@@ -211,7 +211,7 @@ function main(args)
                 path = abspath(x)
             else
                 # Unknown argument
-                return err("Argument `$x` is not a supported flag, directory, or file. See the output of `--help` for usage details")
+                return err("Argument `$x` is not a supported flag, directory, or file.")
             end
         end
     end
@@ -239,7 +239,7 @@ function main(args)
     end
     if should_run_checks
         if length(selected_checks) == 0
-            return err("The passed combination of checks $values made the selection empty")
+            return err("The passed combination of checks $values made the selection empty.")
         end
         return run_checks(package, selected_checks)
     end
