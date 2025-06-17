@@ -1,7 +1,7 @@
 name = "ExplicitImports"
 uuid = "7d51a73a-1435-4ff3-83d9-f097790105c7"
-version = "1.11.3"
 authors = ["Eric P. Hanson"]
+version = "1.11.3"
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
@@ -17,7 +17,7 @@ AbstractTrees = "0.4.5"
 Aqua = "0.8.4"
 Compat = "4.15"
 DataFrames = "1.6"
-JuliaSyntax = "0.4.8"
+JuliaSyntax = "0.4.8, 1"
 LinearAlgebra = "<0.0.1, 1"
 Logging = "<0.0.1, 1"
 Markdown = "<0.0.1, 1"
