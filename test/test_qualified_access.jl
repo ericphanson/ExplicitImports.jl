@@ -1,5 +1,5 @@
 module TestQualifiedAccess
-# https://github.com/ericphanson/ExplicitImports.jl/issues/48
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/48
 module Bar
 struct ABC end
 

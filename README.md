@@ -1,8 +1,8 @@
 # ExplicitImports
 
-[![stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://ericphanson.github.io/ExplicitImports.jl/stable/)
-[![Build Status](https://github.com/ericphanson/ExplicitImports.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ericphanson/ExplicitImports.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/ericphanson/ExplicitImports.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/ericphanson/ExplicitImports.jl)
+[![stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://JuliaTesting.github.io/ExplicitImports.jl/stable/)
+[![Build Status](https://github.com/JuliaTesting/ExplicitImports.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/JuliaTesting/ExplicitImports.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/JuliaTesting/ExplicitImports.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/JuliaTesting/ExplicitImports.jl)
 
 ## Quickstart
 
@@ -223,7 +223,7 @@ Another way to use ExplicitImports is with [pre-commit](https://pre-commit.com/)
 Simply add the following to `.pre-commit-config.yaml`:
 
 ```yaml
-- repo: https://github.com/ericphanson/ExplicitImports.jl
+- repo: https://github.com/JuliaTesting/ExplicitImports.jl
   rev: v1.10.0
   hooks:
     - id: explicit-imports
@@ -254,7 +254,7 @@ Known issues:
 - multi-argument `include` calls are ignored
 - In Julia, `include` adds the included code at top-level in the module in which it is called. Here, when `include` is called within a local scope, all of the code being included is treated as being within that local scope.
 - quoted code (e.g. when building Julia expressions programmatically) may be analyzed incorrectly
-- default values in function definitions can be incorrectly treated as local variables ([#62](https://github.com/ericphanson/ExplicitImports.jl/issues/62))
+- default values in function definitions can be incorrectly treated as local variables ([#62](https://github.com/JuliaTesting/ExplicitImports.jl/issues/62))
 
 The consequence of these issues is that ExplicitImports may misunderstand whether or not a particular name refers to a local variable or a global one, and thus whether or not some particular implicitly-available name (exported by some module) is in fact being used. This could cause it to suggest an unnecessary explicit import, fail to suggest an explicit import, or to falsely claim that an explicit import is stale.
 

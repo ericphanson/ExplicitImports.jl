@@ -1,4 +1,4 @@
-# https://github.com/ericphanson/ExplicitImports.jl/issues/1
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/1
 module ThreadPinning
 
 using LinearAlgebra
@@ -21,7 +21,7 @@ end
 
 end
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/20
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/20
 module Foo20
 
 using Markdown
@@ -44,14 +44,14 @@ function testing_docstr end
 
 end
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/24
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/24
 module Mod24
 using ..Exporter2
 
 exported_a
 end
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/29
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/29
 module Mod29
 using UUIDs
 
@@ -66,7 +66,7 @@ function tryparse()
     return 1
 end
 end
-# https://github.com/ericphanson/ExplicitImports.jl/issues/88
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/88
 module Mod88
 
 using ..ModWithTryparse

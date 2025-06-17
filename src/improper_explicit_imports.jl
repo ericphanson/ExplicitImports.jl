@@ -29,7 +29,7 @@ function analyze_explicitly_imported_names(mod::Module, file=pathof(mod);
         internal_import = Base.moduleroot(mod) == Base.moduleroot(output.importing_from)
         stale = (; row.name, row.module_path) in stale_imports
         # Cannot be stale if public or exported in the module `mod`
-        # https://github.com/ericphanson/ExplicitImports.jl/issues/69
+        # https://github.com/JuliaTesting/ExplicitImports.jl/issues/69
         if public_or_exported(mod, row.name)
             stale = false
         end
