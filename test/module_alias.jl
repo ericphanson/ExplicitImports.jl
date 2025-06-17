@@ -1,4 +1,4 @@
-# https://github.com/ericphanson/ExplicitImports.jl/issues/106
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/106
 module ModAlias
 
 module M1

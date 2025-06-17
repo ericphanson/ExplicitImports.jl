@@ -39,12 +39,12 @@ struct Unrelated2{Y<:AbstractArray}
     x::Y
 end
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/34
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/34
 struct Bar{QR}
     x::QR
 end
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/36
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/36
 struct Foo
     qr::Int
 end
@@ -105,7 +105,7 @@ end # TestMod7
 module TestMod8
 using LinearAlgebra
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/33
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/33
 foo(::QR) = ()
 
 end # TestMod8
@@ -217,7 +217,7 @@ end
 
 end # TestMod12
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/62
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/62
 module TestMod13
 
 using LinearAlgebra: norm
@@ -235,7 +235,7 @@ if VERSION >= v"1.7-"
     end # TestMod14
 end
 
-# https://github.com/ericphanson/ExplicitImports.jl/issues/69
+# https://github.com/JuliaTesting/ExplicitImports.jl/issues/69
 module TestMod15
 using Reexport
 

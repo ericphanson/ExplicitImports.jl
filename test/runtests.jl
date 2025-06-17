@@ -106,14 +106,14 @@ include("module_alias.jl")
     end
 
     @testset "module aliases (#106)" begin
-        # https://github.com/ericphanson/ExplicitImports.jl/issues/106
+        # https://github.com/JuliaTesting/ExplicitImports.jl/issues/106
         ret = Dict(improper_explicit_imports(ModAlias, "module_alias.jl"))
         @test isempty(ret[ModAlias])
         @test isempty(ret[ModAlias.M1])
     end
 
     @testset "function arg bug" begin
-        # https://github.com/ericphanson/ExplicitImports.jl/issues/62
+        # https://github.com/JuliaTesting/ExplicitImports.jl/issues/62
         df = DataFrame(get_names_used("test_mods.jl").per_usage_info)
         subset!(df, :name => ByRow(==(:norm)), :module_path => ByRow(==([:TestMod13])))
 
@@ -125,7 +125,7 @@ include("module_alias.jl")
         @test owner_mod_for_printing(Core, :println, Core.println) == Core
     end
 
-    # https://github.com/ericphanson/ExplicitImports.jl/issues/69
+    # https://github.com/JuliaTesting/ExplicitImports.jl/issues/69
     @testset "Reexport support" begin
         @test check_no_stale_explicit_imports(TestMod15, "test_mods.jl") === nothing
         @test isempty(improper_explicit_imports_nonrecursive(TestMod15, "test_mods.jl"))
@@ -133,7 +133,7 @@ include("module_alias.jl")
     end
 
     if VERSION >= v"1.7-"
-        # https://github.com/ericphanson/ExplicitImports.jl/issues/70
+        # https://github.com/JuliaTesting/ExplicitImports.jl/issues/70
         @testset "Compat skipping" begin
             @test check_all_explicit_imports_via_owners(TestMod14, "test_mods.jl") ===
                   nothing
@@ -540,7 +540,7 @@ include("module_alias.jl")
     end
 
     @testset "types without values in function signatures" begin
-        # https://github.com/ericphanson/ExplicitImports.jl/issues/33
+        # https://github.com/JuliaTesting/ExplicitImports.jl/issues/33
         @test using_statement.(explicit_imports_nonrecursive(TestMod8, "test_mods.jl")) ==
               ["using LinearAlgebra: LinearAlgebra", "using LinearAlgebra: QR"]
     end
