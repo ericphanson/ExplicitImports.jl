@@ -51,7 +51,7 @@ AbstractTrees.children(::SkippedFile) = ()
 function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
     node = wrapper.node
     if JuliaSyntax.kind(node) == K"call"
-        children = JuliaSyntax.children(node)
+        children = js_children(node)
         if length(children) == 2
             f, arg = children::Vector{JuliaSyntax.SyntaxNode} # make JET happy
             if f.val === :include
@@ -60,7 +60,7 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
                     return [SkippedFile(location)]
                 end
                 if JuliaSyntax.kind(arg) == K"string"
-                    children = JuliaSyntax.children(arg)
+                    children = js_children(arg)
                     # if we have interpolation, there may be >1 child
                     length(children) == 1 || @goto dynamic
                     c = only(children)
@@ -92,10 +92,14 @@ function AbstractTrees.children(wrapper::SyntaxNodeWrapper)
         end
     end
     return map(n -> SyntaxNodeWrapper(n, wrapper.file, wrapper.bad_locations),
-               JuliaSyntax.children(node))
+               js_children(node))
 end
 
-js_children(n::Union{TreeCursor,SyntaxNodeWrapper}) = JuliaSyntax.children(js_node(n))
+js_children(n::Union{TreeCursor,SyntaxNodeWrapper}) = js_children(js_node(n))
+
+# https://github.com/JuliaLang/JuliaSyntax.jl/issues/557
+js_children(n::Union{JuliaSyntax.SyntaxNode}) = something(JuliaSyntax.children(n), ())
+
 js_node(n::SyntaxNodeWrapper) = n.node
 js_node(n::TreeCursor) = js_node(nodevalue(n))
 
@@ -133,6 +137,17 @@ function parents_match(n::TreeCursor, kinds::Tuple)
     isnothing(p) && return false
     kind_match(kind(p), k) || return false
     return parents_match(p, Base.tail(kinds))
+end
+
+
+function parent_kinds(n::TreeCursor)
+    kinds = []
+    while true
+        n = parent(n)
+        n === nothing && return kinds
+        push!(kinds, kind(n))
+    end
+    return kinds
 end
 
 function get_parent(n, i=1)
