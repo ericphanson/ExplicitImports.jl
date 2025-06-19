@@ -99,16 +99,23 @@ function activate_and_load(package, project_path)
     end
 end
 
-function run_checks(package, selected_checks)
+function run_checks(package, selected_checks; fail_fast::Bool = false)
+    errs = []
     for check in selected_checks
         @info "Checking $check"
         try
             @eval Main $ExplicitImports.$(Symbol("check_" * check))($package)
         catch e
-            printstyled(stderr, "ERROR: "; bold=true, color=:red)
-            Base.showerror(stderr, e)
-            return 1
+            push!(errs, e)
+            fail_fast && break
         end
+    end
+    if !isempty(errs)
+        for err in errs
+            printstyled(stderr, "ERROR: "; bold=true, color=:red)
+            Base.showerror(stderr, err)
+        end
+        return 1
     end
     return 0
 end
@@ -132,6 +139,8 @@ function print_help()
     println(io, "           Path to the root directory of the package (default: pwd)")
     println(io, "       --help")
     println(io, "           Show this message")
+    println(io, "       --fail-fast")
+    println(io, "           Exit on first --check error and skip remaining ones")
     println(io, "       --check")
     println(io,
             "           Run checks instead of printing. If --checklist is not specified, all checks are run")
@@ -161,6 +170,7 @@ function main(args)
     selected_checks = copy(CHECKS)
     should_run_checks = false
     should_print = false
+    fail_fast = false
     path = "."
 
     # Argument parsing
@@ -172,6 +182,8 @@ function main(args)
             return 0
         elseif x == "--check"
             should_run_checks = true
+        elseif x == "--fail-fast"
+            fail_fast = true
         elseif x == "--print"
             should_print = true
         elseif x == "--checklist"
@@ -241,7 +253,7 @@ function main(args)
         if length(selected_checks) == 0
             return err("The passed combination of checks $values made the selection empty.")
         end
-        return run_checks(package, selected_checks)
+        return run_checks(package, selected_checks; fail_fast)
     end
     return 0
 end
